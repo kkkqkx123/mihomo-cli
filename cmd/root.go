@@ -94,11 +94,13 @@ func init() {
 	rootCmd.AddCommand(NewModeCmd())
 	rootCmd.AddCommand(NewProxyCmd())
 	rootCmd.AddCommand(NewRuleCmd())
+	rootCmd.AddCommand(NewCacheCmd())
 	rootCmd.AddCommand(NewServiceCmd())
 	rootCmd.AddCommand(NewSysproxyCmd())
 	rootCmd.AddCommand(NewSubCmd())
 	rootCmd.AddCommand(NewVersionCmd())
 	rootCmd.AddCommand(NewGeoIPCmd())
+	rootCmd.AddCommand(NewConnCmd())
 
 	// 全局标志
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "配置文件路径 (默认: ~/.config/.mihomo-cli/config.yaml)")

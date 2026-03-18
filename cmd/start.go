@@ -15,7 +15,6 @@ import (
 
 var stopAll bool
 var stopConfig string
-var configFile string // 配置文件路径
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -59,9 +58,6 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(statusCmd)
 
-	// 全局配置路径参数
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "C", "", "配置文件路径 (优先级: 指定路径 > 当前目录 > 用户配置目录)")
-
 	// stop 命令的标志
 	stopCmd.Flags().BoolVarP(&stopAll, "all", "a", false, "停止所有 Mihomo 进程")
 	stopCmd.Flags().StringVarP(&stopConfig, "config", "c", "", "指定配置文件路径")
@@ -69,7 +65,7 @@ func init() {
 
 func runStart(cmd *cobra.Command, args []string) error {
 	// 查找配置文件路径
-	configPath := config.FindTomlConfigPath(configFile)
+	configPath := config.FindTomlConfigPath(cfgFile)
 
 	// 加载配置
 	cfg, err := config.LoadTomlConfig(configPath)
@@ -135,7 +131,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 func runStop(cmd *cobra.Command, args []string) error {
 	// 查找配置文件路径
-	configPath := config.FindTomlConfigPath(configFile)
+	configPath := config.FindTomlConfigPath(cfgFile)
 
 	// 加载配置
 	cfg, err := config.LoadTomlConfig(configPath)
@@ -161,7 +157,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	// 查找配置文件路径
-	configPath := config.FindTomlConfigPath(configFile)
+	configPath := config.FindTomlConfigPath(cfgFile)
 
 	// 加载配置
 	cfg, err := config.LoadTomlConfig(configPath)
