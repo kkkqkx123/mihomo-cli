@@ -1,6 +1,7 @@
 package mihomo
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,6 +24,8 @@ type ProcessManager struct {
 	isRunning bool
 	cmd       *exec.Cmd
 	pidFile   string // PID 文件路径
+	stderr    *bytes.Buffer // 捕获 stderr 输出
+	stdout    *bytes.Buffer // 捕获 stdout 输出
 }
 
 // NewProcessManager 创建进程管理器
@@ -121,6 +124,12 @@ func (pm *ProcessManager) Start() error {
 	// 构建命令（不使用 CommandContext，避免进程被取消）
 	pm.cmd = exec.Command(pm.config.Mihomo.Executable, "-f", configFile)
 
+	// 初始化输出缓冲区
+	pm.stdout = &bytes.Buffer{}
+	pm.stderr = &bytes.Buffer{}
+	pm.cmd.Stdout = pm.stdout
+	pm.cmd.Stderr = pm.stderr
+
 	// 设置进程属性（Windows 下隐藏窗口）
 	pm.cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true,
@@ -146,11 +155,22 @@ func (pm *ProcessManager) Start() error {
 
 	// 等待进程退出（后台模式）
 	go func() {
-		pm.cmd.Wait()
+		err := pm.cmd.Wait()
 		pm.mu.Lock()
 		pm.isRunning = false
 		// 进程退出时删除 PID 文件
 		os.Remove(pm.pidFile)
+		
+		// 如果进程异常退出，输出错误信息
+		if err != nil {
+			fmt.Printf("\n[Mihomo 进程异常退出] 错误: %v\n", err)
+			if pm.stderr.Len() > 0 {
+				fmt.Printf("错误输出:\n%s\n", pm.stderr.String())
+			}
+			if pm.stdout.Len() > 0 {
+				fmt.Printf("标准输出:\n%s\n", pm.stdout.String())
+			}
+		}
 		pm.mu.Unlock()
 	}()
 
@@ -221,6 +241,26 @@ func (pm *ProcessManager) GetSecret() string {
 // GetAPIAddress 获取 API 地址
 func (pm *ProcessManager) GetAPIAddress() string {
 	return pm.config.Mihomo.API.ExternalController
+}
+
+// GetErrorOutput 获取进程的错误输出
+func (pm *ProcessManager) GetErrorOutput() string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	if pm.stderr != nil {
+		return pm.stderr.String()
+	}
+	return ""
+}
+
+// GetStandardOutput 获取进程的标准输出
+func (pm *ProcessManager) GetStandardOutput() string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	if pm.stdout != nil {
+		return pm.stdout.String()
+	}
+	return ""
 }
 
 // SavePID 保存进程 PID 到文件

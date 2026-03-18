@@ -9,22 +9,15 @@ import (
 
 // Color 颜色输出管理器
 type Color struct {
-	writer  io.Writer
 	success *color.Color
 	error   *color.Color
 	warning *color.Color
 	info    *color.Color
 }
 
-// NewColor 创建新的颜色管理器（使用默认 stdout）
+// NewColor 创建新的颜色管理器（不绑定 writer）
 func NewColor() *Color {
-	return NewColorWithWriter(GetGlobalStdout())
-}
-
-// NewColorWithWriter 使用指定 Writer 创建颜色管理器
-func NewColorWithWriter(w io.Writer) *Color {
 	return &Color{
-		writer:  w,
 		success: color.New(color.FgGreen),
 		error:   color.New(color.FgRed),
 		warning: color.New(color.FgYellow),
@@ -32,30 +25,24 @@ func NewColorWithWriter(w io.Writer) *Color {
 	}
 }
 
-// SetWriter 设置输出 Writer
-func (c *Color) SetWriter(w io.Writer) *Color {
-	c.writer = w
-	return c
-}
-
 // Success 打印成功信息
 func (c *Color) Success(format string, a ...interface{}) {
-	fmt.Fprintf(c.writer, "%s\n", c.success.Sprintf("✓ "+format, a...))
+	fmt.Fprintf(GetGlobalStdout(), "%s\n", c.success.Sprintf("✓ "+format, a...))
 }
 
 // Error 打印错误信息
 func (c *Color) Error(format string, a ...interface{}) {
-	fmt.Fprintf(c.writer, "%s\n", c.error.Sprintf("✗ "+format, a...))
+	fmt.Fprintf(GetGlobalStderr(), "%s\n", c.error.Sprintf("✗ "+format, a...))
 }
 
 // Warning 打印警告信息
 func (c *Color) Warning(format string, a ...interface{}) {
-	fmt.Fprintf(c.writer, "%s\n", c.warning.Sprintf("⚠ "+format, a...))
+	fmt.Fprintf(GetGlobalStdout(), "%s\n", c.warning.Sprintf("⚠ "+format, a...))
 }
 
 // Info 打印信息
 func (c *Color) Info(format string, a ...interface{}) {
-	fmt.Fprintf(c.writer, "%s\n", c.info.Sprintf("ℹ "+format, a...))
+	fmt.Fprintf(GetGlobalStdout(), "%s\n", c.info.Sprintf("ℹ "+format, a...))
 }
 
 // SuccessString 返回成功格式的字符串
@@ -78,47 +65,47 @@ func (c *Color) InfoString(format string, a ...interface{}) string {
 	return c.info.Sprintf("ℹ "+format, a...)
 }
 
-// 全局颜色管理器实例
-var defaultColor = NewColor()
+// 全局颜色管理器实例（只读，存储颜色配置）
+var globalColor = NewColor()
 
 // Success 打印成功信息（使用默认 stdout）
 func Success(format string, a ...interface{}) {
-	defaultColor.Success(format, a...)
+	fmt.Fprintf(GetGlobalStdout(), "%s\n", globalColor.success.Sprintf("✓ "+format, a...))
 }
 
 // Error 打印错误信息到 stderr（使用默认 stderr）
 func Error(format string, a ...interface{}) {
-	fmt.Fprintf(GetGlobalStderr(), "%s\n", defaultColor.error.Sprintf("✗ "+format, a...))
+	fmt.Fprintf(GetGlobalStderr(), "%s\n", globalColor.error.Sprintf("✗ "+format, a...))
 }
 
 // Warning 打印警告信息（使用默认 stdout）
 func Warning(format string, a ...interface{}) {
-	defaultColor.Warning(format, a...)
+	fmt.Fprintf(GetGlobalStdout(), "%s\n", globalColor.warning.Sprintf("⚠ "+format, a...))
 }
 
 // Info 打印信息（使用默认 stdout）
 func Info(format string, a ...interface{}) {
-	defaultColor.Info(format, a...)
+	fmt.Fprintf(GetGlobalStdout(), "%s\n", globalColor.info.Sprintf("ℹ "+format, a...))
 }
 
 // SuccessString 返回成功格式的字符串
 func SuccessString(format string, a ...interface{}) string {
-	return defaultColor.SuccessString(format, a...)
+	return globalColor.SuccessString(format, a...)
 }
 
 // ErrorString 返回错误格式的字符串
 func ErrorString(format string, a ...interface{}) string {
-	return defaultColor.ErrorString(format, a...)
+	return globalColor.ErrorString(format, a...)
 }
 
 // WarningString 返回警告格式的字符串
 func WarningString(format string, a ...interface{}) string {
-	return defaultColor.WarningString(format, a...)
+	return globalColor.WarningString(format, a...)
 }
 
 // InfoString 返回信息格式的字符串
 func InfoString(format string, a ...interface{}) string {
-	return defaultColor.InfoString(format, a...)
+	return globalColor.InfoString(format, a...)
 }
 
 // Green 打印绿色文本（使用默认 stdout）
@@ -178,16 +165,19 @@ func PrintColored(msgType, message string) {
 
 // PrintColoredWithWriter 使用指定 Writer 根据类型打印彩色文本
 func PrintColoredWithWriter(w io.Writer, msgType, message string) {
-	c := NewColorWithWriter(w)
 	switch msgType {
 	case "success":
-		c.Success(message)
+		c := color.New(color.FgGreen)
+		c.Fprint(w, c.Sprintf("✓ "+message+"\n"))
 	case "error":
-		c.Error(message)
+		c := color.New(color.FgRed)
+		c.Fprint(w, c.Sprintf("✗ "+message+"\n"))
 	case "warning":
-		c.Warning(message)
+		c := color.New(color.FgYellow)
+		c.Fprint(w, c.Sprintf("⚠ "+message+"\n"))
 	case "info":
-		c.Info(message)
+		c := color.New(color.FgCyan)
+		c.Fprint(w, c.Sprintf("ℹ "+message+"\n"))
 	default:
 		fmt.Fprintf(w, "%s\n", message)
 	}
@@ -195,24 +185,24 @@ func PrintColoredWithWriter(w io.Writer, msgType, message string) {
 
 // FSuccess 使用指定 Writer 打印成功信息
 func FSuccess(w io.Writer, format string, a ...interface{}) {
-	c := NewColorWithWriter(w)
-	c.Success(format, a...)
+	c := color.New(color.FgGreen)
+	c.Fprint(w, c.Sprintf("✓ "+format+"\n", a...))
 }
 
 // FError 使用指定 Writer 打印错误信息
 func FError(w io.Writer, format string, a ...interface{}) {
-	c := NewColorWithWriter(w)
-	c.Error(format, a...)
+	c := color.New(color.FgRed)
+	c.Fprint(w, c.Sprintf("✗ "+format+"\n", a...))
 }
 
 // FWarning 使用指定 Writer 打印警告信息
 func FWarning(w io.Writer, format string, a ...interface{}) {
-	c := NewColorWithWriter(w)
-	c.Warning(format, a...)
+	c := color.New(color.FgYellow)
+	c.Fprint(w, c.Sprintf("⚠ "+format+"\n", a...))
 }
 
 // FInfo 使用指定 Writer 打印信息
 func FInfo(w io.Writer, format string, a ...interface{}) {
-	c := NewColorWithWriter(w)
-	c.Info(format, a...)
+	c := color.New(color.FgCyan)
+	c.Fprint(w, c.Sprintf("ℹ "+format+"\n", a...))
 }

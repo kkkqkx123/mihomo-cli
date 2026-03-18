@@ -90,7 +90,19 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		case <-ticker.C:
 			// 检查进程是否还在运行
 			if !pm.IsRunning() {
-				return nil, pkgerrors.ErrService("mihomo process exited unexpectedly", nil)
+				// 获取错误输出
+				stderr := pm.GetErrorOutput()
+				stdout := pm.GetStandardOutput()
+				
+				errMsg := "mihomo process exited unexpectedly"
+				if stderr != "" {
+					errMsg += fmt.Sprintf("\n错误输出:\n%s", stderr)
+				}
+				if stdout != "" {
+					errMsg += fmt.Sprintf("\n标准输出:\n%s", stdout)
+				}
+				
+				return nil, pkgerrors.ErrService(errMsg, nil)
 			}
 
 			// 尝试连接 API 进行健康检查

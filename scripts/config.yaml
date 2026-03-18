@@ -5,14 +5,67 @@ log-level: info
 
 # API 控制器
 external-controller: 127.0.0.1:9090
-secret: "123456"
+
+# Profile 配置
+profile:
+  store-selected: false
+  store-fake-ip: true # 持久化 fake-ip 映射，加快二次访问
 
 # DNS
 dns:
   enable: true
+  listen: 0.0.0.0:53
   enhanced-mode: fake-ip
-  nameserver:
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter-mode: blacklist
+  fake-ip-ttl: 1
+
+  # 用于解析 nameserver 中的域名（必需配置）
+  default-nameserver:
+    - 114.114.114.114
     - 8.8.8.8
+
+  fake-ip-filter:
+    - "*.lan"
+    - "+.lan"
+    - "+.local"
+    - "+.arpa"
+    - "+.ntp.org"
+    - "captive.apple.com"
+    - "connectivitycheck.gstatic.com"
+    - "msftconnecttest.com"
+    - "msftncsi.com"
+    - "localhost.ptlogin2.qq.com"
+
+  # 国内 DNS
+  nameserver:
+    - 223.5.5.5
+    - 114.114.114.114
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+
+  # 国外 DNS（用于被墙域名）
+  fallback:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+    - tls://8.8.8.8:853
+
+  # Fallback 过滤规则
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    geosite:
+      - gfw
+
+  # DNS 服务器连接是否遵守 rules 规则
+  respect-rules: false
+
+  # DNS 策略
+  nameserver-policy:
+    "geosite:cn,private,apple":
+      - https://doh.pub/dns-query
+      - https://dns.alidns.com/dns-query
+    "geosite:category-ads-all": rcode://success
 
 # 代理组配置
 proxy-groups:
