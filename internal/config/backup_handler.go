@@ -41,16 +41,23 @@ func FindConfigPath(mihomoConfigPath string) (string, error) {
 		return mihomoConfigPath, nil
 	}
 
-	// 尝试从常见位置查找
+	// 尝试从 config.toml 加载配置
+	tomlCfg, err := LoadTomlConfig("config.toml")
+	if err == nil && tomlCfg.Mihomo.ConfigFile != "" {
+		if _, err := os.Stat(tomlCfg.Mihomo.ConfigFile); err == nil {
+			return tomlCfg.Mihomo.ConfigFile, nil
+		}
+	}
+
+	// 尝试从标准位置查找
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("获取用户目录失败: %w", err)
 	}
 
+	// 只检查标准路径，保持一致性
 	candidatePaths := []string{
 		filepath.Join(home, ".config", "mihomo", "config.yaml"),
-		filepath.Join(home, ".config", "clash", "config.yaml"),
-		filepath.Join(home, "mihomo", "config.yaml"),
 		"./config.yaml",
 	}
 
@@ -60,7 +67,7 @@ func FindConfigPath(mihomoConfigPath string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("未找到 Mihomo 配置文件，请使用 --path 参数指定路径")
+	return "", fmt.Errorf("未找到 Mihomo 配置文件，请使用 --path 参数指定路径或配置 config.toml")
 }
 
 // CreateBackup 创建备份
