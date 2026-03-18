@@ -1,0 +1,175 @@
+allow-lan: true
+bind-address: '*'
+dns:
+    default-nameserver:
+        - 223.5.5.5
+        - 114.114.114.114
+    enable: true
+    enhanced-mode: fake-ip
+    fake-ip-filter:
+        - '*'
+        - +.lan
+        - +.local
+        - +.market.xiaomi.com
+    fallback:
+        - https://1.1.1.1/dns-query
+    fallback-filter:
+        geoip: true
+        geoip-code: CN
+        ipcidr:
+            - 240.0.0.0/4
+    ipv6: true
+    listen: 0.0.0.0:1053
+    nameserver:
+        - https://doh.pub/dns-query
+        - https://dns.alidns.com/dns-query
+external-controller: 127.0.0.1:9090
+external-ui: ui
+external-ui-url: https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip
+find-process-mode: strict
+global-client-fingerprint: chrome
+ipv6: true
+log-level: info
+mixed-port: 7890
+mode: rule
+profile:
+    store-fake-ip: true
+    store-selected: true
+proxy-groups:
+    - name: PROXY
+      proxies:
+        - AUTO
+        - 香港
+        - 台湾
+        - 日本
+        - 新加坡
+        - 美国
+        - 其他
+        - DIRECT
+      type: select
+    - interval: 300
+      name: AUTO
+      tolerance: 10
+      type: url-test
+      url: https://www.gstatic.com/generate_204
+      use:
+        - my-subscription
+    - name: DIRECT
+      type: direct
+    - filter: (?i)港|hk|hongkong
+      name: 香港
+      type: url-test
+      use:
+        - my-subscription
+    - filter: (?i)台|tw|taiwan
+      name: 台湾
+      type: url-test
+      use:
+        - my-subscription
+    - filter: (?i)日|jp|japan
+      name: 日本
+      type: url-test
+      use:
+        - my-subscription
+    - filter: (?i)新|sg|singapore
+      name: 新加坡
+      type: url-test
+      use:
+        - my-subscription
+    - filter: (?i)美|us|unitedstates
+      name: 美国
+      type: url-test
+      use:
+        - my-subscription
+    - name: 其他
+      type: select
+      use:
+        - my-subscription
+proxy-providers:
+    my-subscription:
+        health-check:
+            enable: true
+            interval: 300
+            url: https://www.gstatic.com/generate_204
+        interval: 86400
+        type: http
+        url: YOUR_SUBSCRIPTION_URL
+rule-anchor:
+    domain:
+        behavior: domain
+        format: mrs
+        interval: 86400
+        type: http
+    ip:
+        behavior: ipcidr
+        format: mrs
+        interval: 86400
+        type: http
+rule-providers:
+    cn_domain:
+        behavior: domain
+        format: mrs
+        interval: 86400
+        type: http
+        url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
+    cn_ip:
+        behavior: ipcidr
+        format: mrs
+        interval: 86400
+        type: http
+        url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs
+    github_domain:
+        behavior: domain
+        format: mrs
+        interval: 86400
+        type: http
+        url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.mrs
+    google_domain:
+        behavior: domain
+        format: mrs
+        interval: 86400
+        type: http
+        url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.mrs
+    google_ip:
+        behavior: ipcidr
+        format: mrs
+        interval: 86400
+        type: http
+        url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/google.mrs
+    youtube_domain:
+        behavior: domain
+        format: mrs
+        interval: 86400
+        type: http
+        url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/youtube.mrs
+rules:
+    - RULE-SET,private,DIRECT,no-resolve
+    - RULE-SET,cn_domain,DIRECT
+    - RULE-SET,cn_ip,DIRECT
+    - RULE-SET,github_domain,PROXY
+    - RULE-SET,google_domain,PROXY
+    - RULE-SET,google_ip,PROXY
+    - RULE-SET,youtube_domain,PROXY
+    - DOMAIN-SUFFIX,linux.do,PROXY
+    - MATCH,PROXY
+sniffer:
+    enable: true
+    skip-domain:
+        - Mijia Cloud
+        - +.push.apple.com
+    sniff:
+        HTTP:
+            override-destination: true
+            ports:
+                - 80
+                - 8080-8880
+        QUIC:
+            ports:
+                - 443
+                - 8443
+        TLS:
+            ports:
+                - 443
+                - 8443
+tcp-concurrent: true
+unified-delay: true

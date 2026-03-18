@@ -83,26 +83,30 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	for {
 		select {
 		case <-checkCtx.Done():
-			// 健康检查超时
-			pm.Stop()
+			// 健康检查超时，通过 PID 停止进程
+			if pid, err := pm.GetPIDFromPIDFile(); err == nil {
+				StopProcessByPID(pid)
+			}
 			return nil, pkgerrors.ErrService("mihomo health check timeout: process may have failed to start", nil)
 
 		case <-ticker.C:
 			// 检查进程是否还在运行
-			if !pm.IsRunning() {
-				// 获取错误输出
-				stderr := pm.GetErrorOutput()
-				stdout := pm.GetStandardOutput()
-				
-				errMsg := "mihomo process exited unexpectedly"
-				if stderr != "" {
-					errMsg += fmt.Sprintf("\n错误输出:\n%s", stderr)
+			if pid, err := pm.GetPIDFromPIDFile(); err == nil {
+				if !IsProcessRunning(pid) {
+					// 获取错误输出
+					stderr := pm.GetErrorOutput()
+					stdout := pm.GetStandardOutput()
+
+					errMsg := "mihomo process exited unexpectedly"
+					if stderr != "" {
+						errMsg += fmt.Sprintf("\n错误输出:\n%s", stderr)
+					}
+					if stdout != "" {
+						errMsg += fmt.Sprintf("\n标准输出:\n%s", stdout)
+					}
+
+					return nil, pkgerrors.ErrService(errMsg, nil)
 				}
-				if stdout != "" {
-					errMsg += fmt.Sprintf("\n标准输出:\n%s", stdout)
-				}
-				
-				return nil, pkgerrors.ErrService(errMsg, nil)
 			}
 
 			// 尝试连接 API 进行健康检查
@@ -161,10 +165,13 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		return nil, pkgerrors.ErrService("mihomo is not running", err)
 	}
 
-	// 停止进程
-	if err := pm.Stop(); err != nil {
+	// 直接通过 PID 停止进程（不依赖 ProcessManager 的内部状态）
+	if err := StopProcessByPID(pid); err != nil {
 		return nil, pkgerrors.ErrService("failed to stop mihomo", err)
 	}
+
+	// 删除 PID 文件
+	os.Remove(pm.pidFile)
 
 	return &StopResult{PID: pid}, nil
 }

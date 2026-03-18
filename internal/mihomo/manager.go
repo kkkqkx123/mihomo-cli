@@ -37,15 +37,6 @@ func NewProcessManager(cfg *config.TomlConfig) *ProcessManager {
 	return pm
 }
 
-// NewProcessManagerWithConfig 创建进程管理器（指定配置文件路径）
-func NewProcessManagerWithConfig(cfg *config.TomlConfig, configFile string) *ProcessManager {
-	pm := &ProcessManager{
-		config:  cfg,
-		pidFile: getPIDFilePath(configFile),
-	}
-	return pm
-}
-
 // getPIDFilePath 获取 PID 文件路径（基于配置文件路径）
 func getPIDFilePath(configFile string) string {
 	home, err := os.UserHomeDir()
@@ -175,60 +166,6 @@ func (pm *ProcessManager) Start() error {
 	}()
 
 	return nil
-}
-
-// Stop 停止 Mihomo 内核并等待完全退出
-func (pm *ProcessManager) Stop() error {
-	pm.mu.Lock()
-
-	if !pm.isRunning || pm.process == nil {
-		pm.mu.Unlock()
-		return pkgerrors.ErrService("mihomo is not running", nil)
-	}
-
-	// 发送终止信号
-	if err := pm.process.Kill(); err != nil {
-		pm.mu.Unlock()
-		return pkgerrors.ErrService("failed to kill mihomo", err)
-	}
-
-	pm.isRunning = false
-	pm.mu.Unlock()
-
-	// 等待进程完全退出
-	if pm.cmd != nil {
-		pm.cmd.Wait()
-	}
-
-	// 删除 PID 文件
-	os.Remove(pm.pidFile)
-
-	return nil
-}
-
-// StopByPID 通过 PID 停止进程（用于后台模式）
-func (pm *ProcessManager) StopByPID(pid int) error {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return pkgerrors.ErrService("failed to find process "+fmt.Sprintf("%d", pid), err)
-	}
-
-	// 发送终止信号
-	if err := proc.Kill(); err != nil {
-		return pkgerrors.ErrService("failed to kill process "+fmt.Sprintf("%d", pid), err)
-	}
-
-	// 删除 PID 文件
-	os.Remove(pm.pidFile)
-
-	return nil
-}
-
-// IsRunning 检查是否运行中
-func (pm *ProcessManager) IsRunning() bool {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-	return pm.isRunning
 }
 
 // GetSecret 获取当前密钥

@@ -112,11 +112,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 		// 收到中断信号
 		fmt.Printf("\n收到信号 %v，正在停止内核...\n", sig)
 
-		// 如果进程已经启动，尝试停止
+		// 通过 PID 文件停止进程
 		pm := mihomo.NewProcessManager(cfg)
-		if err := pm.Stop(); err != nil {
-			fmt.Printf("停止内核失败: %v\n", err)
-			return err
+		if pid, err := pm.GetPIDFromPIDFile(); err == nil {
+			if err := mihomo.StopProcessByPID(pid); err != nil {
+				fmt.Printf("停止内核失败: %v\n", err)
+				return err
+			}
 		}
 
 		fmt.Println("内核已停止")
