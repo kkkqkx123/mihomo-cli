@@ -1,8 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -11,9 +13,7 @@ import (
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
-var foregroundMode bool
 var stopAll bool
-var stopForce bool
 var stopConfig string
 
 var startCmd = &cobra.Command{
@@ -24,10 +24,11 @@ var startCmd = &cobra.Command{
 该命令会：
 1. 读取 config.toml 配置文件
 2. 自动生成 SHA256 随机密钥
-3. 启动 Mihomo 内核进程（后台模式）
-4. 输出 API 地址和密钥信息
+3. 启动 Mihomo 内核进程
+4. 等待并验证内核启动成功
+5. 输出 API 地址和密钥信息
 
-默认为后台模式，启动后立即返回。使用 --foreground 可切换到前台模式。`,
+启动后会进行健康检查，确保内核成功启动。如果启动失败或超时，会自动停止内核。`,
 	RunE: runStart,
 }
 
@@ -36,11 +37,11 @@ var stopCmd = &cobra.Command{
 	Short: "停止 Mihomo 内核",
 	Long:  `停止正在运行的 Mihomo 内核进程。
 
-可以指定 PID 或使用 --all 停止所有进程。`,
+可以指定 PID 或使用 --all 停止所有进程。
+停止操作会等待进程完全退出后才返回。`,
 	Example: `  mihomo-cli stop           # 停止默认配置的实例
   mihomo-cli stop 12345      # 停止指定 PID 的实例
-  mihomo-cli stop --all      # 停止所有 Mihomo 进程
-  mihomo-cli stop --force    # 强制停止（不验证）`,
+  mihomo-cli stop --all      # 停止所有 Mihomo 进程`,
 	Args:  cobra.MaximumNArgs(1),
 	RunE: runStop,
 }
@@ -57,11 +58,8 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(statusCmd)
 
-	startCmd.Flags().BoolVarP(&foregroundMode, "foreground", "F", false, "前台模式（阻塞终端，用于调试）")
-
 	// stop 命令的标志
 	stopCmd.Flags().BoolVarP(&stopAll, "all", "a", false, "停止所有 Mihomo 进程")
-	stopCmd.Flags().BoolVarP(&stopForce, "force", "F", false, "强制停止（不验证进程）")
 	stopCmd.Flags().StringVarP(&stopConfig, "config", "c", "", "指定配置文件路径")
 }
 
@@ -75,38 +73,55 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// 创建进程处理器
 	handler := mihomo.NewProcessHandler("")
 
-	// 启动内核
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// 设置信号处理，确保在用户退出时停止内核
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	result, err := handler.Start(ctx, cfg, foregroundMode)
-	if err != nil {
-		return err
-	}
+	// 在另一个 goroutine 中启动内核
+	startErrChan := make(chan error, 1)
+	var result *mihomo.StartResult
 
-	// 输出信息
-	fmt.Println("=====================================")
-	fmt.Println("  Mihomo 内核已启动")
-	fmt.Println("=====================================")
-	fmt.Printf("API 地址: http://%s\n", result.APIAddress)
-	fmt.Printf("密钥: %s\n", result.Secret)
-	fmt.Println()
+	go func() {
+		var err error
+		result, err = handler.Start(cfg)
+		startErrChan <- err
+	}()
 
-	if foregroundMode {
-		// 前台模式：等待中断信号
-		fmt.Println("提示: 请保存密钥，用于 API 认证")
-		fmt.Println("按 Ctrl+C 停止内核")
+	// 等待启动完成或收到中断信号
+	select {
+	case err := <-startErrChan:
+		if err != nil {
+			return err
+		}
+
+		// 启动成功
 		fmt.Println("=====================================")
-	} else {
-		// 后台模式：立即返回
-		fmt.Println("提示: 内核已在后台运行")
+		fmt.Println("  Mihomo 内核已启动")
+		fmt.Println("=====================================")
+		fmt.Printf("API 地址: http://%s\n", result.APIAddress)
+		fmt.Printf("密钥: %s\n", result.Secret)
+		fmt.Println()
 		fmt.Println("使用以下命令管理：")
 		fmt.Println("  mihomo-cli status  - 查询运行状态")
 		fmt.Println("  mihomo-cli stop    - 停止内核")
 		fmt.Println("=====================================")
-	}
 
-	return nil
+		return nil
+
+	case sig := <-sigChan:
+		// 收到中断信号
+		fmt.Printf("\n收到信号 %v，正在停止内核...\n", sig)
+
+		// 如果进程已经启动，尝试停止
+		pm := mihomo.NewProcessManager(cfg)
+		if err := pm.Stop(); err != nil {
+			fmt.Printf("停止内核失败: %v\n", err)
+			return err
+		}
+
+		fmt.Println("内核已停止")
+		return nil
+	}
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
@@ -120,7 +135,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	handler := mihomo.NewProcessHandler("")
 
 	// 停止内核
-	result, err := handler.Stop(cfg, stopAll, stopForce, stopConfig, args)
+	result, err := handler.Stop(cfg, stopAll, stopConfig, args)
 	if err != nil {
 		return err
 	}

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
+	"time"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
@@ -31,7 +31,7 @@ type StartResult struct {
 }
 
 // Start 启动 Mihomo 内核
-func (ph *ProcessHandler) Start(ctx context.Context, cfg *config.TomlConfig, foregroundMode bool) (*StartResult, error) {
+func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	// 检查是否启用自动启动
 	if !cfg.Mihomo.Enabled {
 		return nil, pkgerrors.ErrConfig("mihomo auto-start is disabled in config.toml", nil)
@@ -49,7 +49,7 @@ func (ph *ProcessHandler) Start(ctx context.Context, cfg *config.TomlConfig, for
 	}
 
 	// 启动内核
-	if err := pm.Start(ctx); err != nil {
+	if err := pm.Start(); err != nil {
 		return nil, pkgerrors.ErrService("failed to start mihomo", err)
 	}
 
@@ -58,20 +58,53 @@ func (ph *ProcessHandler) Start(ctx context.Context, cfg *config.TomlConfig, for
 		Secret:     pm.GetSecret(),
 	}
 
-	// 前台模式：等待中断信号
-	if foregroundMode {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-		<-sigChan
-
-		// 停止内核
-		if err := pm.Stop(); err != nil {
-			return nil, pkgerrors.ErrService("failed to stop mihomo", err)
-		}
+	// 获取健康检查超时时间
+	healthCheckTimeout := cfg.Mihomo.HealthCheckTimeout
+	if healthCheckTimeout <= 0 {
+		healthCheckTimeout = 5 // 默认 5 秒
 	}
 
-	return result, nil
+	// 创建 API 客户端进行健康检查
+	apiClient := api.NewClient(
+		"http://"+pm.GetAPIAddress(),
+		pm.GetSecret(),
+		api.WithTimeout(3*time.Second),
+	)
+
+	// 等待并检查健康状况
+	checkCtx, cancel := context.WithTimeout(context.Background(), time.Duration(healthCheckTimeout)*time.Second)
+	defer cancel()
+
+	fmt.Printf("等待 Mihomo 内核启动（最多 %d 秒）...\n", healthCheckTimeout)
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-checkCtx.Done():
+			// 健康检查超时
+			pm.Stop()
+			return nil, pkgerrors.ErrService("mihomo health check timeout: process may have failed to start", nil)
+
+		case <-ticker.C:
+			// 检查进程是否还在运行
+			if !pm.IsRunning() {
+				return nil, pkgerrors.ErrService("mihomo process exited unexpectedly", nil)
+			}
+
+			// 尝试连接 API 进行健康检查
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			_, err := apiClient.GetMode(ctx)
+			cancel()
+
+			if err == nil {
+				// 健康检查成功
+				fmt.Println("Mihomo 内核启动成功！")
+				return result, nil
+			}
+		}
+	}
 }
 
 // StopResult 停止结果
@@ -80,7 +113,7 @@ type StopResult struct {
 }
 
 // Stop 停止 Mihomo 内核
-func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopForce bool, stopConfig string, args []string) (*StopResult, error) {
+func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig string, args []string) (*StopResult, error) {
 	// 如果指定了 --all，停止所有进程
 	if stopAll {
 		return nil, StopAllMihomoProcesses()
@@ -94,9 +127,9 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopForce b
 			return nil, pkgerrors.ErrInvalidArg("invalid PID: "+args[0], nil)
 		}
 
-		// 验证进程
-		if err := ValidateProcess(pid, stopForce); err != nil {
-			return nil, err
+		// 验证进程是否在运行
+		if !IsProcessRunning(pid) {
+			return nil, pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
 		}
 
 		// 停止进程
@@ -117,7 +150,7 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopForce b
 	}
 
 	// 停止进程
-	if err := pm.StopByPID(pid); err != nil {
+	if err := pm.Stop(); err != nil {
 		return nil, pkgerrors.ErrService("failed to stop mihomo", err)
 	}
 

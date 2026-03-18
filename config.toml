@@ -12,6 +12,7 @@ enabled = true  # 是否自动启动 mihomo 内核
 executable = "E:\\server\\mihomo\\mihomo-windows-amd64.exe"  # mihomo 可执行文件路径
 config_file = "E:\\project\\mihomo-go\\test-mihomo-config.yaml"  # mihomo 配置文件路径（留空则使用默认路径）
 auto_generate_secret = true  # 是否自动生成随机密钥
+health_check_timeout = 5  # 启动后健康检查等待时间（秒）
 
 [mihomo.api]
 # Mihomo API 控制器配置

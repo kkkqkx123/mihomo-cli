@@ -19,12 +19,13 @@ type TomlConfig struct {
 
 // MihomoConfig Mihomo 内核配置
 type MihomoConfig struct {
-	Enabled            bool             `toml:"enabled"`
-	Executable         string           `toml:"executable"`
-	ConfigFile         string           `toml:"config_file"`
-	AutoGenerateSecret bool             `toml:"auto_generate_secret"`
-	API                MihomoAPIConfig  `toml:"api"`
-	Log                MihomoLogConfig  `toml:"log"`
+	Enabled                bool             `toml:"enabled"`
+	Executable             string           `toml:"executable"`
+	ConfigFile             string           `toml:"config_file"`
+	AutoGenerateSecret     bool             `toml:"auto_generate_secret"`
+	HealthCheckTimeout     int              `toml:"health_check_timeout"`
+	API                    MihomoAPIConfig  `toml:"api"`
+	Log                    MihomoLogConfig  `toml:"log"`
 }
 
 // MihomoAPIConfig Mihomo API 配置
@@ -80,10 +81,11 @@ func GetDefaultTomlConfig() *TomlConfig {
 			Timeout: 10,
 		},
 		Mihomo: MihomoConfig{
-			Enabled:            true,
-			Executable:         "mihomo.exe",
-			ConfigFile:         "",
-			AutoGenerateSecret: true,
+			Enabled:                true,
+			Executable:             "mihomo.exe",
+			ConfigFile:             "",
+			AutoGenerateSecret:     true,
+			HealthCheckTimeout:     5,
 			API: MihomoAPIConfig{
 				ExternalController: "127.0.0.1:9090",
 			},

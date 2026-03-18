@@ -1,7 +1,6 @@
 package mihomo
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -90,7 +89,7 @@ func generateConfigHash(configFile string) string {
 }
 
 // Start 启动 Mihomo 内核
-func (pm *ProcessManager) Start(ctx context.Context) error {
+func (pm *ProcessManager) Start() error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -119,8 +118,8 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 		return pkgerrors.ErrService("failed to prepare config file", err)
 	}
 
-	// 构建命令
-	pm.cmd = exec.CommandContext(ctx, pm.config.Mihomo.Executable, "-f", configFile)
+	// 构建命令（不使用 CommandContext，避免进程被取消）
+	pm.cmd = exec.Command(pm.config.Mihomo.Executable, "-f", configFile)
 
 	// 设置进程属性（Windows 下隐藏窗口）
 	pm.cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -158,21 +157,28 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop 停止 Mihomo 内核
+// Stop 停止 Mihomo 内核并等待完全退出
 func (pm *ProcessManager) Stop() error {
 	pm.mu.Lock()
-	defer pm.mu.Unlock()
 
 	if !pm.isRunning || pm.process == nil {
+		pm.mu.Unlock()
 		return pkgerrors.ErrService("mihomo is not running", nil)
 	}
 
 	// 发送终止信号
 	if err := pm.process.Kill(); err != nil {
+		pm.mu.Unlock()
 		return pkgerrors.ErrService("failed to kill mihomo", err)
 	}
 
 	pm.isRunning = false
+	pm.mu.Unlock()
+
+	// 等待进程完全退出
+	if pm.cmd != nil {
+		pm.cmd.Wait()
+	}
 
 	// 删除 PID 文件
 	os.Remove(pm.pidFile)
@@ -340,7 +346,7 @@ func ValidateProcess(pid int, force bool) error {
 	return nil
 }
 
-// StopProcessByPID 通过 PID 停止进程
+// StopProcessByPID 通过 PID 停止进程并等待完全退出
 func StopProcessByPID(pid int) error {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
@@ -349,6 +355,17 @@ func StopProcessByPID(pid int) error {
 
 	if err := proc.Kill(); err != nil {
 		return pkgerrors.ErrService("failed to stop process", err)
+	}
+
+	// 等待进程完全退出
+	state, err := proc.Wait()
+	if err != nil {
+		return pkgerrors.ErrService("failed to wait for process to exit", err)
+	}
+
+	// 验证进程确实已退出
+	if !state.Exited() {
+		return pkgerrors.ErrService("process did not exit as expected", nil)
 	}
 
 	return nil
