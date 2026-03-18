@@ -113,18 +113,34 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	case sig := <-sigChan:
 		// 收到中断信号
-		fmt.Printf("\n收到信号 %v，正在停止内核...\n", sig)
+		fmt.Printf("\nReceived signal %v, stopping Mihomo kernel...\n", sig)
 
 		// 通过 PID 文件停止进程
 		pm := mihomo.NewProcessManager(cfg)
-		if pid, err := pm.GetPIDFromPIDFile(); err == nil {
-			if err := mihomo.StopProcessByPID(pid); err != nil {
-				fmt.Printf("停止内核失败: %v\n", err)
-				return err
-			}
+		pid, err := pm.GetPIDFromPIDFile()
+		if err != nil {
+			fmt.Printf("Failed to get PID: %v\n", err)
+			fmt.Println("Kernel may have already stopped or PID file is missing")
+			return nil
 		}
 
-		fmt.Println("内核已停止")
+		fmt.Printf("Stopping Mihomo kernel (PID: %d)...\n", pid)
+		
+		if err := mihomo.StopProcessByPID(pid); err != nil {
+			fmt.Printf("Failed to stop kernel: %v\n", err)
+			fmt.Println("\nRecovery suggestions:")
+			fmt.Println("  1. Check if the process is still running: mihomo-cli status")
+			fmt.Println("  2. If process is running, try stopping again: mihomo-cli stop")
+			fmt.Println("  3. If process is unresponsive, force kill: mihomo-cli stop --force")
+			fmt.Println("  4. If system configuration is not cleaned up, restart the system")
+			return err
+		}
+
+		fmt.Println("\nKernel stopped successfully")
+		fmt.Println("System configuration should be cleaned up")
+		fmt.Println("If you experience network issues, try:")
+		fmt.Println("  1. Restarting Mihomo: mihomo-cli start")
+		fmt.Println("  2. Or restart the system")
 		return nil
 	}
 }

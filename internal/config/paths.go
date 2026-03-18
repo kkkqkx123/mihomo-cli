@@ -57,6 +57,15 @@ func GetBackupDir() (string, error) {
 	return filepath.Join(baseDir, "backups"), nil
 }
 
+// GetDataDir 获取数据目录（用于存储审计日志、快照等）
+func GetDataDir() (string, error) {
+	baseDir, err := GetBaseDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(baseDir, "data"), nil
+}
+
 // GetPIDFilePath 获取 PID 文件路径（基于配置文件路径）
 func GetPIDFilePath(configFile string) (string, error) {
 	pidDir, err := GetPIDDir()

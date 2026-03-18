@@ -143,6 +143,7 @@ func newMihomoReloadCmd() *cobra.Command {
 // runMihomoReload 执行配置重载
 func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 	// 验证路径
+	var actualConfigPath string
 	if configPath != "" {
 		// 检查是否为绝对路径
 		if !filepath.IsAbs(configPath) {
@@ -152,6 +153,44 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 		// 检查文件是否存在
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
 			return pkgerrors.ErrConfig("config file does not exist: "+configPath, nil)
+		}
+
+		actualConfigPath = configPath
+
+		// 验证配置文件语法和有效性
+		validator := config.NewConfigValidator(configPath)
+		if err := validator.ValidateConfigSyntax(); err != nil {
+			color.Yellow("Config validation failed: %v", err)
+			if !force {
+				return pkgerrors.ErrConfig("config validation failed, use --force to ignore", err)
+			}
+			color.Yellow("Continuing with force reload...")
+		}
+
+		// 检查是否有高风险配置
+		if err := validator.ValidateAndWarn(); err != nil {
+			color.Yellow("Warning: %v", err)
+		}
+	} else {
+		// 如果没有指定配置文件路径，尝试从配置中获取
+		tomlConfigPath := config.FindTomlConfigPath("")
+		tomlCfg, err := config.LoadTomlConfig(tomlConfigPath)
+		if err != nil {
+			return pkgerrors.ErrConfig("failed to load config", err)
+		}
+		actualConfigPath = tomlCfg.Mihomo.ConfigFile
+	}
+
+	// 在重载前备份当前配置
+	if actualConfigPath != "" {
+		fmt.Println("Creating backup before reload...")
+		backupHandler := config.NewBackupHandler(actualConfigPath)
+		backupInfo, err := backupHandler.CreateBackup("", "pre-reload")
+		if err != nil {
+			color.Yellow("Warning: failed to create backup: %v", err)
+			color.Yellow("Continuing with reload without backup...")
+		} else {
+			color.Green("✓ Backup created: %s", backupInfo.Path)
 		}
 	}
 

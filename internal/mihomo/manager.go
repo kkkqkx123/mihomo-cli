@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -278,12 +280,57 @@ func ValidateProcess(pid int, force bool) error {
 }
 
 // StopProcessByPID 通过 PID 停止进程并等待完全退出
+// 优先尝试优雅关闭，超时后使用强制终止
 func StopProcessByPID(pid int) error {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return pkgerrors.ErrService("failed to find process "+fmt.Sprintf("%d", pid), err)
 	}
 
+	// 第一步：尝试优雅关闭（发送 SIGTERM 信号）
+	fmt.Printf("Attempting graceful shutdown of process %d...\n", pid)
+	
+	// 在 Windows 上，使用 SIGTERM 信号
+	// 在 Unix 系统上，也使用 SIGTERM 信号
+	// 这给 Mihomo 内核机会执行清理操作（如删除 TUN 网卡、清理路由表等）
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		// 如果发送信号失败，直接使用 Kill
+		fmt.Printf("Failed to send signal, will force kill process: %v\n", err)
+		return forceKillProcess(proc, pid)
+	}
+
+	// 第二步：等待进程优雅退出（最多 10 秒）
+	fmt.Printf("Waiting for graceful shutdown (max 10 seconds)...\n")
+	
+	timeout := 10 * time.Second
+	checkInterval := 500 * time.Millisecond
+	checkTicker := time.NewTicker(checkInterval)
+	defer checkTicker.Stop()
+
+	deadline := time.Now().Add(timeout)
+
+	for {
+		select {
+		case <-checkTicker.C:
+			// 检查进程是否还在运行
+			if !IsProcessRunning(pid) {
+				fmt.Printf("Process %d has gracefully exited\n", pid)
+				return nil
+			}
+
+			// 检查是否超时
+			if time.Now().After(deadline) {
+				fmt.Printf("Graceful shutdown timeout, will force kill\n")
+				return forceKillProcess(proc, pid)
+			}
+		}
+	}
+}
+
+// forceKillProcess 强制终止进程
+func forceKillProcess(proc *os.Process, pid int) error {
+	fmt.Printf("Force killing process %d...\n", pid)
+	
 	if err := proc.Kill(); err != nil {
 		return pkgerrors.ErrService("failed to stop process", err)
 	}
@@ -298,6 +345,11 @@ func StopProcessByPID(pid int) error {
 	if !state.Exited() {
 		return pkgerrors.ErrService("process did not exit as expected", nil)
 	}
+
+	fmt.Printf("Process %d has been force killed\n", pid)
+	fmt.Printf("WARNING: Process was forcefully terminated. If Mihomo configuration enabled TUN/TProxy mode,\n")
+	fmt.Printf("you may need to manually clean up system configuration (TUN network adapter, routing table, registry proxy settings, etc.)\n")
+	fmt.Printf("Or restart the system to ensure complete cleanup\n")
 
 	return nil
 }

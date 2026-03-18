@@ -3,6 +3,8 @@
 package sysproxy
 
 import (
+	"fmt"
+
 	"golang.org/x/sys/windows/registry"
 
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -131,7 +133,7 @@ func (sp *windowsSysProxy) GetStatus() (*ProxySettings, error) {
 func (sp *windowsSysProxy) Enable(server, bypassList string) error {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("failed to open registry key, please check permissions", err)
 	}
 	defer wr.Close()
 
@@ -141,14 +143,22 @@ func (sp *windowsSysProxy) Enable(server, bypassList string) error {
 		BypassList: bypassList,
 	}
 
-	return wr.SetSettings(settings)
+	if err := wr.SetSettings(settings); err != nil {
+		return pkgerrors.ErrService(
+			fmt.Sprintf("failed to enable system proxy: %v\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Run manually: mihomo-cli sysproxy set off\n  3. Or disable system proxy through Windows Settings", err),
+			err,
+		)
+	}
+
+	return nil
 }
 
 // Disable 禁用系统代理
 func (sp *windowsSysProxy) Disable() error {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
-		return err
+		return pkgerrors.ErrService(
+			fmt.Sprintf("failed to open registry key, please check permissions\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer"), err)
 	}
 	defer wr.Close()
 
@@ -156,7 +166,12 @@ func (sp *windowsSysProxy) Disable() error {
 		Enabled: false,
 	}
 
-	return wr.SetSettings(settings)
+	if err := wr.SetSettings(settings); err != nil {
+		return pkgerrors.ErrService(
+			fmt.Sprintf("failed to disable system proxy: %v\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer"), err)
+	}
+
+	return nil
 }
 
 // IsSupported 检查当前平台是否支持系统代理管理
