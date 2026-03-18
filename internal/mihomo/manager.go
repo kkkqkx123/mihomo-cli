@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"syscall"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -81,10 +80,8 @@ func (pm *ProcessManager) Start() error {
 	pm.cmd.Stdout = pm.stdout
 	pm.cmd.Stderr = pm.stderr
 
-	// 设置进程属性（Windows 下隐藏窗口）
-	pm.cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow: true,
-	}
+	// 设置进程属性（跨平台）
+	SetSysProcAttr(pm.cmd)
 
 	// 设置工作目录
 	workDir := filepath.Dir(pm.config.Mihomo.Executable)
@@ -191,11 +188,8 @@ func (pm *ProcessManager) ReadPID() (int, error) {
 }
 
 // IsProcessRunning 检查进程是否正在运行
-func IsProcessRunning(pid int) bool {
-	// 使用 Windows API OpenProcess 检查进程是否存在
-	// 这比 proc.Signal 更可靠
-	return isProcessRunningWindows(pid)
-}
+// 注意：此函数已在 process.go 中定义，这里保留是为了向后兼容
+// 实际调用会转发到 process.go 中的跨平台实现
 
 // GetPIDFromPIDFile 从 PID 文件读取并检查进程是否运行
 func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
