@@ -56,7 +56,7 @@ func (sm *windowsServiceManager) ServiceExists() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	s, err := sm.OpenService(m)
 	if err != nil {

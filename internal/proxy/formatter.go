@@ -49,7 +49,7 @@ func formatProxyTable(proxies map[string]*types.ProxyInfo, showOnlyOneGroup bool
 		tablewriter.WithHeader([]string{"名称", "类型", "当前", "节点数", "延迟", "状态"}),
 		tablewriter.WithHeaderAutoFormat(tw.On),
 		tablewriter.WithRowAlignment(tw.AlignLeft),
-		tablewriter.WithBorders(tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}),
+		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 	)
 
 	// 遍历代理并添加到表格
@@ -72,27 +72,31 @@ func formatProxyTable(proxies map[string]*types.ProxyInfo, showOnlyOneGroup bool
 				status = color.RedString(status)
 			}
 
-			table.Append([]string{
+			if err := table.Append([]string{
 				name,
 				proxy.Type,
 				current,
 				fmt.Sprintf("%d", len(proxy.All)),
 				delayStr,
 				status,
-			})
+			}); err != nil {
+				return err
+			}
 
 			// 如果只显示一个代理组，显示所有节点
 			if showOnlyOneGroup {
 				// 添加缩进的节点列表
 				for _, nodeName := range proxy.All {
-					table.Append([]string{
+					if err := table.Append([]string{
 						"  └ " + nodeName,
 						"-",
 						"",
 						"",
 						"",
 						"",
-					})
+					}); err != nil {
+						return err
+					}
 				}
 			}
 		} else {
@@ -106,19 +110,20 @@ func formatProxyTable(proxies map[string]*types.ProxyInfo, showOnlyOneGroup bool
 				status = color.RedString(status)
 			}
 
-			table.Append([]string{
+			if err := table.Append([]string{
 				name,
 				proxy.Type,
 				"-",
 				"-",
 				delayStr,
 				status,
-			})
+			}); err != nil {
+				return err
+			}
 		}
 	}
 
-	table.Render()
-	return nil
+	return table.Render()
 }
 
 // formatDelay 格式化延迟显示
@@ -148,7 +153,7 @@ func formatTestResultsTable(results []types.DelayResult) error {
 		tablewriter.WithHeader([]string{"节点名称", "延迟", "耗时", "状态"}),
 		tablewriter.WithHeaderAutoFormat(tw.On),
 		tablewriter.WithRowAlignment(tw.AlignLeft),
-		tablewriter.WithBorders(tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}),
+		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 	)
 
 	for _, result := range results {
@@ -176,16 +181,17 @@ func formatTestResultsTable(results []types.DelayResult) error {
 			}
 		}
 
-		table.Append([]string{
+		if err := table.Append([]string{
 			result.Name,
 			delayStr,
 			timeStr,
 			status,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
-	table.Render()
-	return nil
+	return table.Render()
 }
 
 // FormatAutoSelectResult 格式化自动选择结果

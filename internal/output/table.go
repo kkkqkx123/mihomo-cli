@@ -72,8 +72,8 @@ func PrintTableWithWriter(w io.Writer, headers []string, rows [][]string) error 
 }
 
 // PrintTableWithOptions 使用选项打印表格（使用默认 stdout）
-func PrintTableWithOptions(headers []string, rows [][]string, opts ...tablewriter.Option) {
-	PrintTableWithOptionsWriter(GetGlobalStdout(), headers, rows, opts...)
+func PrintTableWithOptions(headers []string, rows [][]string, opts ...tablewriter.Option) error {
+	return PrintTableWithOptionsWriter(GetGlobalStdout(), headers, rows, opts...)
 }
 
 // PrintTableWithOptionsWriter 使用指定 Writer 和选项打印表格

@@ -68,7 +68,6 @@ func formatConnectionTable(connResp *types.ConnectionsResponse) error {
 	}
 
 	return table.Render()
-	return nil
 }
 
 // formatAddress 格式化地址

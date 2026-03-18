@@ -53,7 +53,7 @@ func (w *windowsProcessChecker) IsProcessRunning(pid int) bool {
 // GetProcessExecutable 获取进程的可执行文件路径
 func (w *windowsProcessChecker) GetProcessExecutable(pid int) (string, error) {
 	// 打开进程
-	handle, _, err := procOpenProcess.Call(
+	handle, _, _ := procOpenProcess.Call(
 		uintptr(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ),
 		0,
 		uintptr(pid),

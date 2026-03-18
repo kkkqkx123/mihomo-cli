@@ -81,7 +81,7 @@ func ScanMihomoProcesses() ([]ProcessInfo, error) {
 			PID:        pid,
 			ExecPath:   execPath,
 			APIPort:    apiPort,
-			CmdLine:    fmt.Sprintf("%s", execPath),
+			CmdLine:    execPath,
 			IsVerified: isMihomo,
 		})
 	}

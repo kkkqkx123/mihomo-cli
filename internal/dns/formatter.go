@@ -41,18 +41,22 @@ func formatDNSTable(resp *types.DNSQueryResponse) error {
 			tablewriter.WithHeader([]string{"名称", "类型", "TTL", "数据"}),
 			tablewriter.WithHeaderAutoFormat(tw.On),
 			tablewriter.WithRowAlignment(tw.AlignLeft),
-			tablewriter.WithBorders(tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}),
+			tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 		)
 
 		for _, answer := range resp.Answer {
-			table.Append([]string{
+			if err := table.Append([]string{
 				strings.TrimSuffix(answer.Name, "."),
 				types.DNSTypeToString(answer.Type),
 				fmt.Sprintf("%d", answer.TTL),
 				answer.Data,
-			})
+			}); err != nil {
+				return err
+			}
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 		fmt.Fprintln(output.GetGlobalStdout())
 	}
 
@@ -63,18 +67,22 @@ func formatDNSTable(resp *types.DNSQueryResponse) error {
 			tablewriter.WithHeader([]string{"名称", "类型", "TTL", "数据"}),
 			tablewriter.WithHeaderAutoFormat(tw.On),
 			tablewriter.WithRowAlignment(tw.AlignLeft),
-			tablewriter.WithBorders(tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}),
+			tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 		)
 
 		for _, answer := range resp.Authority {
-			table.Append([]string{
+			if err := table.Append([]string{
 				strings.TrimSuffix(answer.Name, "."),
 				types.DNSTypeToString(answer.Type),
 				fmt.Sprintf("%d", answer.TTL),
 				answer.Data,
-			})
+			}); err != nil {
+				return err
+			}
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 		fmt.Fprintln(output.GetGlobalStdout())
 	}
 
@@ -85,18 +93,22 @@ func formatDNSTable(resp *types.DNSQueryResponse) error {
 			tablewriter.WithHeader([]string{"名称", "类型", "TTL", "数据"}),
 			tablewriter.WithHeaderAutoFormat(tw.On),
 			tablewriter.WithRowAlignment(tw.AlignLeft),
-			tablewriter.WithBorders(tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}),
+			tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 		)
 
 		for _, answer := range resp.Additional {
-			table.Append([]string{
+			if err := table.Append([]string{
 				strings.TrimSuffix(answer.Name, "."),
 				types.DNSTypeToString(answer.Type),
 				fmt.Sprintf("%d", answer.TTL),
 				answer.Data,
-			})
+			}); err != nil {
+				return err
+			}
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 		fmt.Fprintln(output.GetGlobalStdout())
 	}
 
