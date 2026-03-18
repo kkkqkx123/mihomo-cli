@@ -2,14 +2,13 @@
 
 ## Project Overview
 
-Mihomo CLI is a non-interactive management tool for the Mihomo proxy core, specifically designed for the Windows environment. This tool provides comprehensive management capabilities over the Mihomo RESTful API via a command-line interface (CLI), delivering a stateless and scriptable proxy management solution.
+Mihomo CLI is a non-interactive management tool for the Mihomo proxy core. This tool provides comprehensive management capabilities over the Mihomo RESTful API via a command-line interface (CLI), delivering a stateless and scriptable proxy management solution.
 
 ### Project Goals
 
 - Provide a pure command-line interface for Mihomo management without requiring a GUI.
 - Support automated scripting and batch operations.
 - Decouple from the Mihomo core process to enhance stability.
-- Adhere to Windows service management standards.
 
 ### Core Features
 
@@ -65,38 +64,19 @@ mihomo-go/
 │   │   ├── selector.go    # Node auto-selection logic
 │   │   └── tester.go      # Latency testing logic
 │   ├── output/            # Output formatting
-│   │   └── output.go      # General output processor
-│   ├── service/           # Windows service management (Planned)
+│   ├── service/           # os service integration
 │   ├── monitor/           # Monitoring functionality (Planned)
-│   ├── sysproxy/          # System proxy management (Planned)
-│   └── util/              # Utility functions (Planned)
-├── pkg/types/             # Common type definitions
-│   ├── mode.go            # Mode-related types
-│   └── proxy.go           # Proxy-related types
-├── docs/                  # Project documentation
-│   ├── spec/              # Requirement specifications
-│   │   ├── spec.md        # Full requirement specification
-│   │   ├── design.md      # Design document
-│   │   ├── mihono-api.md  # Mihomo API documentation
-│   │   └── tasks.md       # Task checklist
-│   ├── architecture.md    # Architecture design document
-│   ├── 更换节点与批量测速.txt  # Switching nodes and batch speed testing.txt
-│   ├── 内核处理订阅链接.txt     # Kernel processing subscription links.txt
-│   └── powershell使用.txt         # PowerShell usage.txt
+│   └── sysproxy/          # System proxy management
+├── pkg/types/             # Common type definitions(include error type)
 ├── mihomo-1.19.21/        # Mihomo core reference implementation
 ├── main.go                # Program entry point
 ├── go.mod                 # Go module definition
-└── README.md              # Project description (currently empty)
+└── README.md              # Project description
 ```
 
 ---
 
 ## Build & Run
-
-### Environment Requirements
-
-- Go 1.26.1 or higher.
-- Windows Operating System (primary target platform).
 
 ### Usage
 
@@ -127,31 +107,31 @@ mihomo-go/
 
 ## Core Design Principles
 
-### 1. Stateless (无状态)
+### 1. Stateless
 
 - The CLI does not persist runtime state.
 - All state queries are performed in real-time against the API.
 - Prevents state synchronization issues.
 
-### 2. Configuration Persistence (配置持久化)
+### 2. Configuration Persistence
 
 - API address and Secret are saved to a local configuration file.
 - Eliminates the need to input sensitive information repeatedly.
 - Configuration files are stored in the user directory with appropriate permissions.
 
-### 3. Query vs. Mutation Separation (查询与修改分离)
+### 3. Query vs. Mutation Separation
 
 - **Query Operations**: `get`, `list`, `show`.
 - **Mutation Operations**: `set`, `switch`, `update`.
 - Ensures clear semantics and distinct exit codes.
 
-### 4. Controllable Output Format (输出格式可控)
+### 4. Controllable Output Format
 
 - Supports both Table and JSON formats.
 - Facilitates both human reading and script parsing.
 - Unified output format specifications.
 
-### 5. Permission Management (权限管理)
+### 5. Permission Management
 
 - Service management functions require Administrator privileges.
 - System proxy modification requires Administrator privileges.
