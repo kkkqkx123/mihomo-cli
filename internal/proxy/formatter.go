@@ -14,10 +14,13 @@ import (
 )
 
 // FormatProxyList 格式化代理列表输出
-func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, outputFormat string) error {
+func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, outputFormat string, filterOpts FilterOptions) error {
+	// 应用过滤条件
+	filteredProxies := FilterProxies(proxies, filterOpts)
+
 	// 如果有组过滤，只显示指定的代理组
 	if groupFilter != "" {
-		if proxy, exists := proxies[groupFilter]; exists {
+		if proxy, exists := filteredProxies[groupFilter]; exists {
 			// 格式化单个代理组
 			if outputFormat == "json" {
 				return formatProxyJSON(map[string]*types.ProxyInfo{groupFilter: proxy})
@@ -29,9 +32,9 @@ func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, ou
 
 	// 显示所有代理
 	if outputFormat == "json" {
-		return formatProxyJSON(proxies)
+		return formatProxyJSON(filteredProxies)
 	}
-	return formatProxyTable(proxies, false)
+	return formatProxyTable(filteredProxies, false)
 }
 
 // formatProxyJSON 以 JSON 格式输出代理列表

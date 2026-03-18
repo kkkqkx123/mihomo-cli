@@ -18,6 +18,13 @@ var (
 	testTimeout int
 	concurrent  int
 	showProgress bool
+	// 过滤参数
+	filterType        string
+	filterStatus      string
+	excludePattern    string
+	excludeLogical    bool
+	groupsOnly        bool
+	nodesOnly         bool
 )
 
 // NewProxyCmd 创建代理管理命令
@@ -45,10 +52,21 @@ func newProxyListCmd() *cobra.Command {
 		Long:  `列出所有代理组的节点列表。如果指定代理组名称，只显示该代理组的节点。`,
 		Example: `  mihomo-cli proxy list
   mihomo-cli proxy list Proxy
+  mihomo-cli proxy list --type Vmess
+  mihomo-cli proxy list --exclude-logical
+  mihomo-cli proxy list --status alive
   mihomo-cli proxy list -o json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: runProxyList,
 	}
+
+	// 添加过滤标志
+	cmd.Flags().StringVar(&filterType, "type", "", "按类型过滤（如 Vmess, Selector, URLTest 等）")
+	cmd.Flags().StringVar(&filterStatus, "status", "", "按状态过滤（alive/dead）")
+	cmd.Flags().StringVar(&excludePattern, "exclude", "", "排除名称匹配正则表达式的节点")
+	cmd.Flags().BoolVar(&excludeLogical, "exclude-logical", false, "排除逻辑节点（DIRECT, REJECT 等）")
+	cmd.Flags().BoolVar(&groupsOnly, "groups-only", false, "只显示代理组")
+	cmd.Flags().BoolVar(&nodesOnly, "nodes-only", false, "只显示节点（排除代理组）")
 
 	return cmd
 }
@@ -74,8 +92,18 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 		groupFilter = args[0]
 	}
 
+	// 构建过滤选项
+	filterOpts := proxy.FilterOptions{
+		Type:           filterType,
+		Status:         filterStatus,
+		ExcludeRegex:   excludePattern,
+		ExcludeLogical: excludeLogical,
+		GroupsOnly:     groupsOnly,
+		NodesOnly:      nodesOnly,
+	}
+
 	// 格式化输出
-	return proxy.FormatProxyList(proxies, groupFilter, outputFmt)
+	return proxy.FormatProxyList(proxies, groupFilter, outputFmt, filterOpts)
 }
 
 // newProxySwitchCmd 创建切换代理命令
