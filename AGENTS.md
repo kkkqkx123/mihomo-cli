@@ -1,164 +1,164 @@
-# Mihomo CLI - 项目上下文文档
+# Mihomo CLI - Project Context Documentation
 
-## 项目概述
+## Project Overview
 
-Mihomo CLI 是一个非交互式的 Mihomo 代理核心管理工具，专为 Windows 环境设计。该工具通过命令行界面提供对 Mihomo RESTful API 的完整管理能力，实现了无状态、可脚本化的代理管理解决方案。
+Mihomo CLI is a non-interactive management tool for the Mihomo proxy core, specifically designed for the Windows environment. This tool provides comprehensive management capabilities over the Mihomo RESTful API via a command-line interface (CLI), delivering a stateless and scriptable proxy management solution.
 
-### 项目目标
+### Project Goals
 
-- 提供纯命令行界面的 Mihomo 管理工具，无需图形界面
-- 支持自动化脚本和批量操作
-- 与 Mihomo 核心进程分离，提高稳定性
-- 遵循 Windows 服务管理规范
+- Provide a pure command-line interface for Mihomo management without requiring a GUI.
+- Support automated scripting and batch operations.
+- Decouple from the Mihomo core process to enhance stability.
+- Adhere to Windows service management standards.
 
-### 核心特性
+### Core Features
 
-- **无状态设计**：CLI 不保存运行时状态，所有状态查询实时请求 API
-- **配置持久化**：API 地址和 Secret 保存到本地配置文件，避免重复输入
-- **查询与修改分离**：明确的查询（get/list/show）和修改（set/switch/update）操作
-- **输出格式可控**：支持表格和 JSON 两种输出格式，便于人工阅读和脚本解析
-
----
-
-## 技术栈
-
-### 编程语言
-
-- **Go 1.26.1**：主开发语言
-
-### 核心依赖
-
-- **github.com/spf13/cobra v1.10.2**：命令行框架，用于构建 CLI 结构
-- **github.com/spf13/viper v1.21.0**：配置管理，支持配置文件和环境变量
-- **github.com/fatih/color v1.18.0**：彩色终端输出
-- **github.com/olekukonko/tablewriter v0.0.5**：表格格式化输出
-
-### 项目架构
-
-- 模块化设计，使用标准 Go 项目结构
-- 基于 Cobra 的命令树架构
-- 分层设计：cmd（命令层）→ internal（业务逻辑层）→ pkg（公共类型层）
+- **Stateless Design**: The CLI does not persist runtime state; all state queries are performed in real-time against the API.
+- **Configuration Persistence**: API address and Secret are saved to a local configuration file to avoid repeated input.
+- **Query vs. Mutation Separation**: Distinct operations for querying (`get`, `list`, `show`) and modifying (`set`, `switch`, `update`).
+- **Controllable Output Format**: Supports both Table and JSON output formats for human readability and script parsing.
 
 ---
 
-## 项目结构
+## Technology Stack
 
-```
+### Programming Language
+
+- **Go 1.26.1**: Primary development language.
+
+### Core Dependencies
+
+- **github.com/spf13/cobra v1.10.2**: CLI framework for building the command structure.
+- **github.com/spf13/viper v1.21.0**: Configuration management supporting config files and environment variables.
+- **github.com/fatih/color v1.18.0**: Colored terminal output.
+- **github.com/olekukonko/tablewriter v0.0.5**: Table formatting output.
+
+### Project Architecture
+
+- Modular design following standard Go project structures.
+- Command tree architecture based on Cobra.
+- Layered design: `cmd` (Command Layer) → `internal` (Business Logic Layer) → `pkg` (Common Types Layer).
+
+---
+
+## Project Structure
+
+```text
 mihomo-go/
-├── cmd/                   # 命令定义入口
-│   ├── root.go            # 根命令（全局 flags 和初始化）
-│   ├── mode.go            # 模式管理（mode get/set）
-│   ├── proxy.go           # 代理管理（list/switch/test/auto/unfix）
-│   └── config.go          # CLI 配置管理（init/show/set）
-├── internal/              # 内部业务逻辑实现
-│   ├── api/               # Mihomo RESTful API 客户端封装
-│   │   ├── client.go      # API 客户端主实现
-│   │   ├── http.go        # HTTP 请求处理
-│   │   ├── mode.go        # 模式相关 API
-│   │   ├── proxy.go       # 代理相关 API
-│   │   └── errors.go      # API 错误定义
-│   ├── config/            # CLI 工具配置管理
-│   │   ├── config.go      # 配置结构定义
-│   │   └── loader.go      # 配置文件加载器
-│   ├── proxy/             # 代理业务逻辑
-│   │   ├── formatter.go   # 输出格式化
-│   │   ├── selector.go    # 节点自动选择
-│   │   └── tester.go      # 延迟测试
-│   ├── output/            # 输出格式化
-│   │   └── output.go      # 通用输出处理器
-│   ├── service/           # Windows 服务管理（计划中）
-│   ├── monitor/           # 监控功能（计划中）
-│   ├── sysproxy/          # 系统代理管理（计划中）
-│   └── util/              # 工具函数（计划中）
-├── pkg/types/             # 公共类型定义
-│   ├── mode.go            # 模式相关类型
-│   └── proxy.go           # 代理相关类型
-├── docs/                  # 项目文档
-│   ├── spec/              # 需求规格说明
-│   │   ├── spec.md        # 完整需求规格
-│   │   ├── design.md      # 设计文档
-│   │   ├── mihono-api.md  # Mihomo API 文档
-│   │   └── tasks.md       # 任务清单
-│   ├── architecture.md    # 架构设计文档
-│   ├── 更换节点与批量测速.txt
-│   ├── 内核处理订阅链接.txt
-│   └── powershell使用.txt
-├── mihomo-1.19.21/        # Mihomo 核心参考实现
-├── main.go                # 程序入口
-├── go.mod                 # Go 模块定义
-└── README.md              # 项目说明（当前为空）
+├── cmd/                   # Command definitions entry point
+│   ├── root.go            # Root command (global flags and initialization)
+│   ├── mode.go            # Mode management (mode get/set)
+│   ├── proxy.go           # Proxy management (list/switch/test/auto/unfix)
+│   └── config.go          # CLI configuration management (init/show/set)
+├── internal/              # Internal business logic implementation
+│   ├── api/               # Mihomo RESTful API client encapsulation
+│   │   ├── client.go      # Main API client implementation
+│   │   ├── http.go        # HTTP request handling
+│   │   ├── mode.go        # Mode-related API wrappers
+│   │   ├── proxy.go       # Proxy-related API wrappers
+│   │   └── errors.go      # API error definitions
+│   ├── config/            # CLI tool configuration management
+│   │   ├── config.go      # Configuration structure definitions
+│   │   └── loader.go      # Configuration file loader
+│   ├── proxy/             # Proxy business logic
+│   │   ├── formatter.go   # Output formatting
+│   │   ├── selector.go    # Node auto-selection logic
+│   │   └── tester.go      # Latency testing logic
+│   ├── output/            # Output formatting
+│   │   └── output.go      # General output processor
+│   ├── service/           # Windows service management (Planned)
+│   ├── monitor/           # Monitoring functionality (Planned)
+│   ├── sysproxy/          # System proxy management (Planned)
+│   └── util/              # Utility functions (Planned)
+├── pkg/types/             # Common type definitions
+│   ├── mode.go            # Mode-related types
+│   └── proxy.go           # Proxy-related types
+├── docs/                  # Project documentation
+│   ├── spec/              # Requirement specifications
+│   │   ├── spec.md        # Full requirement specification
+│   │   ├── design.md      # Design document
+│   │   ├── mihono-api.md  # Mihomo API documentation
+│   │   └── tasks.md       # Task checklist
+│   ├── architecture.md    # Architecture design document
+│   ├── 更换节点与批量测速.txt  # Switching nodes and batch speed testing.txt
+│   ├── 内核处理订阅链接.txt     # Kernel processing subscription links.txt
+│   └── powershell使用.txt         # PowerShell usage.txt
+├── mihomo-1.19.21/        # Mihomo core reference implementation
+├── main.go                # Program entry point
+├── go.mod                 # Go module definition
+└── README.md              # Project description (currently empty)
 ```
 
 ---
 
-## 构建与运行
+## Build & Run
 
-### 环境要求
+### Environment Requirements
 
-- Go 1.26.1 或更高版本
-- Windows 操作系统（主要目标平台）
+- Go 1.26.1 or higher.
+- Windows Operating System (primary target platform).
 
-### 运行
+### Usage
 
 ```bash
-# 初始化配置
+# Initialize configuration
 .\mihomo-cli.exe config init
 
-# 查询当前模式
+# Query current mode
 .\mihomo-cli.exe mode get
 
-# 列出代理
+# List proxies
 .\mihomo-cli.exe proxy list
 
-# 切换代理节点
+# Switch proxy node
 .\mihomo-cli.exe proxy switch Proxy Node1
 
-# 测试延迟
+# Test latency
 .\mihomo-cli.exe proxy test Proxy
 
-# 自动选择最快节点
+# Auto-select fastest node
 .\mihomo-cli.exe proxy auto Proxy
 
-# JSON 格式输出
+# JSON format output
 .\mihomo-cli.exe proxy list -o json
 ```
 
 ---
 
-## 核心设计原则
+## Core Design Principles
 
-### 1. 无状态（Stateless）
+### 1. Stateless (无状态)
 
-- CLI 不保存运行时状态
-- 所有状态查询实时请求 API
-- 避免状态同步问题
+- The CLI does not persist runtime state.
+- All state queries are performed in real-time against the API.
+- Prevents state synchronization issues.
 
-### 2. 配置持久化
+### 2. Configuration Persistence (配置持久化)
 
-- API 地址和 Secret 保存到本地配置文件
-- 避免每次输入敏感信息
-- 配置文件存储在用户目录，设置适当权限
+- API address and Secret are saved to a local configuration file.
+- Eliminates the need to input sensitive information repeatedly.
+- Configuration files are stored in the user directory with appropriate permissions.
 
-### 3. 查询与修改分离
+### 3. Query vs. Mutation Separation (查询与修改分离)
 
-- 查询操作（Query）：get, list, show
-- 修改操作（Mutation）：set, switch, update
-- 明确的语义和退出码
+- **Query Operations**: `get`, `list`, `show`.
+- **Mutation Operations**: `set`, `switch`, `update`.
+- Ensures clear semantics and distinct exit codes.
 
-### 4. 输出格式可控
+### 4. Controllable Output Format (输出格式可控)
 
-- 支持表格和 JSON 两种输出
-- 便于人工阅读和脚本解析
-- 统一的输出格式规范
+- Supports both Table and JSON formats.
+- Facilitates both human reading and script parsing.
+- Unified output format specifications.
 
-### 5. 权限管理
+### 5. Permission Management (权限管理)
 
-- 服务管理功能需要管理员权限
-- 系统代理修改需要管理员权限
-- 提供清晰的权限错误提示
+- Service management functions require Administrator privileges.
+- System proxy modification requires Administrator privileges.
+- Provides clear permission error messages.
 
-## 文档资源
+## Documentation Resources
 
-### Mihomo 参考
+### Mihomo References
 
-- `mihomo-1.19.21/`：Mihomo 核心参考实现（版本 1.19.21）
+- `mihomo-1.19.21/`: Mihomo core reference implementation (Version 1.19.21).
