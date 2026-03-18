@@ -28,6 +28,11 @@ var (
 // windowsProcessChecker Windows 平台进程检查器
 type windowsProcessChecker struct{}
 
+// newProcessChecker 创建进程检查器（Windows 平台）
+func newProcessChecker() ProcessChecker {
+	return &windowsProcessChecker{}
+}
+
 // newWindowsProcessChecker 创建 Windows 进程检查器
 func newWindowsProcessChecker() ProcessChecker {
 	return &windowsProcessChecker{}

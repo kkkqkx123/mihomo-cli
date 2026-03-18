@@ -15,6 +15,11 @@ import (
 // unixProcessChecker Unix 平台进程检查器
 type unixProcessChecker struct{}
 
+// newProcessChecker 创建进程检查器（Unix 平台）
+func newProcessChecker() ProcessChecker {
+	return &unixProcessChecker{}
+}
+
 // newUnixProcessChecker 创建 Unix 进程检查器
 func newUnixProcessChecker() ProcessChecker {
 	return &unixProcessChecker{}

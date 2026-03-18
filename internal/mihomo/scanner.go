@@ -105,6 +105,18 @@ func readPIDFromFile(pidFile string) (int, error) {
 	return pid, nil
 }
 
+// VerifyMihomoProcess 验证进程是否是 Mihomo 进程
+func VerifyMihomoProcess(pid int) (bool, error) {
+	execPath, err := GetProcessExecutable(pid)
+	if err != nil {
+		return false, pkgerrors.ErrService("failed to get process executable", err)
+	}
+
+	// 检查可执行文件名是否包含 "mihomo"
+	basename := strings.ToLower(filepath.Base(execPath))
+	return strings.Contains(basename, "mihomo"), nil
+}
+
 // getConfigPathFromHash 从 hash 反推配置文件路径（简化版）
 func getConfigPathFromHash(hash string) string {
 	// 这是一个简化的实现，实际上需要维护一个映射表

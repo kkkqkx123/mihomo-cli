@@ -21,16 +21,6 @@ type RuleStats struct {
 	Disabled int           `json:"disabled"`
 }
 
-// RuleDetail 规则详细信息（带索引）
-type RuleDetail struct {
-	Index   int    `json:"index"`
-	Type    string `json:"type"`
-	Payload string `json:"payload"`
-	Proxy   string `json:"proxy"`
-	Size    int    `json:"size"`
-	Enabled bool   `json:"enabled"`
-}
-
 // DisableRulesRequest 禁用规则请求
 type DisableRulesRequest struct {
 	RuleIDs []int `json:"rule_ids"`

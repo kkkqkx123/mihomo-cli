@@ -23,10 +23,3 @@ type ProviderProxyInfo struct {
 type ProvidersResponse struct {
 	Providers map[string]*ProviderInfo `json:"providers"`
 }
-
-// UpdateResult 更新结果
-type UpdateResult struct {
-	Name    string
-	Success bool
-	Error   string
-}

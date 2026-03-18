@@ -2,7 +2,6 @@ package mihomo
 
 import (
 	"os/exec"
-	"runtime"
 )
 
 // ProcessChecker 进程检查器接口（跨平台抽象）
@@ -23,16 +22,6 @@ var processChecker ProcessChecker
 // init 初始化进程检查器
 func init() {
 	processChecker = newProcessChecker()
-}
-
-// newProcessChecker 创建平台特定的进程检查器（由平台特定文件实现）
-func newProcessChecker() ProcessChecker {
-	switch runtime.GOOS {
-	case "windows":
-		return newWindowsProcessChecker()
-	default:
-		return newUnixProcessChecker()
-	}
 }
 
 // IsProcessRunning 检查进程是否正在运行（跨平台入口）

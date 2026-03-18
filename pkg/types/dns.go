@@ -2,12 +2,6 @@ package types
 
 import "fmt"
 
-// DNSQueryRequest DNS 查询请求
-type DNSQueryRequest struct {
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"`
-}
-
 // DNSQueryResponse DNS 查询响应
 type DNSQueryResponse struct {
 	Status     int           `json:"Status"`
