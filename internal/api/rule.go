@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 )
@@ -12,7 +11,7 @@ func (c *Client) GetRules(ctx context.Context) (*types.RulesResponse, error) {
 	var result types.RulesResponse
 	err := c.Get(ctx, "/rules", nil, &result)
 	if err != nil {
-		return nil, fmt.Errorf("获取规则列表失败: %w", err)
+		return nil, NewAPIError(ErrAPIError, "获取规则列表失败", err)
 	}
 	return &result, nil
 }
@@ -20,7 +19,7 @@ func (c *Client) GetRules(ctx context.Context) (*types.RulesResponse, error) {
 // DisableRules 禁用指定规则
 func (c *Client) DisableRules(ctx context.Context, ruleIDs []int) error {
 	if len(ruleIDs) == 0 {
-		return fmt.Errorf("规则索引列表不能为空")
+		return NewAPIError(ErrInvalidArgs, "规则索引列表不能为空", nil)
 	}
 
 	request := types.DisableRulesRequest{
@@ -29,7 +28,7 @@ func (c *Client) DisableRules(ctx context.Context, ruleIDs []int) error {
 
 	err := c.Patch(ctx, "/rules/disable", nil, &request, nil)
 	if err != nil {
-		return fmt.Errorf("禁用规则失败: %w", err)
+		return NewAPIError(ErrAPIError, "禁用规则失败", err)
 	}
 
 	return nil
@@ -38,7 +37,7 @@ func (c *Client) DisableRules(ctx context.Context, ruleIDs []int) error {
 // EnableRules 启用指定规则
 func (c *Client) EnableRules(ctx context.Context, ruleIDs []int) error {
 	if len(ruleIDs) == 0 {
-		return fmt.Errorf("规则索引列表不能为空")
+		return NewAPIError(ErrInvalidArgs, "规则索引列表不能为空", nil)
 	}
 
 	request := types.EnableRulesRequest{
@@ -47,7 +46,7 @@ func (c *Client) EnableRules(ctx context.Context, ruleIDs []int) error {
 
 	err := c.Patch(ctx, "/rules/enable", nil, &request, nil)
 	if err != nil {
-		return fmt.Errorf("启用规则失败: %w", err)
+		return NewAPIError(ErrAPIError, "启用规则失败", err)
 	}
 
 	return nil

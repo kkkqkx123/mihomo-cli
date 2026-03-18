@@ -9,7 +9,7 @@ import (
 )
 
 // Install 安装 Windows 服务
-func (sm *ServiceManager) Install() error {
+func (sm *windowsServiceManager) Install() error {
 	// 检查服务是否已存在
 	exists, err := sm.ServiceExists()
 	if err != nil {
@@ -45,7 +45,7 @@ func (sm *ServiceManager) Install() error {
 }
 
 // Uninstall 卸载 Windows 服务
-func (sm *ServiceManager) Uninstall() error {
+func (sm *windowsServiceManager) Uninstall() error {
 	// 检查服务是否存在
 	exists, err := sm.ServiceExists()
 	if err != nil {

@@ -12,7 +12,7 @@ import (
 )
 
 // Start 启动服务
-func (sm *ServiceManager) Start(async bool) error {
+func (sm *windowsServiceManager) Start(async bool) error {
 	// 检查服务是否存在
 	exists, err := sm.ServiceExists()
 	if err != nil {
@@ -64,7 +64,7 @@ func (sm *ServiceManager) Start(async bool) error {
 }
 
 // Stop 停止服务
-func (sm *ServiceManager) Stop(async bool) error {
+func (sm *windowsServiceManager) Stop(async bool) error {
 	// 检查服务是否存在
 	exists, err := sm.ServiceExists()
 	if err != nil {
@@ -116,7 +116,7 @@ func (sm *ServiceManager) Stop(async bool) error {
 }
 
 // Status 查询服务状态
-func (sm *ServiceManager) Status() (ServiceStatus, error) {
+func (sm *windowsServiceManager) Status() (ServiceStatus, error) {
 	// 检查服务是否存在
 	exists, err := sm.ServiceExists()
 	if err != nil {
@@ -157,7 +157,7 @@ func (sm *ServiceManager) Status() (ServiceStatus, error) {
 }
 
 // waitForStatus 等待服务达到指定状态
-func (sm *ServiceManager) waitForStatus(s *mgr.Service, targetState svc.State, timeout time.Duration) error {
+func (sm *windowsServiceManager) waitForStatus(s *mgr.Service, targetState svc.State, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {

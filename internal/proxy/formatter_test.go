@@ -9,19 +9,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 )
 
 // captureOutput captures the output of a function that writes to stdout
 func captureOutput(f func() error) (string, error) {
-	old := os.Stdout
+	oldStdout := os.Stdout
+	oldGlobalStdout := output.GetGlobalStdout()
+	
 	r, w, _ := os.Pipe()
 	os.Stdout = w
+	output.SetGlobalStdout(w)
 
 	err := f()
 
 	w.Close()
-	os.Stdout = old
+	os.Stdout = oldStdout
+	output.SetGlobalStdout(oldGlobalStdout)
 
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
@@ -308,6 +313,9 @@ func TestFormatAutoSelectResult_EmptyNode(t *testing.T) {
 		t.Fatalf("FormatAutoSelectResult failed: %v", err)
 	}
 
+	// Debug: print the actual output
+	t.Logf("Actual output: %q", output)
+
 	// Verify output indicates no available nodes
 	if !bytes.Contains([]byte(output), []byte("Proxy")) {
 		t.Error("Expected output to contain group name 'Proxy'")
@@ -483,6 +491,9 @@ func TestFormatGroupList_NoGroups(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FormatGroupList failed: %v", err)
 	}
+
+	// Debug: print the actual output
+	t.Logf("Actual output: %q", output)
 
 	// Verify output indicates no groups found
 	if !bytes.Contains([]byte(output), []byte("没有找到代理组")) {

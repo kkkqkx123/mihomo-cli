@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 var (
@@ -58,7 +59,7 @@ func preRun(cmd *cobra.Command, args []string) error {
 			outputFileHandle, err = os.Create(outputFile)
 		}
 		if err != nil {
-			return err
+			return pkgerrors.ErrService("打开输出文件失败", err)
 		}
 		output.SetGlobalStdout(outputFileHandle)
 		output.SetGlobalStderr(outputFileHandle)
@@ -72,7 +73,7 @@ func postRun(cmd *cobra.Command, args []string) error {
 	// 关闭输出文件
 	if outputFileHandle != nil {
 		if err := outputFileHandle.Close(); err != nil {
-			return err
+			return pkgerrors.ErrService("关闭输出文件失败", err)
 		}
 		outputFileHandle = nil
 	}
@@ -96,6 +97,7 @@ func init() {
 	rootCmd.AddCommand(NewSysproxyCmd())
 	rootCmd.AddCommand(NewSubCmd())
 	rootCmd.AddCommand(NewVersionCmd())
+	rootCmd.AddCommand(NewGeoIPCmd())
 
 	// 全局标志
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "配置文件路径 (默认: ~/.mihomo-cli/config.yaml)")

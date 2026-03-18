@@ -4,11 +4,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 // TomlConfig 项目 TOML 配置
@@ -47,7 +48,7 @@ func GenerateRandomSecret() (string, error) {
 	// 生成 32 字节随机数
 	randomBytes := make([]byte, 32)
 	if _, err := rand.Read(randomBytes); err != nil {
-		return "", fmt.Errorf("failed to generate random bytes: %w", err)
+		return "", pkgerrors.ErrService("failed to generate random bytes", err)
 	}
 
 	// 计算 SHA256
@@ -66,7 +67,7 @@ func LoadTomlConfig(path string) (*TomlConfig, error) {
 
 	// 读取配置文件
 	if _, err := toml.DecodeFile(path, &config); err != nil {
-		return nil, fmt.Errorf("failed to decode TOML config: %w", err)
+		return nil, pkgerrors.ErrConfig("failed to decode TOML config", err)
 	}
 
 	return &config, nil
@@ -101,13 +102,13 @@ func (c *TomlConfig) Save(path string) error {
 	// 确保目录存在
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+		return pkgerrors.ErrService("failed to create config directory", err)
 	}
 
 	// 写入文件
 	f, err := os.Create(path)
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("failed to create config file", err)
 	}
 	defer f.Close()
 

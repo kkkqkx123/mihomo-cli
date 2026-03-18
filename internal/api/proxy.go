@@ -14,7 +14,7 @@ func (c *Client) ListProxies(ctx context.Context) (map[string]*types.ProxyInfo, 
 	var result types.ProxiesResponse
 	err := c.Get(ctx, "/proxies", nil, &result)
 	if err != nil {
-		return nil, fmt.Errorf("获取代理列表失败: %w", err)
+		return nil, NewAPIError(ErrAPIError, "获取代理列表失败", err)
 	}
 	return result.Proxies, nil
 }
@@ -27,7 +27,7 @@ func (c *Client) GetProxy(ctx context.Context, name string) (*types.ProxyInfo, e
 	var result types.ProxyInfo
 	err := c.Get(ctx, "/proxies/"+encodedName, nil, &result)
 	if err != nil {
-		return nil, fmt.Errorf("获取代理 %s 失败: %w", name, err)
+		return nil, NewAPIError(ErrNotFound, fmt.Sprintf("获取代理 %s 失败", name), err)
 	}
 	return &result, nil
 }
@@ -43,7 +43,7 @@ func (c *Client) SwitchProxy(ctx context.Context, group, proxy string) error {
 
 	err := c.Put(ctx, "/proxies/"+encodedGroup, nil, &request, nil)
 	if err != nil {
-		return fmt.Errorf("切换代理失败: %w", err)
+		return NewAPIError(ErrAPIError, "切换代理失败", err)
 	}
 
 	return nil
@@ -65,7 +65,7 @@ func (c *Client) TestDelay(ctx context.Context, name string, testURL string, tim
 	var result types.DelayResponse
 	err := c.Get(ctx, "/proxies/"+encodedName+"/delay", queryParams, &result)
 	if err != nil {
-		return 0, fmt.Errorf("测试延迟失败: %w", err)
+		return 0, NewAPIError(ErrTimeout, "测试延迟失败", err)
 	}
 
 	return result.Delay, nil
@@ -78,7 +78,7 @@ func (c *Client) UnfixProxy(ctx context.Context, group string) error {
 
 	err := c.Delete(ctx, "/proxies/"+encodedGroup, nil, nil)
 	if err != nil {
-		return fmt.Errorf("取消固定代理失败: %w", err)
+		return NewAPIError(ErrAPIError, "取消固定代理失败", err)
 	}
 
 	return nil

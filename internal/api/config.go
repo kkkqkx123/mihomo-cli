@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 )
 
 // ConfigInfo Mihomo 配置信息
@@ -59,7 +58,7 @@ func (c *Client) GetConfig(ctx context.Context) (*ConfigInfo, error) {
 	var result ConfigInfo
 	err := c.Get(ctx, "/configs", nil, &result)
 	if err != nil {
-		return nil, fmt.Errorf("获取配置失败: %w", err)
+		return nil, NewAPIError(ErrAPIError, "获取配置失败", err)
 	}
 	return &result, nil
 }
@@ -68,7 +67,7 @@ func (c *Client) GetConfig(ctx context.Context) (*ConfigInfo, error) {
 func (c *Client) PatchConfig(ctx context.Context, patch map[string]interface{}) error {
 	err := c.Patch(ctx, "/configs", nil, patch, nil)
 	if err != nil {
-		return fmt.Errorf("热更新配置失败: %w", err)
+		return NewAPIError(ErrAPIError, "热更新配置失败", err)
 	}
 	return nil
 }
@@ -88,7 +87,7 @@ func (c *Client) ReloadConfig(ctx context.Context, path string, force bool) erro
 
 	err := c.Put(ctx, "/configs", queryParams, req, nil)
 	if err != nil {
-		return fmt.Errorf("重载配置失败: %w", err)
+		return NewAPIError(ErrAPIError, "重载配置失败", err)
 	}
 	return nil
 }
@@ -97,7 +96,7 @@ func (c *Client) ReloadConfig(ctx context.Context, path string, force bool) erro
 func (c *Client) UpdateGeo(ctx context.Context) error {
 	err := c.Post(ctx, "/configs/geo", nil, nil, nil)
 	if err != nil {
-		return fmt.Errorf("更新 Geo 数据库失败: %w", err)
+		return NewAPIError(ErrAPIError, "更新 Geo 数据库失败", err)
 	}
 	return nil
 }

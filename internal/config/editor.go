@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 // Editor 配置文件编辑器
@@ -33,12 +35,12 @@ func (e *Editor) SetBackupDir(dir string) {
 func (e *Editor) ReadConfig() (map[string]interface{}, error) {
 	data, err := os.ReadFile(e.configPath)
 	if err != nil {
-		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+		return nil, pkgerrors.ErrConfig("读取配置文件失败", err)
 	}
 
 	var config map[string]interface{}
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("解析配置文件失败: %w", err)
+		return nil, pkgerrors.ErrConfig("解析配置文件失败", err)
 	}
 
 	return config, nil
@@ -54,7 +56,7 @@ func (e *Editor) BackupConfigWithNote(note string) (string, error) {
 	// 读取原配置文件
 	data, err := os.ReadFile(e.configPath)
 	if err != nil {
-		return "", fmt.Errorf("读取配置文件失败: %w", err)
+		return "", pkgerrors.ErrConfig("读取配置文件失败", err)
 	}
 
 	// 生成备份文件名
@@ -75,12 +77,12 @@ func (e *Editor) BackupConfigWithNote(note string) (string, error) {
 
 	// 确保备份目录存在
 	if err := os.MkdirAll(e.backupDir, 0755); err != nil {
-		return "", fmt.Errorf("创建备份目录失败: %w", err)
+		return "", pkgerrors.ErrService("创建备份目录失败", err)
 	}
 
 	// 写入备份文件
 	if err := os.WriteFile(backupPath, data, 0644); err != nil {
-		return "", fmt.Errorf("创建备份文件失败: %w", err)
+		return "", pkgerrors.ErrService("创建备份文件失败", err)
 	}
 
 	return backupPath, nil
@@ -90,11 +92,11 @@ func (e *Editor) BackupConfigWithNote(note string) (string, error) {
 func (e *Editor) WriteConfig(config map[string]interface{}) error {
 	data, err := yaml.Marshal(config)
 	if err != nil {
-		return fmt.Errorf("序列化配置失败: %w", err)
+		return pkgerrors.ErrConfig("序列化配置失败", err)
 	}
 
 	if err := os.WriteFile(e.configPath, data, 0644); err != nil {
-		return fmt.Errorf("写入配置文件失败: %w", err)
+		return pkgerrors.ErrService("写入配置文件失败", err)
 	}
 
 	return nil
@@ -133,7 +135,7 @@ func (e *Editor) Edit(key string, value interface{}, noBackup bool) (string, err
 func (e *Editor) EditWithNote(key string, value interface{}, noBackup bool, note string) (string, error) {
 	// 检查配置文件是否存在
 	if _, err := os.Stat(e.configPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("配置文件不存在: %s", e.configPath)
+		return "", pkgerrors.ErrConfig(fmt.Sprintf("配置文件不存在: %s", e.configPath), nil)
 	}
 
 	// 读取现有配置
@@ -171,7 +173,7 @@ func (e *Editor) EditMultiple(updates map[string]interface{}, noBackup bool) (st
 func (e *Editor) EditMultipleWithNote(updates map[string]interface{}, noBackup bool, note string) (string, error) {
 	// 检查配置文件是否存在
 	if _, err := os.Stat(e.configPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("配置文件不存在: %s", e.configPath)
+		return "", pkgerrors.ErrConfig(fmt.Sprintf("配置文件不存在: %s", e.configPath), nil)
 	}
 
 	// 读取现有配置

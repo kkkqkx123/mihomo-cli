@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 
@@ -12,42 +13,55 @@ var asyncMode bool
 
 var serviceCmd = &cobra.Command{
 	Use:   "service",
-	Short: "Windows 服务管理",
-	Long:  "管理 Mihomo Windows 服务的安装、卸载、启动、停止和状态查询。",
+	Short: "服务管理",
+	Long:  "管理 Mihomo 系统服务的安装、卸载、启动、停止和状态查询。",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		factory := service.NewServiceFactory()
+		sm, err := factory.CreateServiceManager()
+		if err != nil {
+			return err
+		}
+
+		if !sm.IsSupported() {
+			return fmt.Errorf("service command not supported on %s", runtime.GOOS)
+		}
+
+		return cmd.Help()
+	},
 }
 
 var serviceStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "启动服务",
-	Long:  "启动 Mihomo Windows 服务。",
+	Long:  "启动 Mihomo 系统服务。",
 	RunE:  runServiceStart,
 }
 
 var serviceStopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "停止服务",
-	Long:  "停止 Mihomo Windows 服务。",
+	Long:  "停止 Mihomo 系统服务。",
 	RunE:  runServiceStop,
 }
 
 var serviceInstallCmd = &cobra.Command{
 	Use:   "install",
 	Short: "安装服务",
-	Long:  "将 Mihomo 安装为 Windows 服务。",
+	Long:  "将 Mihomo 安装为系统服务。",
 	RunE:  runServiceInstall,
 }
 
 var serviceUninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "卸载服务",
-	Long:  "卸载 Mihomo Windows 服务。",
+	Long:  "卸载 Mihomo 系统服务。",
 	RunE:  runServiceUninstall,
 }
 
 var serviceStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "查询服务状态",
-	Long:  "查询 Mihomo Windows 服务的运行状态。",
+	Long:  "查询 Mihomo 系统服务的运行状态。",
 	RunE:  runServiceStatus,
 }
 
@@ -69,7 +83,7 @@ func NewServiceCmd() *cobra.Command {
 }
 
 // getServiceManager 获取服务管理器
-func getServiceManager() (*service.ServiceManager, error) {
+func getServiceManager() (service.ServiceManager, error) {
 	factory := service.NewServiceFactory()
 	return factory.CreateServiceManager()
 }
@@ -78,6 +92,10 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 	sm, err := getServiceManager()
 	if err != nil {
 		return err
+	}
+
+	if !sm.IsSupported() {
+		return service.ErrPlatformNotSupported
 	}
 
 	err = sm.Start(asyncMode)
@@ -100,6 +118,10 @@ func runServiceStop(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if !sm.IsSupported() {
+		return service.ErrPlatformNotSupported
+	}
+
 	err = sm.Stop(asyncMode)
 	if err != nil {
 		return err
@@ -120,6 +142,10 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if !sm.IsSupported() {
+		return service.ErrPlatformNotSupported
+	}
+
 	err = sm.Install()
 	if err != nil {
 		return err
@@ -137,6 +163,10 @@ func runServiceUninstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if !sm.IsSupported() {
+		return service.ErrPlatformNotSupported
+	}
+
 	err = sm.Uninstall()
 	if err != nil {
 		return err
@@ -150,6 +180,10 @@ func runServiceStatus(cmd *cobra.Command, args []string) error {
 	sm, err := getServiceManager()
 	if err != nil {
 		return err
+	}
+
+	if !sm.IsSupported() {
+		return service.ErrPlatformNotSupported
 	}
 
 	status, err := sm.Status()

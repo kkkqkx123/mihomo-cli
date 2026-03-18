@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 // ConfigKeyType 配置键类型
@@ -204,7 +206,7 @@ func IsHotUpdateSupported(key string) bool {
 func ParseConfigValue(key string, value string) (interface{}, error) {
 	info, ok := SupportedConfigKeys[key]
 	if !ok {
-		return nil, fmt.Errorf("不支持的配置键: %s", key)
+		return nil, pkgerrors.ErrInvalidArg(fmt.Sprintf("不支持的配置键: %s", key), nil)
 	}
 
 	switch info.Type {
@@ -215,9 +217,9 @@ func ParseConfigValue(key string, value string) (interface{}, error) {
 	case ConfigTypeInt:
 		return parseInt(value)
 	case ConfigTypeObject:
-		return nil, fmt.Errorf("配置键 %s 是对象类型，请使用 JSON 格式", key)
+		return nil, pkgerrors.ErrInvalidArg(fmt.Sprintf("配置键 %s 是对象类型，请使用 JSON 格式", key), nil)
 	default:
-		return nil, fmt.Errorf("未知的配置类型: %s", info.Type)
+		return nil, pkgerrors.ErrConfig(fmt.Sprintf("未知的配置类型: %s", info.Type), nil)
 	}
 }
 
@@ -229,7 +231,7 @@ func parseBool(value string) (bool, error) {
 	case "false", "0", "no", "off":
 		return false, nil
 	default:
-		return false, fmt.Errorf("无效的布尔值: %s", value)
+		return false, pkgerrors.ErrInvalidArg(fmt.Sprintf("无效的布尔值: %s", value), nil)
 	}
 }
 
@@ -237,7 +239,7 @@ func parseBool(value string) (bool, error) {
 func parseInt(value string) (int, error) {
 	val, err := strconv.Atoi(value)
 	if err != nil {
-		return 0, fmt.Errorf("无效的整数值: %s", value)
+		return 0, pkgerrors.ErrInvalidArg(fmt.Sprintf("无效的整数值: %s", value), nil)
 	}
 	return val, nil
 }
@@ -266,17 +268,17 @@ func ListHotUpdateConfigKeys() []ConfigKeyInfo {
 func ValidateConfigKey(key string, value interface{}) error {
 	info, ok := SupportedConfigKeys[key]
 	if !ok {
-		return fmt.Errorf("不支持的配置键: %s", key)
+		return pkgerrors.ErrInvalidArg(fmt.Sprintf("不支持的配置键: %s", key), nil)
 	}
 
 	switch info.Type {
 	case ConfigTypeString:
 		if _, ok := value.(string); !ok {
-			return fmt.Errorf("配置键 %s 需要字符串类型", key)
+			return pkgerrors.ErrInvalidArg(fmt.Sprintf("配置键 %s 需要字符串类型", key), nil)
 		}
 	case ConfigTypeBool:
 		if _, ok := value.(bool); !ok {
-			return fmt.Errorf("配置键 %s 需要布尔类型", key)
+			return pkgerrors.ErrInvalidArg(fmt.Sprintf("配置键 %s 需要布尔类型", key), nil)
 		}
 	case ConfigTypeInt:
 		switch v := value.(type) {
@@ -287,14 +289,14 @@ func ValidateConfigKey(key string, value interface{}) error {
 		case float64:
 			// JSON 数字默认解析为 float64
 			if v != float64(int(v)) {
-				return fmt.Errorf("配置键 %s 需要整数类型", key)
+				return pkgerrors.ErrInvalidArg(fmt.Sprintf("配置键 %s 需要整数类型", key), nil)
 			}
 		default:
-			return fmt.Errorf("配置键 %s 需要整数类型", key)
+			return pkgerrors.ErrInvalidArg(fmt.Sprintf("配置键 %s 需要整数类型", key), nil)
 		}
 	case ConfigTypeObject:
 		if _, ok := value.(map[string]interface{}); !ok {
-			return fmt.Errorf("配置键 %s 需要对象类型", key)
+			return pkgerrors.ErrInvalidArg(fmt.Sprintf("配置键 %s 需要对象类型", key), nil)
 		}
 	}
 

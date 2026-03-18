@@ -291,7 +291,7 @@ func (pm *ProcessManager) prepareConfigFile(secret string) (string, error) {
 
 	// 写入文件
 	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
-		return "", err
+		return "", pkgerrors.ErrConfig("failed to write config file", err)
 	}
 
 	return configFile, nil

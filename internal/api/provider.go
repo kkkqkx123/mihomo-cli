@@ -13,7 +13,7 @@ func (c *Client) ListProviders(ctx context.Context) (map[string]*types.ProviderI
 	var result types.ProvidersResponse
 	err := c.Get(ctx, "/providers/proxies", nil, &result)
 	if err != nil {
-		return nil, fmt.Errorf("获取代理提供者列表失败: %w", err)
+		return nil, NewAPIError(ErrAPIError, "获取代理提供者列表失败", err)
 	}
 	return result.Providers, nil
 }
@@ -25,7 +25,7 @@ func (c *Client) UpdateProvider(ctx context.Context, name string) error {
 
 	err := c.Put(ctx, "/providers/proxies/"+encodedName, nil, nil, nil)
 	if err != nil {
-		return fmt.Errorf("更新代理提供者 %s 失败: %w", name, err)
+		return NewAPIError(ErrNotFound, fmt.Sprintf("更新代理提供者 %s 失败", name), err)
 	}
 
 	return nil

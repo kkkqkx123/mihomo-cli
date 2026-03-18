@@ -20,11 +20,12 @@ const (
 	ProxyOverrideValue = "ProxyOverride"
 )
 
-// SystemProxySettings 系统代理设置
-type SystemProxySettings struct {
-	Enabled    bool   // 是否启用代理
-	Server     string // 代理服务器地址
-	BypassList string // 绕过代理的地址列表
+// windowsSysProxy Windows 系统代理管理器
+type windowsSysProxy struct{}
+
+// newWindowsSysProxy 创建新的 Windows 系统代理管理器
+func newWindowsSysProxy() SysProxy {
+	return &windowsSysProxy{}
 }
 
 // WindowsRegistry Windows 注册表操作
@@ -53,8 +54,8 @@ func (wr *WindowsRegistry) Close() error {
 }
 
 // GetSettings 获取当前系统代理设置
-func (wr *WindowsRegistry) GetSettings() (*SystemProxySettings, error) {
-	settings := &SystemProxySettings{}
+func (wr *WindowsRegistry) GetSettings() (*ProxySettings, error) {
+	settings := &ProxySettings{}
 
 	// 读取 ProxyEnable 值
 	enabled, _, err := wr.key.GetIntegerValue(ProxyEnableValue)
@@ -85,7 +86,7 @@ func (wr *WindowsRegistry) GetSettings() (*SystemProxySettings, error) {
 }
 
 // SetSettings 设置系统代理
-func (wr *WindowsRegistry) SetSettings(settings *SystemProxySettings) error {
+func (wr *WindowsRegistry) SetSettings(settings *ProxySettings) error {
 	// 设置 ProxyEnable 值
 	var enabled uint32
 	if settings.Enabled {
@@ -115,15 +116,26 @@ func (wr *WindowsRegistry) SetSettings(settings *SystemProxySettings) error {
 	return nil
 }
 
-// EnableProxy 启用系统代理
-func EnableProxy(server, bypassList string) error {
+// GetStatus 获取系统代理状态
+func (sp *windowsSysProxy) GetStatus() (*ProxySettings, error) {
+	wr, err := NewWindowsRegistry()
+	if err != nil {
+		return nil, err
+	}
+	defer wr.Close()
+
+	return wr.GetSettings()
+}
+
+// Enable 启用系统代理
+func (sp *windowsSysProxy) Enable(server, bypassList string) error {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
 		return err
 	}
 	defer wr.Close()
 
-	settings := &SystemProxySettings{
+	settings := &ProxySettings{
 		Enabled:    true,
 		Server:     server,
 		BypassList: bypassList,
@@ -132,28 +144,22 @@ func EnableProxy(server, bypassList string) error {
 	return wr.SetSettings(settings)
 }
 
-// DisableProxy 禁用系统代理
-func DisableProxy() error {
+// Disable 禁用系统代理
+func (sp *windowsSysProxy) Disable() error {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
 		return err
 	}
 	defer wr.Close()
 
-	settings := &SystemProxySettings{
+	settings := &ProxySettings{
 		Enabled: false,
 	}
 
 	return wr.SetSettings(settings)
 }
 
-// GetProxyStatus 获取系统代理状态
-func GetProxyStatus() (*SystemProxySettings, error) {
-	wr, err := NewWindowsRegistry()
-	if err != nil {
-		return nil, err
-	}
-	defer wr.Close()
-
-	return wr.GetSettings()
+// IsSupported 检查当前平台是否支持系统代理管理
+func (sp *windowsSysProxy) IsSupported() bool {
+	return true
 }

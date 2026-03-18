@@ -134,7 +134,7 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 
 		// 停止进程
 		if err := StopProcessByPID(pid); err != nil {
-			return nil, err
+			return nil, pkgerrors.ErrService("failed to stop process", err)
 		}
 
 		return &StopResult{PID: pid}, nil

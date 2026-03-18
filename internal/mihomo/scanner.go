@@ -138,13 +138,13 @@ func ScanMihomoProcesses() ([]ProcessInfo, error) {
 func readPIDFromFile(pidFile string) (int, error) {
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
-		return 0, err
+		return 0, pkgerrors.ErrConfig("failed to read pid file", err)
 	}
 
 	var pid int
 	_, err = fmt.Sscanf(string(data), "%d", &pid)
 	if err != nil {
-		return 0, err
+		return 0, pkgerrors.ErrConfig("invalid pid format", err)
 	}
 
 	return pid, nil
@@ -184,7 +184,7 @@ func GetProcessExecutable(pid int) (string, error) {
 func VerifyMihomoProcess(pid int) (bool, error) {
 	execPath, err := GetProcessExecutable(pid)
 	if err != nil {
-		return false, err
+		return false, pkgerrors.ErrService("failed to get process executable", err)
 	}
 
 	// 检查可执行文件名是否包含 "mihomo"
@@ -262,7 +262,7 @@ func CleanupPIDFiles() error {
 func GetAllMihomoPIDs() ([]int, error) {
 	processes, err := ScanMihomoProcesses()
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.ErrService("failed to scan mihomo processes", err)
 	}
 
 	pids := []int{}

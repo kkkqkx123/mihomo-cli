@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 // BackupInfo 备份文件信息
@@ -52,13 +54,13 @@ func (bm *BackupManager) GetBackupDir() string {
 func (bm *BackupManager) CreateBackup(note string) (*BackupInfo, error) {
 	// 确保备份目录存在
 	if err := os.MkdirAll(bm.backupDir, 0755); err != nil {
-		return nil, fmt.Errorf("创建备份目录失败: %w", err)
+		return nil, pkgerrors.ErrService("创建备份目录失败", err)
 	}
 
 	// 读取原配置文件
 	data, err := os.ReadFile(bm.configPath)
 	if err != nil {
-		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+		return nil, pkgerrors.ErrConfig("读取配置文件失败", err)
 	}
 
 	// 计算校验和
@@ -82,13 +84,13 @@ func (bm *BackupManager) CreateBackup(note string) (*BackupInfo, error) {
 
 	// 写入备份文件
 	if err := os.WriteFile(backupPath, data, 0644); err != nil {
-		return nil, fmt.Errorf("创建备份文件失败: %w", err)
+		return nil, pkgerrors.ErrService("创建备份文件失败", err)
 	}
 
 	// 获取文件信息
 	fileInfo, err := os.Stat(backupPath)
 	if err != nil {
-		return nil, fmt.Errorf("获取备份文件信息失败: %w", err)
+		return nil, pkgerrors.ErrService("获取备份文件信息失败", err)
 	}
 
 	return &BackupInfo{
@@ -116,7 +118,7 @@ func (bm *BackupManager) ListBackups() ([]*BackupInfo, error) {
 	// 读取备份目录
 	entries, err := os.ReadDir(bm.backupDir)
 	if err != nil {
-		return nil, fmt.Errorf("读取备份目录失败: %w", err)
+		return nil, pkgerrors.ErrService("读取备份目录失败", err)
 	}
 
 	var backups []*BackupInfo
@@ -199,12 +201,12 @@ func (bm *BackupManager) RestoreBackup(backupPath string) error {
 	// 读取备份文件
 	data, err := os.ReadFile(backupPath)
 	if err != nil {
-		return fmt.Errorf("读取备份文件失败: %w", err)
+		return pkgerrors.ErrConfig("读取备份文件失败", err)
 	}
 
 	// 写入配置文件
 	if err := os.WriteFile(bm.configPath, data, 0644); err != nil {
-		return fmt.Errorf("恢复配置文件失败: %w", err)
+		return pkgerrors.ErrService("恢复配置文件失败", err)
 	}
 
 	return nil
@@ -213,7 +215,7 @@ func (bm *BackupManager) RestoreBackup(backupPath string) error {
 // DeleteBackup 删除备份
 func (bm *BackupManager) DeleteBackup(backupPath string) error {
 	if err := os.Remove(backupPath); err != nil {
-		return fmt.Errorf("删除备份文件失败: %w", err)
+		return pkgerrors.ErrService("删除备份文件失败", err)
 	}
 	return nil
 }
@@ -265,7 +267,7 @@ func (bm *BackupManager) GetBackupByIndex(index int) (*BackupInfo, error) {
 	}
 
 	if index < 1 || index > len(backups) {
-		return nil, fmt.Errorf("无效的备份序号: %d，有效范围: 1-%d", index, len(backups))
+		return nil, pkgerrors.ErrInvalidArg(fmt.Sprintf("无效的备份序号: %d，有效范围: 1-%d", index, len(backups)), nil)
 	}
 
 	return backups[index-1], nil
