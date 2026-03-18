@@ -127,3 +127,100 @@ func formatDNSStatus(status int) string {
 		return fmt.Sprintf("未知状态 (%d)", status)
 	}
 }
+
+// FormatDNSConfig 格式化 DNS 配置输出
+func FormatDNSConfig(config *types.DNSConfig, outputFormat string) error {
+	if outputFormat == "json" {
+		return formatDNSConfigJSON(config)
+	}
+	return formatDNSConfigTable(config)
+}
+
+// formatDNSConfigJSON 以 JSON 格式输出 DNS 配置
+func formatDNSConfigJSON(config *types.DNSConfig) error {
+	return output.PrintJSON(config)
+}
+
+// formatDNSConfigTable 以表格格式输出 DNS 配置
+func formatDNSConfigTable(config *types.DNSConfig) error {
+	// 基本信息
+	output.Info("DNS 配置:")
+	fmt.Fprintf(output.GetGlobalStdout(), "  启用状态: %s\n", formatBool(config.Enable))
+	fmt.Fprintf(output.GetGlobalStdout(), "  IPv6 支持: %s\n", formatBool(config.IPv6))
+	fmt.Fprintf(output.GetGlobalStdout(), "  增强模式: %s\n", config.EnhancedMode)
+
+	if config.Listen != "" {
+		fmt.Fprintf(output.GetGlobalStdout(), "  监听地址: %s\n", config.Listen)
+	}
+
+	if config.FakeIPRange != "" {
+		fmt.Fprintf(output.GetGlobalStdout(), "  FakeIP 范围: %s\n", config.FakeIPRange)
+	}
+
+	// Nameserver
+	if len(config.Nameserver) > 0 {
+		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		output.Info("Nameserver:")
+		for _, ns := range config.Nameserver {
+			fmt.Fprintf(output.GetGlobalStdout(), "  - %s\n", ns)
+		}
+	}
+
+	// Fallback
+	if len(config.Fallback) > 0 {
+		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		output.Info("Fallback:")
+		for _, fb := range config.Fallback {
+			fmt.Fprintf(output.GetGlobalStdout(), "  - %s\n", fb)
+		}
+	}
+
+	// Default Nameserver
+	if len(config.DefaultNameserver) > 0 {
+		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		output.Info("Default Nameserver:")
+		for _, ns := range config.DefaultNameserver {
+			fmt.Fprintf(output.GetGlobalStdout(), "  - %s\n", ns)
+		}
+	}
+
+	// FakeIP Filter
+	if len(config.FakeIPFilter) > 0 {
+		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		output.Info("FakeIP 过滤规则:")
+		for _, filter := range config.FakeIPFilter {
+			fmt.Fprintf(output.GetGlobalStdout(), "  - %s\n", filter)
+		}
+	}
+
+	// Fallback Filter
+	if config.FallbackFilter.GeoIP || len(config.FallbackFilter.IPCIDR) > 0 || len(config.FallbackFilter.Domain) > 0 {
+		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		output.Info("Fallback 过滤器:")
+		if config.FallbackFilter.GeoIP {
+			fmt.Fprintf(output.GetGlobalStdout(), "  GeoIP: 启用 (代码: %s)\n", config.FallbackFilter.GeoIPCode)
+		}
+		if len(config.FallbackFilter.IPCIDR) > 0 {
+			fmt.Fprintf(output.GetGlobalStdout(), "  IP CIDR:\n")
+			for _, cidr := range config.FallbackFilter.IPCIDR {
+				fmt.Fprintf(output.GetGlobalStdout(), "    - %s\n", cidr)
+			}
+		}
+		if len(config.FallbackFilter.Domain) > 0 {
+			fmt.Fprintf(output.GetGlobalStdout(), "  Domain:\n")
+			for _, domain := range config.FallbackFilter.Domain {
+				fmt.Fprintf(output.GetGlobalStdout(), "    - %s\n", domain)
+			}
+		}
+	}
+
+	return nil
+}
+
+// formatBool 格式化布尔值
+func formatBool(b bool) string {
+	if b {
+		return "启用"
+	}
+	return "禁用"
+}

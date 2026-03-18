@@ -42,3 +42,13 @@ func (c *Client) QueryDNS(ctx context.Context, domain string, recordType string)
 
 	return &result, nil
 }
+
+// GetDNSConfig 获取 DNS 配置信息
+func (c *Client) GetDNSConfig(ctx context.Context) (*types.DNSConfig, error) {
+	var result types.DNSConfig
+	err := c.Get(ctx, "/dns", nil, &result)
+	if err != nil {
+		return nil, NewAPIError(ErrAPIError, "获取 DNS 配置失败", err)
+	}
+	return &result, nil
+}

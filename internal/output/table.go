@@ -45,28 +45,30 @@ func (t *Table) SetHeader(headers []string) {
 }
 
 // Append 添加一行数据
-func (t *Table) Append(row []string) {
-	t.table.Append(row)
+func (t *Table) Append(row []string) error {
+	return t.table.Append(row)
 }
 
 // Render 渲染表格
-func (t *Table) Render() {
-	t.table.Render()
+func (t *Table) Render() error {
+	return t.table.Render()
 }
 
 // PrintTable 快速打印表格（使用默认 stdout）
-func PrintTable(headers []string, rows [][]string) {
-	PrintTableWithWriter(GetGlobalStdout(), headers, rows)
+func PrintTable(headers []string, rows [][]string) error {
+	return PrintTableWithWriter(GetGlobalStdout(), headers, rows)
 }
 
 // PrintTableWithWriter 使用指定 Writer 打印表格
-func PrintTableWithWriter(w io.Writer, headers []string, rows [][]string) {
+func PrintTableWithWriter(w io.Writer, headers []string, rows [][]string) error {
 	table := NewTableWithWriter(w)
 	table.SetHeader(headers)
 	for _, row := range rows {
-		table.Append(row)
+		if err := table.Append(row); err != nil {
+			return err
+		}
 	}
-	table.Render()
+	return table.Render()
 }
 
 // PrintTableWithOptions 使用选项打印表格（使用默认 stdout）
@@ -75,11 +77,13 @@ func PrintTableWithOptions(headers []string, rows [][]string, opts ...tablewrite
 }
 
 // PrintTableWithOptionsWriter 使用指定 Writer 和选项打印表格
-func PrintTableWithOptionsWriter(w io.Writer, headers []string, rows [][]string, opts ...tablewriter.Option) {
+func PrintTableWithOptionsWriter(w io.Writer, headers []string, rows [][]string, opts ...tablewriter.Option) error {
 	table := NewTableWithOptionsWriter(w, opts...)
 	table.SetHeader(headers)
 	for _, row := range rows {
-		table.Append(row)
+		if err := table.Append(row); err != nil {
+			return err
+		}
 	}
-	table.Render()
+	return table.Render()
 }

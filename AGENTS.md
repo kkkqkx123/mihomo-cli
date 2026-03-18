@@ -91,7 +91,7 @@ mihomo-go/
 .\mihomo-cli.exe proxy list
 
 # Switch proxy node
-.\mihomo-cli.exe proxy switch Proxy Node1
+.\mihomo-cli.exe proxy switch Proxy NodeName
 
 # Test latency
 .\mihomo-cli.exe proxy test Proxy

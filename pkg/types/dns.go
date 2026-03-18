@@ -53,3 +53,25 @@ func DNSTypeToString(typeValue int) string {
 	}
 	return fmt.Sprintf("TYPE%d", typeValue)
 }
+
+// DNSConfig DNS 配置信息
+type DNSConfig struct {
+	Enable       bool              `json:"enable"`
+	IPv6         bool              `json:"ipv6"`
+	EnhancedMode string            `json:"enhanced-mode"`
+	FakeIPRange  string            `json:"fake-ip-range"`
+	FakeIPFilter []string          `json:"fake-ip-filter"`
+	Nameserver   []string          `json:"nameserver"`
+	Fallback     []string          `json:"fallback"`
+	FallbackFilter FallbackFilter  `json:"fallback-filter"`
+	Listen       string            `json:"listen"`
+	DefaultNameserver []string     `json:"default-nameserver"`
+}
+
+// FallbackFilter DNS 回退过滤器配置
+type FallbackFilter struct {
+	GeoIP     bool     `json:"geoip"`
+	GeoIPCode string   `json:"geoip-code"`
+	IPCIDR    []string `json:"ipcidr"`
+	Domain    []string `json:"domain"`
+}

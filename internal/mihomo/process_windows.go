@@ -33,11 +33,6 @@ func newProcessChecker() ProcessChecker {
 	return &windowsProcessChecker{}
 }
 
-// newWindowsProcessChecker 创建 Windows 进程检查器
-func newWindowsProcessChecker() ProcessChecker {
-	return &windowsProcessChecker{}
-}
-
 // IsProcessRunning 检查进程是否正在运行
 func (w *windowsProcessChecker) IsProcessRunning(pid int) bool {
 	// 使用 PROCESS_QUERY_INFORMATION 权限打开进程
@@ -51,7 +46,7 @@ func (w *windowsProcessChecker) IsProcessRunning(pid int) bool {
 		return false
 	}
 	// 关闭句柄
-	procCloseHandle.Call(handle)
+	_, _, _ = procCloseHandle.Call(handle)
 	return true
 }
 
@@ -66,7 +61,7 @@ func (w *windowsProcessChecker) GetProcessExecutable(pid int) (string, error) {
 	if handle == 0 {
 		return "", pkgerrors.ErrService("failed to open process", nil)
 	}
-	defer procCloseHandle.Call(handle)
+	defer func() { _, _, _ = procCloseHandle.Call(handle) }()
 
 	// 获取可执行文件路径
 	var path [MAX_PATH]uint16

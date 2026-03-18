@@ -25,6 +25,7 @@ func NewRuleCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(newRuleListCmd())
+	cmd.AddCommand(newRuleProviderCmd())
 	cmd.AddCommand(newRuleDisableCmd())
 	cmd.AddCommand(newRuleEnableCmd())
 
@@ -221,4 +222,38 @@ func parseRuleIndices(args []string, totalRules int) ([]int, error) {
 	}
 
 	return indices, nil
+}
+
+// newRuleProviderCmd 创建规则提供者命令
+func newRuleProviderCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "provider",
+		Short: "列出规则提供者",
+		Long:  `列出所有规则提供者及其信息。`,
+		Example: `  mihomo-cli rule provider
+  mihomo-cli rule provider -o json`,
+		Args: cobra.NoArgs,
+		RunE: runRuleProvider,
+	}
+
+	return cmd
+}
+
+// runRuleProvider 执行列出规则提供者命令
+func runRuleProvider(cmd *cobra.Command, args []string) error {
+	// 创建 API 客户端
+	client := api.NewClientWithTimeout(
+		viper.GetString("api.address"),
+		viper.GetString("api.secret"),
+		viper.GetInt("api.timeout"),
+	)
+
+	// 获取所有规则提供者
+	providers, err := client.ListRuleProviders(cmd.Context())
+	if err != nil {
+		return errors.WrapAPIError("获取规则提供者列表失败", err)
+	}
+
+	// 格式化输出
+	return rule.FormatRuleProviderList(providers, outputFmt)
 }

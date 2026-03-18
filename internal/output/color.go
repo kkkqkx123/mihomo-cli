@@ -168,16 +168,16 @@ func PrintColoredWithWriter(w io.Writer, msgType, message string) {
 	switch msgType {
 	case "success":
 		c := color.New(color.FgGreen)
-		c.Fprint(w, c.Sprintf("✓ "+message+"\n"))
+		c.Fprint(w, c.Sprintf("✓ %s\n", message))
 	case "error":
 		c := color.New(color.FgRed)
-		c.Fprint(w, c.Sprintf("✗ "+message+"\n"))
+		c.Fprint(w, c.Sprintf("✗ %s\n", message))
 	case "warning":
 		c := color.New(color.FgYellow)
-		c.Fprint(w, c.Sprintf("⚠ "+message+"\n"))
+		c.Fprint(w, c.Sprintf("⚠ %s\n", message))
 	case "info":
 		c := color.New(color.FgCyan)
-		c.Fprint(w, c.Sprintf("ℹ "+message+"\n"))
+		c.Fprint(w, c.Sprintf("ℹ %s\n", message))
 	default:
 		fmt.Fprintf(w, "%s\n", message)
 	}

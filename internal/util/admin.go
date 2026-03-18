@@ -22,7 +22,7 @@ func IsAdmin() bool {
 	if err != nil {
 		return false
 	}
-	defer windows.FreeSid(sid)
+	defer func() { _ = windows.FreeSid(sid) }()
 
 	// 检查当前进程令牌是否属于管理员组
 	token := windows.Token(0)

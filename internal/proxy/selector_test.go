@@ -48,19 +48,6 @@ func (m *MockHTTPClient) Patch(ctx context.Context, baseURL, endpoint string, qu
 
 func (m *MockHTTPClient) SetTimeout(timeout int) {}
 
-// createMockClient creates a mock API client for testing
-func createMockClient(getProxyFunc func(name string) (*types.ProxyInfo, error), testDelayFunc func(name string) (uint16, error), switchFunc func(group, proxy string) error) *api.Client {
-	client := &api.Client{}
-
-	// We need to use a different approach - create test helpers that work with the actual API structure
-	// For now, we'll test the Selector logic directly by testing its public methods
-	_ = getProxyFunc
-	_ = testDelayFunc
-	_ = switchFunc
-
-	return client
-}
-
 // TestNewSelector tests the creation of a new Selector
 func TestNewSelector(t *testing.T) {
 	client := &api.Client{}

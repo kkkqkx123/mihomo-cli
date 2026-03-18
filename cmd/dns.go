@@ -22,6 +22,7 @@ func NewDNSCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(newDNSQueryCmd())
+	cmd.AddCommand(newDNSConfigCmd())
 
 	return cmd
 }
@@ -64,4 +65,38 @@ func runDNSQuery(cmd *cobra.Command, args []string) error {
 
 	// 格式化输出
 	return dns.FormatDNSQueryResult(resp, outputFmt)
+}
+
+// newDNSConfigCmd 创建 DNS 配置命令
+func newDNSConfigCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "显示 DNS 配置",
+		Long:  `显示当前 DNS 配置信息。`,
+		Example: `  mihomo-cli dns config
+  mihomo-cli dns config -o json`,
+		Args: cobra.NoArgs,
+		RunE: runDNSConfig,
+	}
+
+	return cmd
+}
+
+// runDNSConfig 执行 DNS 配置命令
+func runDNSConfig(cmd *cobra.Command, args []string) error {
+	// 创建 API 客户端
+	client := api.NewClientWithTimeout(
+		viper.GetString("api.address"),
+		viper.GetString("api.secret"),
+		viper.GetInt("api.timeout"),
+	)
+
+	// 获取 DNS 配置
+	config, err := client.GetDNSConfig(cmd.Context())
+	if err != nil {
+		return errors.WrapAPIError("获取 DNS 配置失败", err)
+	}
+
+	// 格式化输出
+	return dns.FormatDNSConfig(config, outputFmt)
 }

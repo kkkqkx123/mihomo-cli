@@ -92,19 +92,17 @@ func ExampleUsage() {
 // ExampleCreateClient 创建客户端的示例
 func ExampleCreateClient() {
 	// 创建带有默认超时的客户端
-	client := NewClient("http://127.0.0.1:9090", "secret")
+	_ = NewClient("http://127.0.0.1:9090", "secret")
 
 	// 创建带有自定义超时的客户端
-	client = NewClient(
+	_ = NewClient(
 		"http://127.0.0.1:9090",
 		"secret",
 		WithTimeout(15*time.Second),
 	)
 
 	// 使用兼容旧接口的方法
-	client = NewClientWithTimeout("http://127.0.0.1:9090", "secret", 15)
-
-	_ = client
+	_ = NewClientWithTimeout("http://127.0.0.1:9090", "secret", 15)
 }
 
 // ExampleGetRequest GET 请求示例
@@ -223,6 +221,88 @@ func ExampleErrorHandling() {
 			} else {
 				fmt.Printf("Error: %v\n", err)
 			}
+		}
+	}
+}
+
+// ExampleNewAPIs 新增 API 接口使用示例
+func ExampleNewAPIs() {
+	client := NewClient("http://127.0.0.1:9090", "secret")
+	ctx := context.Background()
+
+	// 获取版本信息
+	version, err := client.GetVersion(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Version: %s\n", version.Version)
+
+	// 获取规则提供者列表
+	ruleProviders, err := client.ListRuleProviders(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	for name, provider := range ruleProviders {
+		fmt.Printf("Rule Provider: %s, Type: %s\n", name, provider.Type)
+	}
+
+	// 获取 DNS 配置
+	dnsConfig, err := client.GetDNSConfig(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("DNS Enabled: %v, Mode: %s\n", dnsConfig.Enable, dnsConfig.EnhancedMode)
+}
+
+// ExampleWebSocketLogs WebSocket 日志流示例
+func ExampleWebSocketLogs() {
+	client := NewClient("http://127.0.0.1:9090", "secret")
+	ctx := context.Background()
+
+	// 获取日志流
+	stream, err := client.StreamLogs(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	defer stream.Close()
+
+	// 读取日志消息
+	for i := 0; i < 10; i++ {
+		select {
+		case log := <-stream.Messages():
+			fmt.Printf("[%s] %s\n", log.LogType, log.Payload)
+		case <-time.After(5 * time.Second):
+			fmt.Println("Timeout waiting for log message")
+			return
+		}
+	}
+}
+
+// ExampleWebSocketTraffic WebSocket 流量统计流示例
+func ExampleWebSocketTraffic() {
+	client := NewClient("http://127.0.0.1:9090", "secret")
+	ctx := context.Background()
+
+	// 获取流量统计流
+	stream, err := client.StreamTraffic(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	defer stream.Close()
+
+	// 读取流量统计消息
+	for i := 0; i < 10; i++ {
+		select {
+		case traffic := <-stream.Messages():
+			fmt.Printf("Upload: %d, Download: %d\n", traffic.Up, traffic.Down)
+		case <-time.After(5 * time.Second):
+			fmt.Println("Timeout waiting for traffic data")
+			return
 		}
 	}
 }

@@ -30,3 +30,13 @@ func (c *Client) UpdateProvider(ctx context.Context, name string) error {
 
 	return nil
 }
+
+// ListRuleProviders 获取所有规则提供者信息
+func (c *Client) ListRuleProviders(ctx context.Context) (map[string]*types.RuleProviderInfo, error) {
+	var result types.RuleProvidersResponse
+	err := c.Get(ctx, "/providers/rules", nil, &result)
+	if err != nil {
+		return nil, NewAPIError(ErrAPIError, "获取规则提供者列表失败", err)
+	}
+	return result.Providers, nil
+}

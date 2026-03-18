@@ -24,7 +24,7 @@ func (sm *windowsServiceManager) Install() error {
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	// 创建服务
 	s, err := m.CreateService(
@@ -60,7 +60,7 @@ func (sm *windowsServiceManager) Uninstall() error {
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	// 打开服务
 	s, err := sm.OpenService(m)

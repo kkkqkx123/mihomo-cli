@@ -85,7 +85,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		case <-checkCtx.Done():
 			// 健康检查超时，通过 PID 停止进程
 			if pid, err := pm.GetPIDFromPIDFile(); err == nil {
-				StopProcessByPID(pid)
+				_ = StopProcessByPID(pid)
 			}
 			return nil, pkgerrors.ErrService("mihomo health check timeout: process may have failed to start", nil)
 

@@ -92,7 +92,7 @@ func (s *StreamClient) StreamTraffic(ctx context.Context) (<-chan *types.Traffic
 	// 启动 goroutine 读取数据
 	go func() {
 		defer close(dataChan)
-		defer s.closeConnection()
+		defer func() { _ = s.closeConnection() }()
 
 		for {
 			select {
@@ -100,7 +100,7 @@ func (s *StreamClient) StreamTraffic(ctx context.Context) (<-chan *types.Traffic
 				return
 			default:
 				// 设置读取超时
-				conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+				_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 				var data types.TrafficInfo
 				err := websocket.JSON.Receive(conn, &data)
@@ -167,7 +167,7 @@ func (s *StreamClient) StreamMemory(ctx context.Context) (<-chan *types.MemoryIn
 	// 启动 goroutine 读取数据
 	go func() {
 		defer close(dataChan)
-		defer s.closeConnection()
+		defer func() { _ = s.closeConnection() }()
 
 		for {
 			select {
@@ -175,7 +175,7 @@ func (s *StreamClient) StreamMemory(ctx context.Context) (<-chan *types.MemoryIn
 				return
 			default:
 				// 设置读取超时
-				conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+				_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 				var data types.MemoryInfo
 				err := websocket.JSON.Receive(conn, &data)

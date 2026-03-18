@@ -29,7 +29,7 @@ func captureOutput(f func() error) (string, error) {
 	output.SetGlobalStdout(oldGlobalStdout)
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	return buf.String(), err
 }
 

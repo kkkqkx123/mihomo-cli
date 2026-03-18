@@ -30,3 +30,17 @@ type DisableRulesRequest struct {
 type EnableRulesRequest struct {
 	RuleIDs []int `json:"rule_ids"`
 }
+
+// RuleProviderInfo 规则提供者信息
+type RuleProviderInfo struct {
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	VehicleType string   `json:"vehicleType"`
+	Rules       []string `json:"rules"`
+	UpdatedAt   string   `json:"updatedAt"`
+}
+
+// RuleProvidersResponse 规则提供者列表响应
+type RuleProvidersResponse struct {
+	Providers map[string]*RuleProviderInfo `json:"providers"`
+}

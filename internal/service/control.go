@@ -27,7 +27,7 @@ func (sm *windowsServiceManager) Start(async bool) error {
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	// 打开服务
 	s, err := sm.OpenService(m)
@@ -79,7 +79,7 @@ func (sm *windowsServiceManager) Stop(async bool) error {
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	// 打开服务
 	s, err := sm.OpenService(m)
@@ -131,7 +131,7 @@ func (sm *windowsServiceManager) Status() (ServiceStatus, error) {
 	if err != nil {
 		return StatusUnknown, err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	// 打开服务
 	s, err := sm.OpenService(m)

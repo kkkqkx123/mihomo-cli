@@ -36,7 +36,7 @@ func formatRuleTable(rules []types.RuleInfo) error {
 		tablewriter.WithHeader([]string{"索引", "类型", "匹配内容", "代理", "命中次数"}),
 		tablewriter.WithHeaderAutoFormat(tw.On),
 		tablewriter.WithRowAlignment(tw.AlignLeft),
-		tablewriter.WithBorders(tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}),
+		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 	)
 
 	// 统计信息
@@ -50,16 +50,20 @@ func formatRuleTable(rules []types.RuleInfo) error {
 			payload = payload[:47] + "..."
 		}
 
-		table.Append([]string{
+		if err := table.Append([]string{
 			fmt.Sprintf("%d", i),
 			rule.Type,
 			payload,
 			rule.Proxy,
 			fmt.Sprintf("%d", rule.Size),
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
-	table.Render()
+	if err := table.Render(); err != nil {
+		return err
+	}
 
 	// 输出统计信息
 	fmt.Fprintf(output.GetGlobalStdout(), "\n")
@@ -195,4 +199,63 @@ func ColorStatus(enabled bool) string {
 		return color.GreenString("启用")
 	}
 	return color.RedString("禁用")
+}
+
+// FormatRuleProviderList 格式化规则提供者列表输出
+func FormatRuleProviderList(providers map[string]*types.RuleProviderInfo, outputFormat string) error {
+	if len(providers) == 0 {
+		output.Info("没有找到规则提供者")
+		return nil
+	}
+
+	if outputFormat == "json" {
+		return formatRuleProviderJSON(providers)
+	}
+	return formatRuleProviderTable(providers)
+}
+
+// formatRuleProviderJSON 以 JSON 格式输出规则提供者列表
+func formatRuleProviderJSON(providers map[string]*types.RuleProviderInfo) error {
+	return output.PrintJSON(providers)
+}
+
+// formatRuleProviderTable 以表格格式输出规则提供者列表
+func formatRuleProviderTable(providers map[string]*types.RuleProviderInfo) error {
+	// 创建表格
+	table := tablewriter.NewTable(output.GetGlobalStdout(),
+		tablewriter.WithHeader([]string{"名称", "类型", "来源类型", "规则数量", "更新时间"}),
+		tablewriter.WithHeaderAutoFormat(tw.On),
+		tablewriter.WithRowAlignment(tw.AlignLeft),
+		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
+	)
+
+	// 遍历提供者并添加到表格
+	for name, provider := range providers {
+		// 截断过长的更新时间
+		updatedAt := provider.UpdatedAt
+		if len(updatedAt) > 19 {
+			updatedAt = updatedAt[:19]
+		}
+
+		if err := table.Append([]string{
+			name,
+			provider.Type,
+			provider.VehicleType,
+			fmt.Sprintf("%d", len(provider.Rules)),
+			updatedAt,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if err := table.Render(); err != nil {
+		return err
+	}
+
+	// 输出统计信息
+	fmt.Fprintf(output.GetGlobalStdout(), "\n")
+	output.Info("统计信息:")
+	fmt.Fprintf(output.GetGlobalStdout(), "  总提供者数: %d\n", len(providers))
+
+	return nil
 }

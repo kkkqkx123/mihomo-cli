@@ -226,7 +226,7 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 
 			// 设置进度回调
 			tester.SetProgress(func(current, total int, nodeName string) {
-				bar.Set(current)
+				_ = bar.Set(current)
 			})
 		}
 
@@ -320,7 +320,7 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 
 		// 设置进度回调
 		tester.SetProgress(func(current, total int, nodeName string) {
-			bar.Set(current)
+			_ = bar.Set(current)
 		})
 	}
 

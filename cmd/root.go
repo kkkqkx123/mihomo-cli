@@ -103,6 +103,7 @@ func init() {
 	rootCmd.AddCommand(NewVersionCmd())
 	rootCmd.AddCommand(NewGeoIPCmd())
 	rootCmd.AddCommand(NewMonitorCmd())
+	rootCmd.AddCommand(NewLogsCmd())
 
 	// 全局标志
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "配置文件路径 (默认: ~/.config/.mihomo-cli/config.yaml)")
@@ -134,9 +135,7 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// 读取配置文件（如果存在）
-	if err := viper.ReadInConfig(); err == nil {
-		// 配置文件读取成功
-	}
+	_ = viper.ReadInConfig()
 
 	// 命令行参数优先级高于配置文件
 	if apiURL != "" {

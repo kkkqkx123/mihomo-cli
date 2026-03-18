@@ -40,7 +40,7 @@ func formatConnectionTable(connResp *types.ConnectionsResponse) error {
 		tablewriter.WithHeader([]string{"ID", "源地址", "目标地址", "上传", "下载", "代理", "规则"}),
 		tablewriter.WithHeaderAutoFormat(tw.On),
 		tablewriter.WithRowAlignment(tw.AlignLeft),
-		tablewriter.WithBorders(tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}),
+		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 	)
 
 	// 遍历连接并添加到表格
@@ -54,7 +54,7 @@ func formatConnectionTable(connResp *types.ConnectionsResponse) error {
 		// 规则
 		rule := formatRule(conn.Rule, conn.RulePayload)
 
-		table.Append([]string{
+		if err := table.Append([]string{
 			truncateID(conn.ID),
 			source,
 			destination,
@@ -62,10 +62,12 @@ func formatConnectionTable(connResp *types.ConnectionsResponse) error {
 			formatBytes(conn.Download),
 			proxy,
 			rule,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
-	table.Render()
+	return table.Render()
 	return nil
 }
 
