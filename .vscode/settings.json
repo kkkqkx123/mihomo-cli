@@ -1,0 +1,7 @@
+{
+    "git.autoRepositoryDetection": true,
+    "git.detectSubmodules": true,
+    "git.repositoryScanMaxDepth": 3,
+    "git-graph.maxDepthOfRepoSearch": 3,
+    "diffEditor.renderSideBySide": true
+}
