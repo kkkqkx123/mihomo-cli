@@ -40,6 +40,7 @@ func NewProxyCmd() *cobra.Command {
 	cmd.AddCommand(newProxyTestCmd())
 	cmd.AddCommand(newProxyAutoCmd())
 	cmd.AddCommand(newProxyUnfixCmd())
+	cmd.AddCommand(newProxyCurrentCmd())
 
 	return cmd
 }
@@ -176,14 +177,26 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 
 	// 创建延迟测试器
 	tester := proxy.NewDelayTester(client)
+	
+	// 优先使用命令行参数，其次使用配置文件
 	if testURL != "" {
 		tester.SetTestURL(testURL)
+	} else if viper.IsSet("proxy.test_url") {
+		tester.SetTestURL(viper.GetString("proxy.test_url"))
 	}
+	
 	if testTimeout > 0 {
 		tester.SetTimeout(testTimeout)
+	} else if viper.IsSet("proxy.timeout") {
+		tester.SetTimeout(viper.GetInt("proxy.timeout"))
+	} else {
+		tester.SetTimeout(10000) // 默认10秒
 	}
+	
 	if concurrent > 0 {
 		tester.SetConcurrent(concurrent)
+	} else if viper.IsSet("proxy.concurrent") {
+		tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 	}
 
 	var results []types.DelayResult
@@ -274,14 +287,26 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 
 	// 创建延迟测试器
 	tester := proxy.NewDelayTester(client)
+	
+	// 优先使用命令行参数，其次使用配置文件
 	if testURL != "" {
 		tester.SetTestURL(testURL)
+	} else if viper.IsSet("proxy.test_url") {
+		tester.SetTestURL(viper.GetString("proxy.test_url"))
 	}
+	
 	if testTimeout > 0 {
 		tester.SetTimeout(testTimeout)
+	} else if viper.IsSet("proxy.timeout") {
+		tester.SetTimeout(viper.GetInt("proxy.timeout"))
+	} else {
+		tester.SetTimeout(10000) // 默认10秒
 	}
+	
 	if concurrent > 0 {
 		tester.SetConcurrent(concurrent)
+	} else if viper.IsSet("proxy.concurrent") {
+		tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 	}
 
 	// 如果需要显示进度条
@@ -351,4 +376,39 @@ func runProxyUnfix(cmd *cobra.Command, args []string) error {
 
 	// 格式化输出结果
 	return proxy.FormatUnfixResult(groupName, nil)
+}
+
+// newProxyCurrentCmd 创建获取当前节点命令
+func newProxyCurrentCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "current <group>",
+		Short: "获取当前使用的节点",
+		Long:  `获取指定代理组当前使用的节点信息。`,
+		Example: `  mihomo-cli proxy current Proxy`,
+		Args: cobra.ExactArgs(1),
+		RunE: runProxyCurrent,
+	}
+
+	return cmd
+}
+
+// runProxyCurrent 执行获取当前节点命令
+func runProxyCurrent(cmd *cobra.Command, args []string) error {
+	groupName := args[0]
+
+	// 创建 API 客户端
+	client := api.NewClientWithTimeout(
+		viper.GetString("api.address"),
+		viper.GetString("api.secret"),
+		viper.GetInt("api.timeout"),
+	)
+
+	// 获取代理组信息
+	proxyGroup, err := client.GetProxy(cmd.Context(), groupName)
+	if err != nil {
+		return errors.WrapAPIError("failed to get proxy group info", err)
+	}
+
+	// 格式化输出结果
+	return proxy.FormatCurrentProxy(groupName, proxyGroup)
 }

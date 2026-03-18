@@ -11,7 +11,8 @@ import (
 
 // CLIConfig CLI 工具配置
 type CLIConfig struct {
-	API APIConfig `mapstructure:"api"`
+	API   APIConfig   `mapstructure:"api"`
+	Proxy ProxyConfig `mapstructure:"proxy"`
 }
 
 // APIConfig API 连接配置
@@ -21,10 +22,20 @@ type APIConfig struct {
 	Timeout int    `mapstructure:"timeout"` // 请求超时（秒）
 }
 
+// ProxyConfig 代理测试配置
+type ProxyConfig struct {
+	TestURL    string `mapstructure:"test_url"`    // 测试 URL
+	Timeout    int    `mapstructure:"timeout"`     // 测速超时时间（毫秒）
+	Concurrent int    `mapstructure:"concurrent"`  // 并发测试数
+}
+
 // Validate 验证配置
 func (c *CLIConfig) Validate() error {
 	if err := c.API.Validate(); err != nil {
 		return errors.WrapError("API config validation failed", err)
+	}
+	if err := c.Proxy.Validate(); err != nil {
+		return errors.WrapError("Proxy config validation failed", err)
 	}
 	return nil
 }
@@ -70,6 +81,21 @@ func (a *APIConfig) Validate() error {
 	return nil
 }
 
+// Validate 验证代理配置
+func (p *ProxyConfig) Validate() error {
+	// 超时时间范围：1秒到60秒
+	if p.Timeout != 0 && (p.Timeout < 1000 || p.Timeout > 60000) {
+		return errors.ErrConfig("proxy timeout must be between 1000 and 60000 milliseconds", nil)
+	}
+
+	// 并发数范围：1到100
+	if p.Concurrent != 0 && (p.Concurrent < 1 || p.Concurrent > 100) {
+		return errors.ErrConfig("proxy concurrent must be between 1 and 100", nil)
+	}
+
+	return nil
+}
+
 // GetDefaultConfig 获取默认配置
 func GetDefaultConfig() *CLIConfig {
 	return &CLIConfig{
@@ -77,6 +103,11 @@ func GetDefaultConfig() *CLIConfig {
 			Address: "http://127.0.0.1:9090",
 			Secret:  "",
 			Timeout: 10,
+		},
+		Proxy: ProxyConfig{
+			TestURL:    "",
+			Timeout:    10000, // 默认10秒，比之前的5秒更宽松
+			Concurrent: 10,
 		},
 	}
 }

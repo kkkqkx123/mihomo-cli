@@ -30,9 +30,8 @@ type BackupManager struct {
 
 // NewBackupManager 创建备份管理器
 func NewBackupManager(configPath string) *BackupManager {
-	// 默认备份目录为 ~/.mihomo-cli/backups/
-	home, _ := os.UserHomeDir()
-	backupDir := filepath.Join(home, ".mihomo-cli", "backups")
+	// 默认备份目录为 ~/.config/.mihomo-cli/backups/
+	backupDir, _ := GetBackupDir()
 
 	return &BackupManager{
 		configPath: configPath,

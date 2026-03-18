@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -30,56 +29,17 @@ type ProcessManager struct {
 
 // NewProcessManager 创建进程管理器
 func NewProcessManager(cfg *config.TomlConfig) *ProcessManager {
+	pidFile, _ := getPIDFilePath(cfg.Mihomo.ConfigFile)
 	pm := &ProcessManager{
 		config:  cfg,
-		pidFile: getPIDFilePath(cfg.Mihomo.ConfigFile),
+		pidFile: pidFile,
 	}
 	return pm
 }
 
 // getPIDFilePath 获取 PID 文件路径（基于配置文件路径）
-func getPIDFilePath(configFile string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		// 如果无法获取用户目录，使用临时目录
-		pidDir := os.TempDir()
-		return filepath.Join(pidDir, "mihomo-cli.pid")
-	}
-
-	// 如果配置文件为空，使用默认名称
-	if configFile == "" {
-		return filepath.Join(home, ".mihomo-cli", "mihomo.pid")
-	}
-
-	// 根据配置文件路径生成唯一的 hash
-	hash := generateConfigHash(configFile)
-	return filepath.Join(home, ".mihomo-cli", fmt.Sprintf("mihomo-%s.pid", hash))
-}
-
-// generateConfigHash 根据配置文件路径生成短 hash
-func generateConfigHash(configFile string) string {
-	// 使用配置文件的绝对路径作为输入
-	absPath, err := filepath.Abs(configFile)
-	if err != nil {
-		absPath = configFile
-	}
-
-	// 使用文件名作为简单的 hash（避免依赖 crypto 包）
-	// 取文件名的最后部分，去除扩展名
-	filename := filepath.Base(absPath)
-	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
-
-	// 如果名称太长，截取前 8 个字符
-	if len(nameWithoutExt) > 8 {
-		nameWithoutExt = nameWithoutExt[:8]
-	}
-
-	// 如果名称为空，使用默认
-	if nameWithoutExt == "" {
-		nameWithoutExt = "default"
-	}
-
-	return nameWithoutExt
+func getPIDFilePath(configFile string) (string, error) {
+	return config.GetPIDFilePath(configFile)
 }
 
 // Start 启动 Mihomo 内核

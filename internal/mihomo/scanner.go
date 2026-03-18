@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -60,12 +61,11 @@ func isProcessRunningWindows(pid int) bool {
 func ScanMihomoProcesses() ([]ProcessInfo, error) {
 	processes := []ProcessInfo{}
 
-	// 获取当前用户目录，用于查找 PID 文件
-	home, err := os.UserHomeDir()
+	// 获取 PID 文件目录
+	pidDir, err := config.GetPIDDir()
 	if err != nil {
-		return nil, pkgerrors.ErrConfig("failed to get user home dir", err)
+		return nil, pkgerrors.ErrConfig("failed to get pid directory", err)
 	}
-	pidDir := filepath.Join(home, ".mihomo-cli")
 
 	// 读取所有 PID 文件
 	entries, err := os.ReadDir(pidDir)
@@ -208,11 +208,10 @@ func extractAPIPortFromConfig(configFile string) (string, error) {
 
 // CleanupPIDFiles 清理所有残留的 PID 文件
 func CleanupPIDFiles() error {
-	home, err := os.UserHomeDir()
+	pidDir, err := config.GetPIDDir()
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to get user home dir", err)
+		return pkgerrors.ErrConfig("failed to get pid directory", err)
 	}
-	pidDir := filepath.Join(home, ".mihomo-cli")
 
 	// 读取所有 PID 文件
 	entries, err := os.ReadDir(pidDir)
@@ -309,8 +308,7 @@ func StopAllMihomoProcesses() error {
 	}
 
 	// 清理所有 PID 文件
-	home, _ := os.UserHomeDir()
-	pidDir := filepath.Join(home, ".mihomo-cli")
+	pidDir, _ := config.GetPIDDir()
 	entries, _ := os.ReadDir(pidDir)
 	for _, entry := range entries {
 		if strings.HasSuffix(entry.Name(), ".pid") {

@@ -255,3 +255,34 @@ func FormatGroupList(proxies map[string]*types.ProxyInfo) error {
 	}
 	return nil
 }
+
+// FormatCurrentProxy 格式化当前节点信息
+func FormatCurrentProxy(groupName string, proxy *types.ProxyInfo) error {
+	if len(proxy.All) == 0 {
+		return pkgerrors.ErrInvalidArg("'"+groupName+"' is not a proxy group", nil)
+	}
+
+	current := proxy.Now
+	if current == "" {
+		output.Warning("代理组 '%s' 当前没有选中任何节点", groupName)
+		return nil
+	}
+
+	output.Success("当前节点信息")
+	fmt.Fprintf(output.GetGlobalStdout(), "  代理组: %s\n", groupName)
+	fmt.Fprintf(output.GetGlobalStdout(), "  当前节点: %s\n", current)
+	fmt.Fprintf(output.GetGlobalStdout(), "  类型: %s\n", proxy.Type)
+	fmt.Fprintf(output.GetGlobalStdout(), "  状态: %s\n", formatAliveStatus(proxy.Alive))
+	if proxy.Delay > 0 {
+		fmt.Fprintf(output.GetGlobalStdout(), "  延迟: %dms\n", proxy.Delay)
+	}
+	return nil
+}
+
+// formatAliveStatus 格式化存活状态
+func formatAliveStatus(alive bool) string {
+	if alive {
+		return color.GreenString("可用")
+	}
+	return color.RedString("不可用")
+}

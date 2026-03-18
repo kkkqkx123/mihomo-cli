@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
@@ -100,7 +101,7 @@ func init() {
 	rootCmd.AddCommand(NewGeoIPCmd())
 
 	// 全局标志
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "配置文件路径 (默认: ~/.mihomo-cli/config.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "配置文件路径 (默认: ~/.config/.mihomo-cli/config.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&outputFmt, "output", "o", "table", "输出格式 (table/json)")
 	rootCmd.PersistentFlags().StringVar(&apiURL, "api", "", "API 地址 (覆盖配置文件)")
 	rootCmd.PersistentFlags().StringVar(&secret, "secret", "", "API 密钥 (覆盖配置文件)")
@@ -116,10 +117,10 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		// 使用默认配置文件路径
-		home, err := os.UserHomeDir()
+		paths, err := config.GetPaths()
 		cobra.CheckErr(err)
 
-		viper.AddConfigPath(home + "/.mihomo-cli")
+		viper.AddConfigPath(paths.BaseDir)
 		viper.SetConfigType("yaml")
 		viper.SetConfigName("config")
 	}

@@ -226,8 +226,10 @@ func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, 
 	editor := config.NewEditor(configPath)
 
 	// 设置备份目录为统一的备份目录
-	home, _ := os.UserHomeDir()
-	backupDir := filepath.Join(home, ".mihomo-cli", "backups")
+	backupDir, err := config.GetBackupDir()
+	if err != nil {
+		return pkgerrors.ErrConfig("failed to get backup directory", err)
+	}
 	editor.SetBackupDir(backupDir)
 
 	// 生成备份备注：记录修改的键值对

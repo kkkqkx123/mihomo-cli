@@ -101,10 +101,9 @@ func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
 
 // GetDefaultConfigPath 获取默认配置文件路径
 func GetDefaultConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
+	paths, err := GetPaths()
 	if err != nil {
-		return "", errors.ErrConfig("failed to get user home directory", err)
+		return "", err
 	}
-
-	return filepath.Join(home, ".mihomo-cli", "config.yaml"), nil
+	return paths.ConfigFile, nil
 }

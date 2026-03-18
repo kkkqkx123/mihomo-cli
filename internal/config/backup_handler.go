@@ -18,8 +18,7 @@ type BackupHandler struct {
 
 // NewBackupHandler 创建备份处理器
 func NewBackupHandler(configPath string) *BackupHandler {
-	home, _ := os.UserHomeDir()
-	backupDir := filepath.Join(home, ".mihomo-cli", "backups")
+	backupDir, _ := GetBackupDir()
 
 	return &BackupHandler{
 		configPath: configPath,
