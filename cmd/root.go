@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/history"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
@@ -23,6 +25,12 @@ var (
 
 // outputFileHandle 输出文件句柄
 var outputFileHandle *os.File
+
+// historyManager 历史记录管理器
+var historyManager *history.Manager
+
+// cmdStartTime 命令开始时间
+var cmdStartTime time.Time
 
 var rootCmd = &cobra.Command{
 	Use:   "mihomo-cli",
@@ -66,11 +74,39 @@ func preRun(cmd *cobra.Command, args []string) error {
 		output.SetGlobalStderr(outputFileHandle)
 	}
 
+	// 初始化历史记录管理器
+	historyDir, err := config.GetHistoryDir()
+	if err == nil {
+		historyFile := historyDir + "/commands.jsonl"
+		historyManager = history.NewManager(historyFile)
+	}
+
+	// 记录命令开始时间
+	cmdStartTime = time.Now()
+
 	return nil
 }
 
 // postRun 命令执行后的清理
 func postRun(cmd *cobra.Command, args []string) error {
+	// 记录历史
+	if historyManager != nil && cmd.Name() != "history" {
+		// 构建完整命令
+		fullCmd := cmd.CommandPath()
+		if len(args) > 0 {
+			fullCmd += " " + cmd.Flags().Arg(0)
+		}
+
+		entry := history.Entry{
+			Timestamp: time.Now(),
+			Command:   fullCmd,
+			Success:   true,
+		}
+
+		// 忽略记录错误
+		_ = historyManager.Add(entry)
+	}
+
 	// 关闭输出文件
 	if outputFileHandle != nil {
 		if err := outputFileHandle.Close(); err != nil {
@@ -104,6 +140,7 @@ func init() {
 	rootCmd.AddCommand(NewGeoIPCmd())
 	rootCmd.AddCommand(NewMonitorCmd())
 	rootCmd.AddCommand(NewLogsCmd())
+	rootCmd.AddCommand(NewHistoryCmd())
 
 	// 全局标志
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "配置文件路径 (默认: ~/.config/.mihomo-cli/config.yaml)")

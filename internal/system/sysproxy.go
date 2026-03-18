@@ -20,7 +20,7 @@ func NewSysProxyManager(audit *AuditLogger) *SysProxyManager {
 
 // Enable 启用系统代理
 func (spm *SysProxyManager) Enable(server, bypassList string) error {
-	proxy := sysproxy.GetSysProxy()
+	proxy := sysproxy.NewSysProxy()
 	if !proxy.IsSupported() {
 		return fmt.Errorf("system proxy is not supported on this platform")
 	}
@@ -40,7 +40,7 @@ func (spm *SysProxyManager) Enable(server, bypassList string) error {
 
 // Disable 禁用系统代理
 func (spm *SysProxyManager) Disable() error {
-	proxy := sysproxy.GetSysProxy()
+	proxy := sysproxy.NewSysProxy()
 	if !proxy.IsSupported() {
 		return fmt.Errorf("system proxy is not supported on this platform")
 	}
@@ -59,7 +59,7 @@ func (spm *SysProxyManager) Disable() error {
 
 // GetStatus 获取系统代理状态
 func (spm *SysProxyManager) GetStatus() (*ProxySettings, error) {
-	proxy := sysproxy.GetSysProxy()
+	proxy := sysproxy.NewSysProxy()
 	if !proxy.IsSupported() {
 		return nil, fmt.Errorf("system proxy is not supported on this platform")
 	}

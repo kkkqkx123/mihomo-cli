@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"

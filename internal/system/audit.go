@@ -10,6 +10,16 @@ import (
 	"time"
 )
 
+// AuditRecord 审计记录
+type AuditRecord struct {
+	Timestamp time.Time `json:"timestamp"`
+	Operation string    `json:"operation"` // "enable", "disable", "cleanup", etc.
+	Component string    `json:"component"` // "sysproxy", "tun", "route", etc.
+	Details   string    `json:"details"`
+	Result    string    `json:"result"` // "success", "failed"
+	Error     string    `json:"error,omitempty"`
+}
+
 // AuditLogger 审计日志记录器
 type AuditLogger struct {
 	logFile string
@@ -46,7 +56,7 @@ func (al *AuditLogger) Record(operation, component, details, result string, err 
 		record.Error = err.Error()
 	}
 
-	// 追加写入日志文件
+	// 追加写入日志文件（JSONL 格式）
 	f, err := os.OpenFile(al.logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open audit log file: %w", err)
@@ -128,5 +138,3 @@ func (al *AuditLogger) Clear() error {
 func (al *AuditLogger) GetLogFile() string {
 	return al.logFile
 }
-
-

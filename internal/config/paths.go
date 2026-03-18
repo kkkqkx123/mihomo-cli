@@ -14,6 +14,7 @@ type Paths struct {
 	BaseDir    string // 基础配置目录 (~/.config/.mihomo-cli)
 	PIDDir     string // PID 文件目录
 	BackupDir  string // 备份目录
+	HistoryDir string // 历史记录目录
 	ConfigFile string // CLI 配置文件路径
 }
 
@@ -30,6 +31,7 @@ func GetPaths() (*Paths, error) {
 		BaseDir:    baseDir,
 		PIDDir:     baseDir,
 		BackupDir:  filepath.Join(baseDir, "backups"),
+		HistoryDir: filepath.Join(baseDir, "history"),
 		ConfigFile: filepath.Join(baseDir, "config.yaml"),
 	}, nil
 }
@@ -64,6 +66,15 @@ func GetDataDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(baseDir, "data"), nil
+}
+
+// GetHistoryDir 获取历史记录目录
+func GetHistoryDir() (string, error) {
+	baseDir, err := GetBaseDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(baseDir, "history"), nil
 }
 
 // GetPIDFilePath 获取 PID 文件路径（基于配置文件路径）
