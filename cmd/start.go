@@ -15,6 +15,7 @@ import (
 
 var stopAll bool
 var stopConfig string
+var configFile string // 配置文件路径
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -22,7 +23,7 @@ var startCmd = &cobra.Command{
 	Long: `启动 Mihomo 内核并自动生成随机密钥。
 
 该命令会：
-1. 读取 config.toml 配置文件
+1. 读取 config.toml 配置文件（优先当前目录）
 2. 自动生成 SHA256 随机密钥
 3. 启动 Mihomo 内核进程
 4. 等待并验证内核启动成功
@@ -58,14 +59,20 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(statusCmd)
 
+	// 全局配置路径参数
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "C", "", "配置文件路径 (优先级: 指定路径 > 当前目录 > 用户配置目录)")
+
 	// stop 命令的标志
 	stopCmd.Flags().BoolVarP(&stopAll, "all", "a", false, "停止所有 Mihomo 进程")
 	stopCmd.Flags().StringVarP(&stopConfig, "config", "c", "", "指定配置文件路径")
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
+	// 查找配置文件路径
+	configPath := config.FindTomlConfigPath(configFile)
+
 	// 加载配置
-	cfg, err := config.LoadTomlConfig("config.toml")
+	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)
 	}
@@ -127,8 +134,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
+	// 查找配置文件路径
+	configPath := config.FindTomlConfigPath(configFile)
+
 	// 加载配置
-	cfg, err := config.LoadTomlConfig("config.toml")
+	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)
 	}
@@ -150,8 +160,11 @@ func runStop(cmd *cobra.Command, args []string) error {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	// 查找配置文件路径
+	configPath := config.FindTomlConfigPath(configFile)
+
 	// 加载配置
-	cfg, err := config.LoadTomlConfig("config.toml")
+	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)
 	}

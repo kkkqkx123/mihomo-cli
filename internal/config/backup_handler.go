@@ -41,8 +41,9 @@ func FindConfigPath(mihomoConfigPath string) (string, error) {
 		return mihomoConfigPath, nil
 	}
 
-	// 尝试从 config.toml 加载配置
-	tomlCfg, err := LoadTomlConfig("config.toml")
+	// 使用 FindTomlConfigPath 查找配置文件
+	tomlConfigPath := FindTomlConfigPath("")
+	tomlCfg, err := LoadTomlConfig(tomlConfigPath)
 	if err == nil && tomlCfg.Mihomo.ConfigFile != "" {
 		if _, err := os.Stat(tomlCfg.Mihomo.ConfigFile); err == nil {
 			return tomlCfg.Mihomo.ConfigFile, nil

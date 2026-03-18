@@ -43,6 +43,37 @@ type MihomoLogConfig struct {
 	File  string `toml:"file"`
 }
 
+// Validate 验证 TomlConfig 配置
+func (c *TomlConfig) Validate() error {
+	if err := c.API.Validate(); err != nil {
+		return pkgerrors.WrapError("API config validation failed", err)
+	}
+	if err := c.Mihomo.Validate(); err != nil {
+		return pkgerrors.WrapError("Mihomo config validation failed", err)
+	}
+	return nil
+}
+
+// Validate 验证 MihomoConfig 配置
+func (m *MihomoConfig) Validate() error {
+	// 验证健康检查超时
+	if m.HealthCheckTimeout < 1 || m.HealthCheckTimeout > 60 {
+		return pkgerrors.ErrConfig("health_check_timeout must be between 1 and 60 seconds", nil)
+	}
+
+	// 验证日志级别
+	if m.Log.Level != "" {
+		validLevels := map[string]bool{
+			"debug": true, "info": true, "warning": true, "error": true, "silent": true,
+		}
+		if !validLevels[m.Log.Level] {
+			return pkgerrors.ErrConfig("log level must be one of: debug, info, warning, error, silent", nil)
+		}
+	}
+
+	return nil
+}
+
 // GenerateRandomSecret 生成随机 SHA256 密钥
 func GenerateRandomSecret() (string, error) {
 	// 生成 32 字节随机数
@@ -54,6 +85,35 @@ func GenerateRandomSecret() (string, error) {
 	// 计算 SHA256
 	hash := sha256.Sum256(randomBytes)
 	return hex.EncodeToString(hash[:]), nil
+}
+
+// FindTomlConfigPath 查找 TOML 配置文件路径
+// 优先级：1. 指定路径 2. 当前目录 3. 用户配置目录
+func FindTomlConfigPath(customPath string) string {
+	// 1. 如果指定了路径，直接使用
+	if customPath != "" {
+		if _, err := os.Stat(customPath); err == nil {
+			return customPath
+		}
+	}
+
+	// 2. 当前目录的 config.toml
+	currentDirConfig := "config.toml"
+	if _, err := os.Stat(currentDirConfig); err == nil {
+		return currentDirConfig
+	}
+
+	// 3. 用户配置目录
+	home, err := os.UserHomeDir()
+	if err == nil {
+		userConfig := filepath.Join(home, ".config", ".mihomo-cli", "config.toml")
+		if _, err := os.Stat(userConfig); err == nil {
+			return userConfig
+		}
+	}
+
+	// 默认返回当前目录路径（即使不存在，LoadTomlConfig 会返回默认配置）
+	return currentDirConfig
 }
 
 // LoadTomlConfig 加载 TOML 配置文件
@@ -68,6 +128,11 @@ func LoadTomlConfig(path string) (*TomlConfig, error) {
 	// 读取配置文件
 	if _, err := toml.DecodeFile(path, &config); err != nil {
 		return nil, pkgerrors.ErrConfig("failed to decode TOML config", err)
+	}
+
+	// 验证配置
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 
 	return &config, nil

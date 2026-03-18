@@ -77,10 +77,15 @@ func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
 		return err
 	}
 
-	// 设置配置
+	// 设置 API 配置
 	l.v.Set("api.address", cfg.API.Address)
 	l.v.Set("api.secret", cfg.API.Secret)
 	l.v.Set("api.timeout", cfg.API.Timeout)
+
+	// 设置 Proxy 配置
+	l.v.Set("proxy.test_url", cfg.Proxy.TestURL)
+	l.v.Set("proxy.timeout", cfg.Proxy.Timeout)
+	l.v.Set("proxy.concurrent", cfg.Proxy.Concurrent)
 
 	// 确保目录存在
 	configDir := filepath.Dir(configPath)
