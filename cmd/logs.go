@@ -207,7 +207,9 @@ func runLogsStats(cmd *cobra.Command, args []string) error {
 
 	// 根据输出格式显示结果
 	if statsFormat == "json" {
-		output.PrintJSON(stats)
+		if err := output.PrintJSON(stats); err != nil {
+			return pkgerrors.WrapError("输出 JSON 失败", err)
+		}
 	} else {
 		printStatisticsTable(stats)
 	}
@@ -318,7 +320,9 @@ func runLogsSearch(cmd *cobra.Command, args []string) error {
 
 	// 根据输出格式显示结果
 	if searchFormat == "json" {
-		output.PrintJSON(result)
+		if err := output.PrintJSON(result); err != nil {
+			return pkgerrors.WrapError("输出 JSON 失败", err)
+		}
 	} else {
 		printSearchResults(result)
 	}
@@ -362,7 +366,9 @@ func newLogsExportCmd() *cobra.Command {
 	cmd.Flags().StringVar(&logLevel, "level", "", "日志级别过滤")
 	cmd.Flags().StringVar(&logDuration, "duration", "1m", "收集日志的时间范围（如 30s, 5m, 1h）")
 
-	cmd.MarkFlagRequired("output")
+	if err := cmd.MarkFlagRequired("output"); err != nil {
+		panic(fmt.Sprintf("标记必需标志失败: %v", err))
+	}
 
 	return cmd
 }

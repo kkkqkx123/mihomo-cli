@@ -195,11 +195,12 @@ func printNetworkDiagnosis(diagnosis *system.NetworkDiagnosis) error {
 		})
 
 		for _, conflict := range conflicts {
-			if conflict.Severity == "Critical" {
+			switch conflict.Severity {
+			case "Critical":
 				output.Error(fmt.Sprintf("\n[CRITICAL] %s", conflict.Message))
-			} else if conflict.Severity == "High" {
+			case "High":
 				output.Warning(fmt.Sprintf("\n[WARNING] %s", conflict.Message))
-			} else {
+			default:
 				output.Info(fmt.Sprintf("\n[INFO] %s", conflict.Message))
 			}
 

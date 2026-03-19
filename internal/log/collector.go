@@ -16,10 +16,9 @@ const (
 
 // LogCollector 日志收集器，用于临时缓存日志
 type LogCollector struct {
-	logs     []*types.LogInfo
-	mu       sync.RWMutex
-	maxLogs  int
-	cancel   context.CancelFunc
+	logs    []*types.LogInfo
+	mu      sync.RWMutex
+	maxLogs int
 }
 
 // NewLogCollector 创建新的日志收集器

@@ -197,8 +197,16 @@ func parseRuleIndices(args []string, totalRules int) ([]int, error) {
 				return nil, errors.NewValidationError("无效的结束索引: %s", parts[1])
 			}
 
+			if start < 0 || end < 0 {
+				return nil, errors.NewValidationError("索引不能为负数: start=%d, end=%d", start, end)
+			}
+
 			if start > end {
 				return nil, errors.NewValidationError("起始索引不能大于结束索引: %d > %d", start, end)
+			}
+
+			if end >= totalRules {
+				return nil, errors.NewValidationError("结束索引超出范围: %d >= %d (总规则数)", end, totalRules)
 			}
 
 			// 添加范围内的所有索引
@@ -214,6 +222,15 @@ func parseRuleIndices(args []string, totalRules int) ([]int, error) {
 			if err != nil {
 				return nil, errors.NewValidationError("无效的索引: %s", arg)
 			}
+
+			if index < 0 {
+				return nil, errors.NewValidationError("索引不能为负数: %d", index)
+			}
+
+			if index >= totalRules {
+				return nil, errors.NewValidationError("索引超出范围: %d >= %d (总规则数)", index, totalRules)
+			}
+
 			if !seen[index] {
 				indices = append(indices, index)
 				seen[index] = true
