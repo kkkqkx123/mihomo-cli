@@ -200,6 +200,7 @@ mihomo-cli logs search --keyword "warning" --duration 10m
 #### 导出格式
 
 **JSON 格式**：
+
 ```json
 [
   {
@@ -210,12 +211,14 @@ mihomo-cli logs search --keyword "warning" --duration 10m
 ```
 
 **TXT 格式**：
+
 ```
 [ERROR] connection refused
 [INFO] proxy started
 ```
 
 **CSV 格式**：
+
 ```csv
 Level,Message
 error,connection refused

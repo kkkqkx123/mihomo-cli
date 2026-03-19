@@ -6,46 +6,37 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
-
-	"github.com/fatih/color"
-)
-
-var (
-	// 颜色定义
-	infoColor    = color.New(color.FgGreen)
-	warnColor    = color.New(color.FgYellow)
-	errorColor   = color.New(color.FgRed)
-	debugColor   = color.New(color.FgCyan)
-	silentColor  = color.New(color.FgHiBlack)
 )
 
 // FormatLogMessage 格式化单条日志消息
 func FormatLogMessage(log *types.LogInfo) string {
 	var prefix string
-	var msgColor *color.Color
+	var formattedMsg string
 
-	switch strings.ToLower(log.LogType) {
+	logType := strings.ToLower(log.LogType)
+
+	switch logType {
 	case "info":
 		prefix = "[INFO]"
-		msgColor = infoColor
+		formattedMsg = output.GreenString("%s %s", prefix, log.Payload)
 	case "warning", "warn":
 		prefix = "[WARN]"
-		msgColor = warnColor
+		formattedMsg = output.YellowString("%s %s", prefix, log.Payload)
 	case "error":
 		prefix = "[ERROR]"
-		msgColor = errorColor
+		formattedMsg = output.RedString("%s %s", prefix, log.Payload)
 	case "debug":
 		prefix = "[DEBUG]"
-		msgColor = debugColor
+		formattedMsg = output.CyanString("%s %s", prefix, log.Payload)
 	case "silent":
 		prefix = "[SILENT]"
-		msgColor = silentColor
+		formattedMsg = output.Dim("%s %s", prefix, log.Payload)
 	default:
 		prefix = "[" + strings.ToUpper(log.LogType) + "]"
-		msgColor = infoColor
+		formattedMsg = output.GreenString("%s %s", prefix, log.Payload)
 	}
 
-	return msgColor.Sprintf("%s %s", prefix, log.Payload)
+	return formattedMsg
 }
 
 // PrintLogMessage 打印单条日志消息
