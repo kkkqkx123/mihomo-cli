@@ -17,9 +17,6 @@ var diagnoseCmd = &cobra.Command{
 }
 
 var (
-	diagnoseRoute      bool
-	diagnoseNetwork    bool
-	diagnoseAll        bool
 	diagnoseFix        bool
 	diagnoseFormat     string
 )
@@ -117,15 +114,19 @@ func printRouteDiagnosis(diagnosis *system.NetworkDiagnosis) error {
 		table.SetHeader([]string{"Type", "Severity", "Message", "Recommendation"})
 
 		for _, conflict := range diagnosis.DefaultRouteConflicts {
-			table.Append([]string{
+			if err := table.Append([]string{
 				conflict.Type,
 				conflict.Severity,
 				conflict.Message,
 				conflict.Recommendation,
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to append table row: %w", err)
+			}
 		}
 
-		table.Render()
+		if err := table.Render(); err != nil {
+			return fmt.Errorf("failed to render table: %w", err)
+		}
 	}
 
 	// 打印残留路由
@@ -136,16 +137,20 @@ func printRouteDiagnosis(diagnosis *system.NetworkDiagnosis) error {
 		table.SetHeader([]string{"Destination", "Gateway", "Interface", "Reason", "Issue"})
 
 		for _, residual := range diagnosis.ResidualRoutes {
-			table.Append([]string{
+			if err := table.Append([]string{
 				residual.Route.Destination,
 				residual.Route.Gateway,
 				residual.Route.Interface,
 				residual.Reason,
 				residual.Issue,
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to append table row: %w", err)
+			}
 		}
 
-		table.Render()
+		if err := table.Render(); err != nil {
+			return fmt.Errorf("failed to render table: %w", err)
+		}
 
 		// 提示清理命令
 		output.Info("\nTo cleanup residual routes, run:")
@@ -190,15 +195,19 @@ func printNetworkDiagnosis(diagnosis *system.NetworkDiagnosis) error {
 			table.SetHeader([]string{"Destination", "Gateway", "Interface", "Metric"})
 
 			for _, route := range conflict.Routes {
-				table.Append([]string{
+				if err := table.Append([]string{
 					route.Destination,
 					route.Gateway,
 					route.Interface,
 					fmt.Sprintf("%d", route.Metric),
-				})
+				}); err != nil {
+					return fmt.Errorf("failed to append table row: %w", err)
+				}
 			}
 
-			table.Render()
+			if err := table.Render(); err != nil {
+				return fmt.Errorf("failed to render table: %w", err)
+			}
 
 			// 打印建议
 			output.Info(fmt.Sprintf("Recommendation: %s", conflict.Recommendation))
@@ -223,17 +232,21 @@ func printNetworkDiagnosis(diagnosis *system.NetworkDiagnosis) error {
 				gwStatus = "✗"
 			}
 
-			table.Append([]string{
+			if err := table.Append([]string{
 				residual.Route.Destination,
 				residual.Route.Gateway,
 				residual.Route.Interface,
 				ifaceStatus,
 				gwStatus,
 				residual.Reason,
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to append table row: %w", err)
+			}
 		}
 
-		table.Render()
+		if err := table.Render(); err != nil {
+			return fmt.Errorf("failed to render table: %w", err)
+		}
 
 		// 提示清理命令
 		output.Info("\nTo cleanup residual routes, run:")

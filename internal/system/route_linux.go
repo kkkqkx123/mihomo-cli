@@ -213,8 +213,8 @@ func parseLinuxRouteLine(line string, ipVersion IPVersion) (RouteEntry, error) {
 	return route, nil
 }
 
-// checkInterfaceExists 检查 Linux 接口是否存在
-func checkInterfaceExists(iface string) bool {
+// Linux 平台特定实现
+func checkInterfaceExistsImpl(iface string) bool {
 	if iface == "" {
 		return false
 	}
@@ -227,8 +227,7 @@ func checkInterfaceExists(iface string) bool {
 	return err == nil
 }
 
-// checkGatewayReachable 检查网关是否可达
-func checkGatewayReachable(gateway string) bool {
+func checkGatewayReachableImpl(gateway string) bool {
 	if gateway == "" {
 		return true // 空网关不需要检查（直连路由）
 	}
@@ -241,8 +240,23 @@ func checkGatewayReachable(gateway string) bool {
 	return err == nil
 }
 
-// getInterfaceInfo 获取 Linux 接口详细信息
-func getInterfaceInfo(iface string) (map[string]string, error) {
+// checkMihomoRouteFlagsImpl 检查 Linux 路由标志是否表明是 Mihomo 添加的路由
+// Linux 使用 ip route 命令,路由标志与 BSD/macOS 不同
+// Linux 路由属性包括:
+// - proto: 路由协议(kernel, boot, static, etc.)
+// - scope: 路由范围(link, host, global)
+// - metric: 路由度量值
+// - dev: 接口设备
+func checkMihomoRouteFlagsImpl(_ string) bool {
+	// Linux 的路由标志格式与 BSD/macOS 不同
+	// Linux ip route 输出中,flags 字段通常包含协议和范围信息
+	// 对于 Linux,我们主要依赖接口名称和网关地址来判断
+	// 这里保留接口,但返回 false,因为 Linux 不使用 BSD 风格的标志
+	return false
+}
+
+// GetInterfaceInfo 获取 Linux 接口详细信息
+func (rm *RouteManager) GetInterfaceInfo(iface string) (map[string]string, error) {
 	if iface == "" {
 		return nil, fmt.Errorf("interface name is empty")
 	}
@@ -285,8 +299,8 @@ func getInterfaceInfo(iface string) (map[string]string, error) {
 	return info, nil
 }
 
-// getActiveInterfaceList 获取 Linux 活动接口列表
-func getActiveInterfaceList() ([]string, error) {
+// GetActiveInterfaceList 获取 Linux 活动接口列表
+func (rm *RouteManager) GetActiveInterfaceList() ([]string, error) {
 	cmd := exec.Command("ip", "link", "show")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -311,21 +325,4 @@ func getActiveInterfaceList() ([]string, error) {
 	}
 
 	return interfaces, nil
-}
-
-// Linux 平台特定实现
-func checkInterfaceExistsImpl(iface string) bool {
-	return checkInterfaceExists(iface)
-}
-
-func checkGatewayReachableImpl(gateway string) bool {
-	return checkGatewayReachable(gateway)
-}
-
-func getInterfaceInfoImpl(iface string) (map[string]string, error) {
-	return getInterfaceInfo(iface)
-}
-
-func getActiveInterfaceListImpl() ([]string, error) {
-	return getActiveInterfaceList()
 }

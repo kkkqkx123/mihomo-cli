@@ -509,10 +509,9 @@ func isMihomoRoute(route RouteEntry) bool {
 		return true
 	}
 
-	// 4. 检查路由标志（仅 macOS）
-	if route.Flags != "" {
-		// Mihomo 可能会设置特定的路由标志
-		// 这里可以根据实际情况扩展
+	// 4. 检查路由标志（平台特定）
+	if checkMihomoRouteFlags(route.Flags) {
+		return true
 	}
 
 	return false
@@ -533,15 +532,9 @@ func checkGatewayReachable(gateway string) bool {
 	return checkGatewayReachableImpl(gateway)
 }
 
-// getInterfaceInfo 获取接口详细信息
-func getInterfaceInfo(iface string) (map[string]string, error) {
-	if iface == "" {
-		return nil, fmt.Errorf("interface name is empty")
-	}
-	return getInterfaceInfoImpl(iface)
+// checkMihomoRouteFlags 检查路由标志是否表明是 Mihomo 添加的路由（平台特定）
+func checkMihomoRouteFlags(flags string) bool {
+	// 调用平台特定的实现
+	return checkMihomoRouteFlagsImpl(flags)
 }
 
-// getActiveInterfaceList 获取活动接口列表
-func getActiveInterfaceList() ([]string, error) {
-	return getActiveInterfaceListImpl()
-}

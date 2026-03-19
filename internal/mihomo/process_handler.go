@@ -319,7 +319,7 @@ func (ph *ProcessHandler) backupSystemConfig(cfg *config.TomlConfig, hasTUN, has
 			// 保存注册表备份
 			backupData, err := json.MarshalIndent(proxyStatus, "", "  ")
 			if err == nil {
-				backupFile := filepath.Join(backupDir, fmt.Sprintf("registry-backup-pre-start.json"))
+				backupFile := filepath.Join(backupDir, "registry-backup-pre-start.json")
 				_ = os.WriteFile(backupFile, backupData, 0644)
 			}
 		}

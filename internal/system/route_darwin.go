@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -220,41 +221,6 @@ func parseDarwinRouteLine(line string) (RouteEntry, error) {
 	return route, nil
 }
 
-// parseMetricFromFlags 尝试从 flags 或其他信息推断 metric（可选）
-func parseMetricFromFlags(flags string) int {
-	// macOS 的路由标志不直接包含 metric
-	// 可以根据需要扩展此函数
-	return 0
-}
-
-// checkInterfaceExists 检查 macOS 接口是否存在
-func checkInterfaceExists(iface string) bool {
-	if iface == "" {
-		return false
-	}
-
-	// 使用 ifconfig 命令检查接口
-	cmd := exec.Command("ifconfig", iface)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return err == nil
-}
-
-// checkGatewayReachable 检查网关是否可达
-func checkGatewayReachable(gateway string) bool {
-	if gateway == "" {
-		return true // 空网关不需要检查（直连路由）
-	}
-
-	// 使用 ping 命令检测网关是否可达（仅发送 1 个包，超时 1 秒）
-	cmd := exec.Command("ping", "-c", "1", "-W", "1000", gateway)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return err == nil
-}
-
 // getInterfaceInfo 获取 macOS 接口详细信息
 func getInterfaceInfo(iface string) (map[string]string, error) {
 	if iface == "" {
@@ -328,17 +294,136 @@ func getActiveInterfaceList() ([]string, error) {
 
 // macOS 平台特定实现
 func checkInterfaceExistsImpl(iface string) bool {
-	return checkInterfaceExists(iface)
+	if iface == "" {
+		return false
+	}
+
+	// 使用 ifconfig 命令检查接口
+	cmd := exec.Command("ifconfig", iface)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return err == nil
 }
 
 func checkGatewayReachableImpl(gateway string) bool {
-	return checkGatewayReachable(gateway)
+	if gateway == "" {
+		return true // 空网关不需要检查（直连路由）
+	}
+
+	// 使用 ping 命令检测网关是否可达（仅发送 1 个包，超时 1 秒）
+	cmd := exec.Command("ping", "-c", "1", "-W", "1000", gateway)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return err == nil
 }
 
-func getInterfaceInfoImpl(iface string) (map[string]string, error) {
-	return getInterfaceInfo(iface)
+// checkMihomoRouteFlagsImpl 检查 macOS 路由标志是否表明是 Mihomo 添加的路由
+// macOS 路由标志说明:
+// U (Up): 路由活跃
+// H (Host): 目标是单个主机
+// G (Gateway): 使用网关
+// S (Static): 静态配置的路由
+// C (Clone): 可克隆路由(用于本地网络)
+// W (WasCloned): 基于克隆路由自动配置
+// L (Link): 涉及以太网硬件
+// c: 已连接的路由
+// R: 已拒绝的路由
+func checkMihomoRouteFlagsImpl(flags string) bool {
+	if flags == "" {
+		return false
+	}
+
+	// Mihomo 添加的路由通常具有以下特征:
+	// 1. UGSc - 静态配置的网关路由(最常见)
+	// 2. UGc - 克隆的网关路由
+	// 3. USc - 静态配置的路由
+
+	// 检查是否包含静态路由标志 'S'
+	if strings.Contains(flags, "S") {
+		// 静态路由可能是 Mihomo 添加的
+		// 但需要结合其他条件判断(如接口名称、网关等)
+		// 这里只做初步筛选
+		return true
+	}
+
+	// 检查是否是克隆的网关路由
+	if strings.Contains(flags, "G") && strings.Contains(flags, "c") {
+		// 网关路由且可克隆,可能是 VPN/TUN 软件添加的
+		return true
+	}
+
+	return false
 }
 
-func getActiveInterfaceListImpl() ([]string, error) {
-	return getActiveInterfaceList()
+// GetInterfaceInfo 获取 macOS 接口详细信息
+func (rm *RouteManager) GetInterfaceInfo(iface string) (map[string]string, error) {
+	if iface == "" {
+		return nil, fmt.Errorf("interface name is empty")
+	}
+
+	cmd := exec.Command("ifconfig", iface)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get interface info: %w", err)
+	}
+
+	info := make(map[string]string)
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, ":") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+				info[key] = value
+			}
+		}
+	}
+
+	// 解析状态信息
+	for _, line := range lines {
+		if strings.Contains(line, "status") {
+			parts := strings.Fields(line)
+			for i, part := range parts {
+				if part == "status" && i+1 < len(parts) {
+					info["status"] = parts[i+1]
+					break
+				}
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// GetActiveInterfaceList 获取 macOS 活动接口列表
+func (rm *RouteManager) GetActiveInterfaceList() ([]string, error) {
+	cmd := exec.Command("ifconfig", "-a")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get interface list: %w", err)
+	}
+
+	var interfaces []string
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// 检测接口名称行（格式如：en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST>）
+		if strings.Contains(line, ":") && strings.Contains(line, "UP") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) > 0 {
+				ifaceName := strings.TrimSpace(parts[0])
+				interfaces = append(interfaces, ifaceName)
+			}
+		}
+	}
+
+	return interfaces, nil
 }

@@ -2,6 +2,7 @@ package system
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -67,21 +68,34 @@ func (rm *RouteManager) AddRoute(route RouteEntry) error {
 // AddRoutes 批量添加路由
 func (rm *RouteManager) AddRoutes(routes []RouteEntry) error {
 	var addedRoutes []RouteEntry
-	var lastErr error
 
-	for _, route := range routes {
+	for i, route := range routes {
 		if err := rm.AddRoute(route); err != nil {
-			lastErr = err
 			// 添加失败时，回滚已添加的路由
+			var rollbackErrors []string
 			for _, addedRoute := range addedRoutes {
-				_ = rm.DeleteRoute(addedRoute)
+				if delErr := rm.DeleteRoute(addedRoute); delErr != nil {
+					rollbackErrors = append(rollbackErrors,
+						fmt.Sprintf("failed to delete %s: %v", addedRoute.Destination, delErr))
+				}
 			}
-			return fmt.Errorf("failed to add route %s: %w (rolled back)", route.Destination, err)
+
+			// 构建详细的错误信息
+			errMsg := fmt.Sprintf("failed to add route #%d (%s): %v", i+1, route.Destination, err)
+			if len(addedRoutes) > 0 {
+				if len(rollbackErrors) > 0 {
+					errMsg = fmt.Sprintf("%s (rolled back %d routes, but %d rollback(s) failed: %s)",
+						errMsg, len(addedRoutes), len(rollbackErrors), strings.Join(rollbackErrors, "; "))
+				} else {
+					errMsg = fmt.Sprintf("%s (successfully rolled back %d routes)", errMsg, len(addedRoutes))
+				}
+			}
+			return fmt.Errorf("%s", errMsg)
 		}
 		addedRoutes = append(addedRoutes, route)
 	}
 
-	return lastErr
+	return nil
 }
 
 // DeleteRoutes 批量删除路由
@@ -125,12 +139,13 @@ func (rm *RouteManager) validateRoute(route RouteEntry) error {
 	}
 
 	// 检查 IP 版本一致性
-	if route.IPVersion == IPVersion4 {
+	switch route.IPVersion {
+	case IPVersion4:
 		// 检查是否包含 IPv6 地址
 		if strings.Contains(route.Destination, ":") || (route.Gateway != "" && strings.Contains(route.Gateway, ":")) {
 			return fmt.Errorf("invalid IPv6 address in IPv4 route")
 		}
-	} else if route.IPVersion == IPVersion6 {
+	case IPVersion6:
 		// 检查是否包含 IPv4 地址
 		if !strings.Contains(route.Destination, ":") && !strings.Contains(route.Destination, "default") {
 			return fmt.Errorf("invalid IPv4 address in IPv6 route")
@@ -163,8 +178,9 @@ func (rm *RouteManager) checkRouteConflict(route RouteEntry) error {
 			existingRoute.Gateway != route.Gateway &&
 			existingRoute.Gateway != "" &&
 			route.Gateway != "" {
-			// 相同前缀但不同网关，可能需要警告
-			// 这里暂时不阻止，但可以记录日志
+			// 相同前缀但不同网关，记录警告日志
+			log.Printf("Warning: route conflict detected - same destination %s with different gateways: %s vs %s",
+				route.Destination, existingRoute.Gateway, route.Gateway)
 		}
 	}
 

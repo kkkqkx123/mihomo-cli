@@ -98,16 +98,20 @@ func (rm *RouteManager) addRoute(route RouteEntry) error {
 // ===========================================================================
 // Active Routes:
 // Network Destination        Netmask          Gateway       Interface  Metric
-//           0.0.0.0          0.0.0.0      192.168.1.1    192.168.1.100     25
-//         127.0.0.0        255.0.0.0         On-link         127.0.0.1    331
+//
+//	  0.0.0.0          0.0.0.0      192.168.1.1    192.168.1.100     25
+//	127.0.0.0        255.0.0.0         On-link         127.0.0.1    331
+//
 // ===========================================================================
 //
 // Windows route print 输出格式示例 (IPv6):
 // ===========================================================================
 // Active Routes:
-//  If Metric Network Destination      Gateway
-//  1    331  ::1/128                  On-link
-//  1     25  ::/0                     fe80::1
+//
+//	If Metric Network Destination      Gateway
+//	1    331  ::1/128                  On-link
+//	1     25  ::/0                     fe80::1
+//
 // ===========================================================================
 func parseWindowsRouteOutput(output []byte) ([]RouteEntry, error) {
 	var routes []RouteEntry
@@ -313,23 +317,50 @@ func checkGatewayReachableImpl(gateway string) bool {
 	return err == nil
 }
 
-func getInterfaceInfoImpl(iface string) (map[string]string, error) {
+// checkMihomoRouteFlagsImpl 检查 Windows 路由标志是否表明是 Mihomo 添加的路由
+// Windows 路由表不使用 BSD 风格的标志,而是使用 route print 命令的输出格式
+// Windows 路由标志通常包括:
+// - 活跃路由: 在路由表中标记为 "Active"
+// - 永久路由: 在路由表中标记为 "Permanent"
+// - 接口索引: 用于标识网络接口
+func checkMihomoRouteFlagsImpl(_ string) bool {
+	// Windows 的路由标志格式与 BSD/macOS 不同
+	// Windows route print 输出中,flags 字段通常为空或包含特定标记
+	// 对于 Windows,我们主要依赖接口名称和网关地址来判断
+	// 这里保留接口,但返回 false,因为 Windows 不使用 BSD 风格的标志
+	return false
+}
+
+// GetInterfaceInfo 获取 Windows 接口详细信息
+func (rm *RouteManager) GetInterfaceInfo(iface string) (map[string]string, error) {
 	if iface == "" {
 		return nil, fmt.Errorf("interface name is empty")
 	}
 
-	cmd := exec.Command("netsh", "interface", "ip", "show", "address", iface)
+	// 使用 netsh 命令获取接口详细信息
+	cmd := exec.Command("netsh", "interface", "ip", "show", "config", "name="+iface)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get interface info: %w", err)
+		return nil, fmt.Errorf("failed to get interface info: %w, stderr: %s", err, stderr.String())
 	}
 
 	info := make(map[string]string)
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// 解析配置信息，格式如：
+		// Configuration for interface "Ethernet"
+		// IP Address: 192.168.1.100
+		// Subnet Prefix: 192.168.1.0/24 (mask 255.255.255.0)
+		// Default Gateway: 192.168.1.1
+		// Gateway Metric: 0
+		// Interface Metric: 25
 		if strings.Contains(line, ":") {
 			parts := strings.SplitN(line, ":", 2)
 			if len(parts) == 2 {
@@ -340,33 +371,74 @@ func getInterfaceInfoImpl(iface string) (map[string]string, error) {
 		}
 	}
 
+	// 获取接口状态
+	statusCmd := exec.Command("netsh", "interface", "show", "interface", "name="+iface)
+	var statusStderr bytes.Buffer
+	statusCmd.Stderr = &statusStderr
+	statusOutput, err := statusCmd.Output()
+	if err == nil {
+		statusLines := strings.Split(string(statusOutput), "\n")
+		for _, line := range statusLines {
+			line = strings.TrimSpace(line)
+			// 解析状态信息
+			// 格式：已启用  已连接  专用    Ethernet
+			if strings.Contains(line, "connected") || strings.Contains(line, "已连接") {
+				info["status"] = "connected"
+			} else if strings.Contains(line, "disconnected") || strings.Contains(line, "已断开") {
+				info["status"] = "disconnected"
+			}
+		}
+	}
+
 	return info, nil
 }
 
-func getActiveInterfaceListImpl() ([]string, error) {
+// GetActiveInterfaceList 获取 Windows 活动接口列表
+func (rm *RouteManager) GetActiveInterfaceList() ([]string, error) {
+	// 使用 netsh 命令获取接口列表
 	cmd := exec.Command("netsh", "interface", "show", "interface")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get interface list: %w", err)
+		return nil, fmt.Errorf("failed to get interface list: %w, stderr: %s", err, stderr.String())
 	}
 
 	var interfaces []string
 	lines := strings.Split(string(output), "\n")
+
+	// Windows netsh interface show interface 输出格式：
+	// 管理状态    状态          类型             接口名称
+	// ---------------------------------------------------------------------------
+	// 已启用            已连接            专用                Ethernet
+	// 已启用            已连接            专用                Wi-Fi
+	//
+	// 或英文版：
+	// Admin State    State          Type             Interface Name
+	// ---------------------------------------------------------------------------
+	// Enabled        Connected      Dedicated        Ethernet
+	// Enabled        Connected      Dedicated        Wi-Fi
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		// 跳过标题和空行
-		if line == "" || strings.Contains(line, "Admin State") || strings.Contains(line, "状态") {
+		// 跳过空行和标题行
+		if line == "" || strings.Contains(line, "Admin State") || strings.Contains(line, "管理状态") || strings.Contains(line, "---") {
 			continue
 		}
 
-		// 检查是否是已连接的接口
-		if strings.Contains(line, "connected") || strings.Contains(line, "已连接") {
-			// 提取接口名称（通常在第一列）
-			fields := strings.Fields(line)
-			if len(fields) > 0 {
-				interfaces = append(interfaces, fields[0])
+		// 解析接口行
+		fields := strings.Fields(line)
+		if len(fields) >= 4 {
+			// 检查是否是已连接状态
+			// 中文版：已启用  已连接  ...
+			// 英文版：Enabled Connected ...
+			isConnected := strings.Contains(line, "connected") || strings.Contains(line, "已连接")
+			isEnabled := strings.Contains(line, "enabled") || strings.Contains(line, "已启用")
+
+			if isConnected && isEnabled {
+				// 接口名称是最后一个字段
+				ifaceName := fields[len(fields)-1]
+				interfaces = append(interfaces, ifaceName)
 			}
 		}
 	}

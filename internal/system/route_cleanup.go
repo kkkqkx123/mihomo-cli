@@ -124,9 +124,10 @@ func (rm *RouteManager) FixRouteIssues() (*FixReport, error) {
 	// 3. 综合判断修复结果
 	report.Success = len(report.Errors) == 0 && diagnosis.Health == "Healthy"
 	if !report.Success {
-		if diagnosis.Health == "Critical" {
+		switch diagnosis.Health {
+		case "Critical":
 			report.Message = "Critical issues remain, manual intervention required"
-		} else if diagnosis.Health == "Warning" {
+		case "Warning":
 			report.Message = "Minor issues remain, check details"
 		}
 	} else {

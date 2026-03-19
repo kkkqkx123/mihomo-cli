@@ -10,6 +10,6 @@ func (tm *TUNManager) listTUNDevices() ([]TUNState, error) {
 }
 
 // removeTUN 删除 TUN 设备（不支持的平台）
-func (tm *TUNManager) removeTUN(name string) error {
+func (tm *TUNManager) removeTUN(_ string) error {
 	return fmt.Errorf("TUN device removal not supported on this platform")
 }
