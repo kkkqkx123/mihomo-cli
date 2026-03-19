@@ -12,42 +12,42 @@ import (
 )
 
 const (
-	// InternetSetOption 常量
+	// InternetSetOption constants
 	INTERNET_OPTION_SETTINGS_CHANGED = 39
 	INTERNET_OPTION_REFRESH          = 37
 )
 
 var (
-	// wininet.dll 动态库和函数
+	// wininet.dll dynamic library and functions
 	wininet              = syscall.NewLazyDLL("wininet.dll")
 	procInternetSetOption = wininet.NewProc("InternetSetOptionW")
 )
 
 const (
-	// InternetSettingsKey Internet Settings 注册表键路径
+	// InternetSettingsKey Internet Settings registry key path
 	InternetSettingsKey = `SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings`
 
-	// ProxyEnableValue 代理启用标志
+	// ProxyEnableValue proxy enable flag
 	ProxyEnableValue = "ProxyEnable"
-	// ProxyServerValue 代理服务器地址
+	// ProxyServerValue proxy server address
 	ProxyServerValue = "ProxyServer"
-	// ProxyOverrideValue 代理绕过列表
+	// ProxyOverrideValue proxy bypass list
 	ProxyOverrideValue = "ProxyOverride"
 )
 
-// windowsSysProxy Windows 系统代理管理器
+// windowsSysProxy Windows system proxy manager
 type windowsSysProxy struct{}
 
-// newWindowsSysProxy 创建新的 Windows 系统代理管理器
-func newWindowsSysProxy() SysProxy {
+// newPlatformSysProxy creates a new Windows system proxy manager
+func newPlatformSysProxy() SysProxy {
 	return &windowsSysProxy{}
 }
 
-// refreshProxy 通知系统刷新代理设置
-// 该函数主要用于通知长期运行的旧版应用或特定系统组件刷新代理设置
-// 对于现代应用（如 Chrome、终端），注册表修改通常会立即生效
+// refreshProxy notifies the system to refresh proxy settings
+// This function is mainly used to notify long-running legacy applications or specific system components to refresh proxy settings
+// For modern applications (like Chrome, Terminal), registry modifications usually take effect immediately
 func refreshProxy() error {
-	// 通知设置已更改
+	// Notify settings changed
 	ret, _, _ := procInternetSetOption.Call(
 		0,
 		uintptr(INTERNET_OPTION_SETTINGS_CHANGED),
@@ -55,12 +55,12 @@ func refreshProxy() error {
 		0,
 	)
 	if ret == 0 {
-		// 即使失败也不返回错误，因为这不影响主要功能
-		// 这是兼容性增强功能，不是必需的
+		// Even if it fails, don't return an error, as this doesn't affect the main functionality
+		// This is a compatibility enhancement, not required
 		return nil
 	}
 
-	// 刷新设置
+	// Refresh settings
 	ret, _, _ = procInternetSetOption.Call(
 		0,
 		uintptr(INTERNET_OPTION_REFRESH),
@@ -74,14 +74,14 @@ func refreshProxy() error {
 	return nil
 }
 
-// WindowsRegistry Windows 注册表操作
+// WindowsRegistry Windows registry operations
 type WindowsRegistry struct {
 	key registry.Key
 }
 
-// NewWindowsRegistry 创建新的注册表操作实例
+// NewWindowsRegistry creates a new registry operation instance
 func NewWindowsRegistry() (*WindowsRegistry, error) {
-	// 打开当前用户的 Internet Settings 键
+	// Open the Internet Settings key for the current user
 	key, err := registry.OpenKey(
 		registry.CURRENT_USER,
 		InternetSettingsKey,
@@ -94,25 +94,25 @@ func NewWindowsRegistry() (*WindowsRegistry, error) {
 	return &WindowsRegistry{key: key}, nil
 }
 
-// Close 关闭注册表键
+// Close closes the registry key
 func (wr *WindowsRegistry) Close() error {
 	return wr.key.Close()
 }
 
-// GetSettings 获取当前系统代理设置
+// GetSettings gets the current system proxy settings
 func (wr *WindowsRegistry) GetSettings() (*ProxySettings, error) {
 	settings := &ProxySettings{}
 
-	// 读取 ProxyEnable 值
+	// Read ProxyEnable value
 	enabled, _, err := wr.key.GetIntegerValue(ProxyEnableValue)
 	if err != nil {
-		// 如果值不存在，默认为禁用
+		// If value doesn't exist, default to disabled
 		settings.Enabled = false
 	} else {
 		settings.Enabled = enabled != 0
 	}
 
-	// 读取 ProxyServer 值
+	// Read ProxyServer value
 	server, _, err := wr.key.GetStringValue(ProxyServerValue)
 	if err != nil {
 		settings.Server = ""
@@ -120,7 +120,7 @@ func (wr *WindowsRegistry) GetSettings() (*ProxySettings, error) {
 		settings.Server = server
 	}
 
-	// 读取 ProxyOverride 值
+	// Read ProxyOverride value
 	bypass, _, err := wr.key.GetStringValue(ProxyOverrideValue)
 	if err != nil {
 		settings.BypassList = ""
@@ -131,9 +131,9 @@ func (wr *WindowsRegistry) GetSettings() (*ProxySettings, error) {
 	return settings, nil
 }
 
-// SetSettings 设置系统代理
+// SetSettings sets the system proxy
 func (wr *WindowsRegistry) SetSettings(settings *ProxySettings) error {
-	// 设置 ProxyEnable 值
+	// Set ProxyEnable value
 	var enabled uint32
 	if settings.Enabled {
 		enabled = 1
@@ -143,7 +143,7 @@ func (wr *WindowsRegistry) SetSettings(settings *ProxySettings) error {
 		return pkgerrors.ErrService("failed to set ProxyEnable", err)
 	}
 
-	// 设置 ProxyServer 值
+	// Set ProxyServer value
 	if settings.Server != "" {
 		err = wr.key.SetStringValue(ProxyServerValue, settings.Server)
 		if err != nil {
@@ -151,7 +151,7 @@ func (wr *WindowsRegistry) SetSettings(settings *ProxySettings) error {
 		}
 	}
 
-	// 设置 ProxyOverride 值
+	// Set ProxyOverride value
 	if settings.BypassList != "" {
 		err = wr.key.SetStringValue(ProxyOverrideValue, settings.BypassList)
 		if err != nil {
@@ -162,7 +162,7 @@ func (wr *WindowsRegistry) SetSettings(settings *ProxySettings) error {
 	return nil
 }
 
-// GetStatus 获取系统代理状态
+// GetStatus gets the system proxy status
 func (sp *windowsSysProxy) GetStatus() (*ProxySettings, error) {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
@@ -173,7 +173,7 @@ func (sp *windowsSysProxy) GetStatus() (*ProxySettings, error) {
 	return wr.GetSettings()
 }
 
-// Enable 启用系统代理
+// Enable enables the system proxy
 func (sp *windowsSysProxy) Enable(server, bypassList string) error {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
@@ -194,13 +194,13 @@ func (sp *windowsSysProxy) Enable(server, bypassList string) error {
 		)
 	}
 
-	// 通知系统刷新代理设置（兼容性增强，用于通知旧版应用）
+	// Notify system to refresh proxy settings (compatibility enhancement for legacy applications)
 	_ = refreshProxy()
 
 	return nil
 }
 
-// Disable 禁用系统代理
+// Disable disables the system proxy
 func (sp *windowsSysProxy) Disable() error {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
@@ -218,13 +218,13 @@ func (sp *windowsSysProxy) Disable() error {
 			fmt.Sprintf("failed to disable system proxy: %v\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer", err), err)
 	}
 
-	// 通知系统刷新代理设置（兼容性增强，用于通知旧版应用）
+	// Notify system to refresh proxy settings (compatibility enhancement for legacy applications)
 	_ = refreshProxy()
 
 	return nil
 }
 
-// IsSupported 检查当前平台是否支持系统代理管理
+// IsSupported checks if the current platform supports system proxy management
 func (sp *windowsSysProxy) IsSupported() bool {
 	return true
 }

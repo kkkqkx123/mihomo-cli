@@ -1,4 +1,4 @@
-//go:build linux
+//go:build darwin
 
 package sysproxy
 
@@ -13,25 +13,27 @@ import (
 )
 
 const (
-	// ProxyEnvFile 代理环境变量配置文件 (systemd environment.d)
+	// ProxyEnvFile proxy environment variable config file
 	ProxyEnvFile = "/etc/environment.d/proxy.conf"
-	// ProxyEnvFileFallback 备用配置文件 (/etc/environment)
+	// ProxyEnvFileFallback fallback config file (/etc/environment)
 	ProxyEnvFileFallback = "/etc/environment"
+	// ProxyPlistFile macOS launchd plist file for proxy environment
+	ProxyPlistFile = "/etc/profile.d/proxy.sh"
 )
 
-// linuxSysProxy Linux 系统代理管理器
-type linuxSysProxy struct{}
+// darwinSysProxy macOS system proxy manager
+type darwinSysProxy struct{}
 
-// newLinuxSysProxy 创建新的 Linux 系统代理管理器
-func newLinuxSysProxy() SysProxy {
-	return &linuxSysProxy{}
+// newPlatformSysProxy creates a new macOS system proxy manager
+func newPlatformSysProxy() SysProxy {
+	return &darwinSysProxy{}
 }
 
-// GetStatus 获取代理状态
-func (sp *linuxSysProxy) GetStatus() (*ProxySettings, error) {
+// GetStatus gets the proxy status
+func (sp *darwinSysProxy) GetStatus() (*ProxySettings, error) {
 	settings := &ProxySettings{}
 
-	// 优先读取环境变量
+	// First read environment variables
 	if httpProxy := os.Getenv("HTTP_PROXY"); httpProxy != "" {
 		settings.Enabled = true
 		settings.Server = httpProxy
@@ -46,15 +48,15 @@ func (sp *linuxSysProxy) GetStatus() (*ProxySettings, error) {
 		settings.BypassList = noProxy
 	}
 
-	// 如果环境变量为空，尝试读取配置文件
+	// If environment variables are empty, try reading config files
 	if !settings.Enabled {
-		// 尝试读取 systemd environment.d 配置
-		if data, err := os.ReadFile(ProxyEnvFile); err == nil {
-			parseProxyConfig(string(data), settings)
+		// Try reading /etc/profile.d/proxy.sh
+		if data, err := os.ReadFile(ProxyPlistFile); err == nil {
+			parseDarwinProxyConfig(string(data), settings)
 		}
 	}
 
-	// 仍然为空，尝试读取 /etc/environment
+	// Still empty, try reading /etc/environment
 	if !settings.Enabled {
 		if data, err := os.ReadFile(ProxyEnvFileFallback); err == nil {
 			parseProxyConfig(string(data), settings)
@@ -64,39 +66,37 @@ func (sp *linuxSysProxy) GetStatus() (*ProxySettings, error) {
 	return settings, nil
 }
 
-// Enable 启用系统代理
-func (sp *linuxSysProxy) Enable(server, bypassList string) error {
-	// 构建环境变量内容
+// Enable enables the system proxy
+func (sp *darwinSysProxy) Enable(server, bypassList string) error {
+	// Build shell export content for macOS
 	content := fmt.Sprintf(
-		"HTTP_PROXY=%s\n"+
-			"HTTPS_PROXY=%s\n"+
-			"http_proxy=%s\n"+
-			"https_proxy=%s\n",
+		"export HTTP_PROXY=%s\n"+
+			"export HTTPS_PROXY=%s\n"+
+			"export http_proxy=%s\n"+
+			"export https_proxy=%s\n",
 		server, server, server, server,
 	)
 
-	// 添加绕过列表
+	// Add bypass list
 	if bypassList != "" {
-		content += fmt.Sprintf("NO_PROXY=%s\nno_proxy=%s\n", bypassList, bypassList)
+		content += fmt.Sprintf("export NO_PROXY=%s\nexport no_proxy=%s\n", bypassList, bypassList)
 	}
 
-	// 尝试写入 systemd environment.d 目录
-	if err := writeProxyConfig(ProxyEnvFile, content); err == nil {
-		// 警告：环境变量不会立即生效到当前终端会话
+	// Try writing to /etc/profile.d/proxy.sh
+	if err := writeProxyConfig(ProxyPlistFile, content); err == nil {
 		output.Warning("Proxy settings have been saved to configuration file.")
 		output.Println("Note: The current terminal session will not reflect these changes immediately.")
 		output.Println("To apply the proxy settings to your current session, run:")
-		output.Printf("  source /etc/environment.d/proxy.conf\n")
+		output.Printf("  source /etc/profile.d/proxy.sh\n")
 		output.Println("Or start a new terminal session.")
 		return nil
 	}
 
-	// 回退到 /etc/environment（安全地添加配置，不会覆盖原有内容）
+	// Fallback to /etc/environment
 	if err := addToEtcEnvironment(content); err != nil {
 		return pkgerrors.ErrService("failed to write proxy config", err)
 	}
 
-	// 警告：环境变量不会立即生效到当前终端会话
 	output.Warning("Proxy settings have been saved to /etc/environment.")
 	output.Println("Note: The current terminal session will not reflect these changes immediately.")
 	output.Println("To apply the proxy settings to your current session, run:")
@@ -106,14 +106,14 @@ func (sp *linuxSysProxy) Enable(server, bypassList string) error {
 	return nil
 }
 
-// Disable 禁用系统代理
-func (sp *linuxSysProxy) Disable() error {
-	// 删除 systemd environment.d 配置
-	if err := removeProxyConfig(ProxyEnvFile); err != nil {
+// Disable disables the system proxy
+func (sp *darwinSysProxy) Disable() error {
+	// Delete /etc/profile.d/proxy.sh
+	if err := removeProxyConfig(ProxyPlistFile); err != nil {
 		return err
 	}
 
-	// 从 /etc/environment 中移除代理配置
+	// Remove proxy config from /etc/environment
 	if err := removeFromEtcEnvironment(); err != nil {
 		return pkgerrors.ErrService("failed to remove proxy from /etc/environment", err)
 	}
@@ -121,14 +121,14 @@ func (sp *linuxSysProxy) Disable() error {
 	return nil
 }
 
-// IsSupported 检查当前平台是否支持系统代理管理
-func (sp *linuxSysProxy) IsSupported() bool {
+// IsSupported checks if the current platform supports system proxy management
+func (sp *darwinSysProxy) IsSupported() bool {
 	return true
 }
 
-// writeProxyConfig 写入代理配置文件
+// writeProxyConfig writes proxy config file
 func writeProxyConfig(path, content string) error {
-	// 确保目录存在
+	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -139,15 +139,15 @@ func writeProxyConfig(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-// removeProxyConfig 删除代理配置文件
+// removeProxyConfig deletes proxy config file
 func removeProxyConfig(path string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil // 文件不存在，无需删除
+		return nil // File doesn't exist, no need to delete
 	}
 	return os.Remove(path)
 }
 
-// removeFromEtcEnvironment 从 /etc/environment 中移除代理相关配置
+// removeFromEtcEnvironment removes proxy related config from /etc/environment
 func removeFromEtcEnvironment() error {
 	data, err := os.ReadFile(ProxyEnvFileFallback)
 	if err != nil {
@@ -169,10 +169,13 @@ func removeFromEtcEnvironment() error {
 	}
 
 	for _, line := range lines {
-		// 跳过代理相关的行
+		// Skip proxy related lines
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) >= 1 {
 			key := strings.TrimSpace(parts[0])
+			// Also handle "export KEY=value" format
+			key = strings.TrimPrefix(key, "export ")
+			key = strings.TrimSpace(key)
 			if proxyKeys[key] {
 				continue
 			}
@@ -180,13 +183,12 @@ func removeFromEtcEnvironment() error {
 		newLines = append(newLines, line)
 	}
 
-	// 写回文件
+	// Write back to file
 	newContent := strings.Join(newLines, "\n")
 	return os.WriteFile(ProxyEnvFileFallback, []byte(newContent), 0644)
 }
 
-// addToEtcEnvironment 安全地向 /etc/environment 添加代理配置
-// 该函数会读取现有内容，移除旧的代理变量，然后追加新的代理配置
+// addToEtcEnvironment safely adds proxy config to /etc/environment
 func addToEtcEnvironment(content string) error {
 	data, err := os.ReadFile(ProxyEnvFileFallback)
 	if err != nil && !os.IsNotExist(err) {
@@ -205,10 +207,12 @@ func addToEtcEnvironment(content string) error {
 	}
 
 	for _, line := range lines {
-		// 移除旧的代理相关行
+		// Remove old proxy related lines
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) >= 1 {
 			key := strings.TrimSpace(parts[0])
+			key = strings.TrimPrefix(key, "export ")
+			key = strings.TrimSpace(key)
 			if proxyKeys[key] {
 				continue
 			}
@@ -216,7 +220,7 @@ func addToEtcEnvironment(content string) error {
 		newLines = append(newLines, line)
 	}
 
-	// 追加新的代理配置
+	// Append new proxy config
 	proxyLines := strings.Split(strings.TrimSpace(content), "\n")
 	for _, line := range proxyLines {
 		line = strings.TrimSpace(line)
@@ -225,7 +229,7 @@ func addToEtcEnvironment(content string) error {
 		}
 	}
 
-	// 写回文件
+	// Write back to file
 	newContent := strings.Join(newLines, "\n")
 	if string(data) != "" && !strings.HasSuffix(string(data), "\n") {
 		newContent = strings.Join(newLines, "\n")
@@ -233,7 +237,7 @@ func addToEtcEnvironment(content string) error {
 	return os.WriteFile(ProxyEnvFileFallback, []byte(newContent), 0644)
 }
 
-// parseProxyConfig 解析代理配置文件
+// parseProxyConfig parses proxy config file
 func parseProxyConfig(content string, settings *ProxySettings) {
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
@@ -250,7 +254,41 @@ func parseProxyConfig(content string, settings *ProxySettings) {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
-		// 移除可能的引号
+		// Remove possible quotes
+		value = strings.Trim(value, "\"'")
+
+		switch key {
+		case "HTTP_PROXY", "http_proxy":
+			settings.Enabled = true
+			settings.Server = value
+		case "NO_PROXY", "no_proxy":
+			settings.BypassList = value
+		}
+	}
+}
+
+// parseDarwinProxyConfig parses macOS proxy config file (with export prefix)
+func parseDarwinProxyConfig(content string, settings *ProxySettings) {
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Handle "export KEY=value" format
+		line = strings.TrimPrefix(line, "export ")
+		line = strings.TrimSpace(line)
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// Remove possible quotes
 		value = strings.Trim(value, "\"'")
 
 		switch key {
