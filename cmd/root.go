@@ -20,8 +20,8 @@ var (
 	timeout   int
 )
 
-// logOutput 日志输出管理器
-var logOutput *output.LogOutput
+// streamOutput 输出流管理器
+var streamOutput *output.StreamOutput
 
 // historyManager 历史记录管理器
 var historyManager *history.Manager
@@ -53,17 +53,17 @@ func preRun(cmd *cobra.Command, args []string) error {
 	// 设置输出格式
 	output.SetGlobalFormat(outputFmt)
 
-	// 初始化日志输出（从配置文件读取）
+	// 初始化输出流（从配置文件读取）
 	cfg, err := config.LoadFromViper()
-	if err == nil && cfg.Log.Mode != "console" && cfg.Log.Mode != "" {
-		logOutput, err = output.InitLogOutput(cfg.Log.File, cfg.Log.Mode, cfg.Log.Append)
+	if err == nil && cfg.Output.Mode != "console" && cfg.Output.Mode != "" {
+		streamOutput, err = output.InitStreamOutput(cfg.Output.File, cfg.Output.Mode, cfg.Output.Append)
 		if err != nil {
-			return pkgerrors.ErrService("初始化日志输出失败", err)
+			return pkgerrors.ErrService("初始化输出流失败", err)
 		}
 
 		// 设置全局输出
-		output.SetGlobalStdout(logOutput.GetWriter())
-		output.SetGlobalStderr(logOutput.GetWriter())
+		output.SetGlobalStdout(streamOutput.GetWriter())
+		output.SetGlobalStderr(streamOutput.GetWriter())
 	}
 
 	// 初始化历史记录管理器
@@ -96,12 +96,12 @@ func postRun(cmd *cobra.Command, args []string) error {
 		_ = historyManager.Add(entry)
 	}
 
-	// 关闭日志输出
-	if logOutput != nil {
-		if err := logOutput.Close(); err != nil {
-			return pkgerrors.ErrService("关闭日志输出失败", err)
+	// 关闭输出流
+	if streamOutput != nil {
+		if err := streamOutput.Close(); err != nil {
+			return pkgerrors.ErrService("关闭输出流失败", err)
 		}
-		logOutput = nil
+		streamOutput = nil
 	}
 	return nil
 }

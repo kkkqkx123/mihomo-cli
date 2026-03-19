@@ -94,10 +94,10 @@ func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
 	l.v.Set("proxy.timeout", cfg.Proxy.Timeout)
 	l.v.Set("proxy.concurrent", cfg.Proxy.Concurrent)
 
-	// 设置 Log 配置
-	l.v.Set("log.file", cfg.Log.File)
-	l.v.Set("log.mode", cfg.Log.Mode)
-	l.v.Set("log.append", cfg.Log.Append)
+	// 设置 Output 配置
+	l.v.Set("output.file", cfg.Output.File)
+	l.v.Set("output.mode", cfg.Output.Mode)
+	l.v.Set("output.append", cfg.Output.Append)
 
 	// 确保目录存在
 	configDir := filepath.Dir(configPath)

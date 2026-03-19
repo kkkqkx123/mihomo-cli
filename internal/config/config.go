@@ -6,21 +6,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 // CLIConfig CLI 工具配置
 type CLIConfig struct {
-	API   APIConfig   `mapstructure:"api"`
-	Proxy ProxyConfig `mapstructure:"proxy"`
-	Log   LogConfig   `mapstructure:"log"` // 日志配置
-}
-
-// LogConfig 日志配置
-type LogConfig struct {
-	File   string `mapstructure:"file"`   // 日志文件路径
-	Mode   string `mapstructure:"mode"`   // 输出模式: console/file/both
-	Append bool   `mapstructure:"append"` // 是否使用追加模式
+	API    APIConfig         `mapstructure:"api"`
+	Proxy  ProxyConfig       `mapstructure:"proxy"`
+	Output output.OutputConfig `mapstructure:"output"` // 输出配置
 }
 
 // APIConfig API 连接配置
@@ -45,19 +39,8 @@ func (c *CLIConfig) Validate() error {
 	if err := c.Proxy.Validate(); err != nil {
 		return errors.WrapError("Proxy config validation failed", err)
 	}
-	if err := c.Log.Validate(); err != nil {
-		return errors.WrapError("Log config validation failed", err)
-	}
-	return nil
-}
-
-// Validate 验证日志配置
-func (l *LogConfig) Validate() error {
-	if l.Mode != "" && l.Mode != "console" && l.Mode != "file" && l.Mode != "both" {
-		return errors.ErrConfig("log mode must be console, file, or both", nil)
-	}
-	if (l.Mode == "file" || l.Mode == "both") && l.File == "" {
-		return errors.ErrConfig("log file path is required when mode is file or both", nil)
+	if err := c.Output.Validate(); err != nil {
+		return errors.WrapError("Output config validation failed", err)
 	}
 	return nil
 }
@@ -131,7 +114,7 @@ func GetDefaultConfig() *CLIConfig {
 			Timeout:    10000, // 默认10秒，比之前的5秒更宽松
 			Concurrent: 10,
 		},
-		Log: LogConfig{
+		Output: output.OutputConfig{
 			File:   "",
 			Mode:   "console",
 			Append: false,
