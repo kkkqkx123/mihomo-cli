@@ -143,11 +143,23 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 
 		output.PrintEmptyLine()
-		output.Println("Kernel stopped successfully")
-		output.Println("System configuration should be cleaned up")
-		output.Println("If you experience network issues, try:")
-		output.Println("  1. Restarting Mihomo: mihomo-cli start")
-		output.Println("  2. Or restart the system")
+		output.Success("Kernel stopped successfully")
+
+		// 检查系统配置是否已清理
+		output.Info("Checking system configuration...")
+		checker := config.NewSystemChecker()
+		if err := checker.CheckAfterStop(); err != nil {
+			output.Warning("System configuration check failed: " + err.Error())
+			output.PrintEmptyLine()
+			output.Println("Some system configurations may not have been cleaned up properly.")
+			output.Println("If you experience network issues, try:")
+			output.Println("  1. Restarting Mihomo: mihomo-cli start")
+			output.Println("  2. Running cleanup command: mihomo-cli system cleanup")
+			output.Println("  3. Restarting the system (recommended)")
+		} else {
+			output.Success("System configuration cleaned up successfully")
+		}
+
 		return nil
 	}
 }

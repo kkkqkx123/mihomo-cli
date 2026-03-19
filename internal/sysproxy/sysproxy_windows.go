@@ -5,6 +5,7 @@ package sysproxy
 import (
 	"fmt"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/windows/registry"
 
@@ -227,4 +228,56 @@ func (sp *windowsSysProxy) Disable() error {
 // IsSupported checks if the current platform supports system proxy management
 func (sp *windowsSysProxy) IsSupported() bool {
 	return true
+}
+
+// BackupRegistrySettings 备份当前注册表设置
+func (sp *windowsSysProxy) BackupRegistrySettings(note string) (*RegistryBackup, error) {
+	wr, err := NewWindowsRegistry()
+	if err != nil {
+		return nil, pkgerrors.ErrService("failed to open registry key", err)
+	}
+	defer wr.Close()
+
+	settings, err := wr.GetSettings()
+	if err != nil {
+		return nil, pkgerrors.ErrService("failed to get registry settings", err)
+	}
+
+	// 生成备份 ID
+	id := time.Now().Format("20060102-150405")
+
+	backup := &RegistryBackup{
+		ID:        id,
+		Timestamp: time.Now(),
+		Settings:  settings,
+		Note:      note,
+	}
+
+	return backup, nil
+}
+
+// RestoreRegistrySettings 恢复注册表设置
+func (sp *windowsSysProxy) RestoreRegistrySettings(settings *ProxySettings) error {
+	wr, err := NewWindowsRegistry()
+	if err != nil {
+		return pkgerrors.ErrService("failed to open registry key", err)
+	}
+	defer wr.Close()
+
+	if err := wr.SetSettings(settings); err != nil {
+		return pkgerrors.ErrService("failed to restore registry settings", err)
+	}
+
+	// 通知系统刷新代理设置
+	_ = refreshProxy()
+
+	return nil
+}
+
+// RegistryBackup 注册表备份
+type RegistryBackup struct {
+	ID        string        `json:"id"`
+	Timestamp time.Time     `json:"timestamp"`
+	Settings  *ProxySettings `json:"settings"`
+	Note      string        `json:"note,omitempty"`
 }

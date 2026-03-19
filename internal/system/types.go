@@ -109,13 +109,6 @@ type RouteFilter struct {
 	IPVersion   IPVersion `json:"ip_version,omitempty"`
 }
 
-// RouteDiff 路由差异
-type RouteDiff struct {
-	Type       string      `json:"type"`       // "added", "removed", "modified"
-	Route      RouteEntry  `json:"route"`
-	OldRoute   *RouteEntry `json:"old_route,omitempty"` // 仅用于 modified 类型
-}
-
 // RouteSnapshot 路由快照
 type RouteSnapshot struct {
 	ID        string      `json:"id"`
