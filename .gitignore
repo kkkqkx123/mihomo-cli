@@ -5,3 +5,5 @@ mihomo-1.19.21
 
 scripts/config.toml
 test-mihomo-config.yaml
+
+repomix-output.xml

@@ -1,10 +1,5 @@
 package system
 
-import (
-	"fmt"
-	"runtime"
-)
-
 // TUNManager TUN 网卡管理器
 type TUNManager struct {
 	audit *AuditLogger
@@ -19,17 +14,7 @@ func NewTUNManager(audit *AuditLogger) *TUNManager {
 
 // ListTUNDevices 列出所有 TUN 设备
 func (tm *TUNManager) ListTUNDevices() ([]TUNState, error) {
-	// 根据平台调用不同的实现
-	switch runtime.GOOS {
-	case "windows":
-		return tm.listTUNDevicesWindows()
-	case "linux":
-		return tm.listTUNDevicesLinux()
-	case "darwin":
-		return tm.listTUNDevicesDarwin()
-	default:
-		return []TUNState{}, nil
-	}
+	return tm.listTUNDevices()
 }
 
 // CheckMihomoTUN 检查 Mihomo 创建的 TUN 设备
@@ -53,18 +38,7 @@ func (tm *TUNManager) CheckMihomoTUN() ([]TUNState, error) {
 
 // RemoveTUN 删除 TUN 设备
 func (tm *TUNManager) RemoveTUN(name string) error {
-	var err error
-
-	switch runtime.GOOS {
-	case "windows":
-		err = tm.removeTUNWindows(name)
-	case "linux":
-		err = tm.removeTUNLinux(name)
-	case "darwin":
-		err = tm.removeTUNDarwin(name)
-	default:
-		err = fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-	}
+	err := tm.removeTUN(name)
 
 	if tm.audit != nil {
 		result := "success"
@@ -168,41 +142,4 @@ func isMihomoTUN(name string) bool {
 		}
 	}
 	return false
-}
-
-// 平台特定实现（stub）
-func (tm *TUNManager) listTUNDevicesWindows() ([]TUNState, error) {
-	// TODO: 实现 Windows TUN 设备枚举
-	// 可以使用 netsh 或 WMI 查询
-	return []TUNState{}, nil
-}
-
-func (tm *TUNManager) listTUNDevicesLinux() ([]TUNState, error) {
-	// TODO: 实现 Linux TUN 设备枚举
-	// 可以读取 /sys/class/net/ 目录
-	return []TUNState{}, nil
-}
-
-func (tm *TUNManager) listTUNDevicesDarwin() ([]TUNState, error) {
-	// TODO: 实现 macOS TUN 设备枚举
-	// 可以使用 ifconfig 命令
-	return []TUNState{}, nil
-}
-
-func (tm *TUNManager) removeTUNWindows(name string) error {
-	// TODO: 实现 Windows TUN 设备删除
-	// 可以使用 netsh 或设备管理器 API
-	return fmt.Errorf("TUN device removal not implemented on Windows")
-}
-
-func (tm *TUNManager) removeTUNLinux(name string) error {
-	// TODO: 实现 Linux TUN 设备删除
-	// 可以使用 ip link delete 命令
-	return fmt.Errorf("TUN device removal not implemented on Linux")
-}
-
-func (tm *TUNManager) removeTUNDarwin(name string) error {
-	// TODO: 实现 macOS TUN 设备删除
-	// 通常需要重启系统
-	return fmt.Errorf("TUN device removal not implemented on macOS")
 }
