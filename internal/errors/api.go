@@ -54,6 +54,16 @@ func WrapAPIError(message string, err error) *errors.CLIError {
 		return errors.WrapError(message, cliErr)
 	}
 
+	// 检测是否是连接错误，提供更友好的提示
+	if apiErr, ok := err.(*api.APIError); ok && api.IsAPIConnectionError(apiErr) {
+		return errors.ErrService(
+			message+": Mihomo 进程未运行或 API 地址配置错误\n"+
+				"  提示: 请先启动 Mihomo: mihomo-cli start\n"+
+				"  或检查 API 地址配置: mihomo-cli config show",
+			err,
+		)
+	}
+
 	// 如果是 API 错误，转换后包装
 	if apiErr, ok := err.(*api.APIError); ok {
 		cliErr := APIErrorToCLIError(apiErr)
