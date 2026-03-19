@@ -236,7 +236,7 @@ func (lm *LifecycleManager) IsRunning() bool {
 func (lm *LifecycleManager) executeStage(ctx context.Context, stage LifecycleStage, fn func() error) error {
 	if err := fn(); err != nil {
 		// 执行失败，调用失败钩子
-		lm.executeHooks(ctx, func(hook LifecycleHook) error {
+		_ = lm.executeHooks(ctx, func(hook LifecycleHook) error {
 			hook.OnFailure(ctx, stage, err)
 			return nil
 		})

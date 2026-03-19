@@ -310,22 +310,21 @@ func StopProcessByPID(pid int) error {
 
 	deadline := time.Now().Add(timeout)
 
-	for {
-		select {
-		case <-checkTicker.C:
-			// 检查进程是否还在运行
-			if !IsProcessRunning(pid) {
-				output.Success("Process %d has gracefully exited", pid)
-				return nil
-			}
+	for range checkTicker.C {
+		// 检查进程是否还在运行
+		if !IsProcessRunning(pid) {
+			output.Success("Process %d has gracefully exited", pid)
+			return nil
+		}
 
-			// 检查是否超时
-			if time.Now().After(deadline) {
-				output.Warning("Graceful shutdown timeout, will force kill")
-				return forceKillProcess(proc, pid)
-			}
+		// 检查是否超时
+		if time.Now().After(deadline) {
+			output.Warning("Graceful shutdown timeout, will force kill")
+			return forceKillProcess(proc, pid)
 		}
 	}
+
+	return nil
 }
 
 // forceKillProcess 强制终止进程

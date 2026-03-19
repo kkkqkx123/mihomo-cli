@@ -173,7 +173,6 @@ func getProcessResourceUsage(pid int) (cpu, memory float64, err error) {
 // HealthCheckMonitor 健康检查监控器
 type HealthCheckMonitor struct {
 	pm         *ProcessMonitor
-	apiClient  interface{} // *api.Client
 	checkFunc  func(ctx context.Context) error
 	interval   time.Duration
 	stopChan   chan struct{}

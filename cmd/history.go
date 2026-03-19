@@ -87,7 +87,7 @@ func runHistoryClear(cmd *cobra.Command, args []string) error {
 	// 确认
 	output.PrintRaw("确定要清除所有历史记录吗？(y/N): ")
 	var confirm string
-	fmt.Scanln(&confirm)
+	_, _ = fmt.Scanln(&confirm)
 
 	if confirm != "y" && confirm != "Y" {
 		output.PrintInfo("操作已取消")

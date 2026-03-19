@@ -118,7 +118,7 @@ func runBackupList(mihomoConfigPath string) error {
 		if note == "" {
 			note = "-"
 		}
-		table.Append([]string{
+		_ = table.Append([]string{
 			fmt.Sprintf("%d", i+1),
 			timeStr,
 			sizeStr,

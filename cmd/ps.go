@@ -57,7 +57,7 @@ func runPs(cmd *cobra.Command, args []string) error {
 			execPath = "..." + execPath[len(execPath)-47:]
 		}
 
-		table.Append([]string{
+		_ = table.Append([]string{
 			fmt.Sprintf("%d", proc.PID),
 			statusIcon,
 			execPath,

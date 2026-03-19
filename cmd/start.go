@@ -121,7 +121,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		pm := mihomo.NewProcessManager(cfg)
 		pid, err := pm.GetPIDFromPIDFile()
 		if err != nil {
-			output.PrintError(fmt.Sprintf("Failed to get PID: %v", err))
+			_ = output.PrintError(fmt.Sprintf("Failed to get PID: %v", err))
 			output.Println("Kernel may have already stopped or PID file is missing")
 			return nil
 		}
@@ -129,7 +129,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		output.Printf("Stopping Mihomo kernel (PID: %d)...\n", pid)
 
 		if err := mihomo.StopProcessByPID(pid); err != nil {
-			output.PrintError(fmt.Sprintf("Failed to stop kernel: %v", err))
+			_ = output.PrintError(fmt.Sprintf("Failed to stop kernel: %v", err))
 			output.PrintEmptyLine()
 			output.Println("Recovery suggestions:")
 			output.Println("  1. Check if the process is still running: mihomo-cli status")

@@ -16,7 +16,6 @@ var (
 	cleanupTUN      bool
 	cleanupRoute    bool
 	snapshotNote    string
-	snapshotID      string
 	auditComponent  string
 	auditLimit      int
 	auditSince      string

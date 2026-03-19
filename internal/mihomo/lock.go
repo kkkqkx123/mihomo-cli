@@ -178,7 +178,9 @@ func (pl *ProcessLock) WithLock(fn func() error) error {
 	if err := pl.Acquire(); err != nil {
 		return err
 	}
-	defer pl.Release()
+	defer func() {
+		_ = pl.Release()
+	}()
 
 	return fn()
 }

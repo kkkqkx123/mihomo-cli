@@ -29,9 +29,6 @@ var outputFileHandle *os.File
 // historyManager 历史记录管理器
 var historyManager *history.Manager
 
-// cmdStartTime 命令开始时间
-var cmdStartTime time.Time
-
 var rootCmd = &cobra.Command{
 	Use:   "mihomo-cli",
 	Short: "Mihomo CLI 管理工具",
@@ -80,9 +77,6 @@ func preRun(cmd *cobra.Command, args []string) error {
 		historyFile := historyDir + "/commands.jsonl"
 		historyManager = history.NewManager(historyFile)
 	}
-
-	// 记录命令开始时间
-	cmdStartTime = time.Now()
 
 	return nil
 }

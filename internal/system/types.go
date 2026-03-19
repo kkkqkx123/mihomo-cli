@@ -28,12 +28,23 @@ type TUNState struct {
 	MTU       int    `json:"mtu"`
 }
 
+// IPVersion IP 版本
+type IPVersion string
+
+const (
+	IPVersion4 IPVersion = "IPv4"
+	IPVersion6 IPVersion = "IPv6"
+)
+
 // RouteEntry 路由表项
 type RouteEntry struct {
-	Destination string `json:"destination"`
-	Gateway     string `json:"gateway"`
-	Interface   string `json:"interface"`
-	Metric      int    `json:"metric"`
+	Destination string     `json:"destination"`
+	Gateway     string     `json:"gateway"`
+	Interface   string     `json:"interface"`
+	Metric      int        `json:"metric"`
+	IPVersion   IPVersion  `json:"ip_version"`   // IPv4 或 IPv6
+	Netmask     string     `json:"netmask,omitempty"` // 子网掩码（仅 IPv4 Windows）
+	Flags       string     `json:"flags,omitempty"`    // 路由标志（仅 macOS）
 }
 
 // IPTablesRule iptables 规则
