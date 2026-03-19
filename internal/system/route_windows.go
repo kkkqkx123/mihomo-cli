@@ -266,3 +266,130 @@ func cidrToNetmask(cidrStr string) string {
 		(mask>>8)&0xFF,
 		mask&0xFF)
 }
+
+// checkInterfaceExists 检查 Windows 接口是否存在
+func checkInterfaceExists(iface string) bool {
+	if iface == "" {
+		return false
+	}
+
+	// 使用 netsh interface show interface 命令检查接口
+	cmd := exec.Command("netsh", "interface", "show", "interface")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	// 检查输出中是否包含该接口
+	outputStr := strings.ToLower(string(output))
+	searchStr := strings.ToLower(iface)
+
+	// 支持通过接口名称或 IP 地址匹配
+	lines := strings.Split(outputStr, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, searchStr) {
+			// 检查是否是启用状态
+			if strings.Contains(line, "connected") || strings.Contains(line, "已连接") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// checkGatewayReachable 检查网关是否可达
+func checkGatewayReachable(gateway string) bool {
+	if gateway == "" || gateway == "On-link" {
+		return true // 直连路由或空网关不需要检查
+	}
+
+	// 使用 ping 命令检测网关是否可达
+	cmd := exec.Command("ping", "-n", "1", "-w", "1000", gateway)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return err == nil
+}
+
+// getInterfaceInfo 获取 Windows 接口详细信息
+func getInterfaceInfo(iface string) (map[string]string, error) {
+	if iface == "" {
+		return nil, fmt.Errorf("interface name is empty")
+	}
+
+	cmd := exec.Command("netsh", "interface", "ip", "show", "address", iface)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get interface info: %w", err)
+	}
+
+	info := make(map[string]string)
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, ":") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+				info[key] = value
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// getActiveInterfaceList 获取 Windows 活动接口列表
+func getActiveInterfaceList() ([]string, error) {
+	cmd := exec.Command("netsh", "interface", "show", "interface")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get interface list: %w", err)
+	}
+
+	var interfaces []string
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// 跳过标题和空行
+		if line == "" || strings.Contains(line, "Admin State") || strings.Contains(line, "状态") {
+			continue
+		}
+
+		// 检查是否是已连接的接口
+		if strings.Contains(line, "connected") || strings.Contains(line, "已连接") {
+			// 提取接口名称（通常在第一列）
+			fields := strings.Fields(line)
+			if len(fields) > 0 {
+				interfaces = append(interfaces, fields[0])
+			}
+		}
+	}
+
+	return interfaces, nil
+}
+
+// Windows 平台特定实现
+func checkInterfaceExistsImpl(iface string) bool {
+	return checkInterfaceExists(iface)
+}
+
+func checkGatewayReachableImpl(gateway string) bool {
+	return checkGatewayReachable(gateway)
+}
+
+func getInterfaceInfoImpl(iface string) (map[string]string, error) {
+	return getInterfaceInfo(iface)
+}
+
+func getActiveInterfaceListImpl() ([]string, error) {
+	return getActiveInterfaceList()
+}

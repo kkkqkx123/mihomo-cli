@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // RouteManager 路由表管理器
@@ -39,6 +40,297 @@ func (rm *RouteManager) CheckAbnormalRoutes() ([]RouteEntry, error) {
 	}
 
 	return abnormal, nil
+}
+
+// CheckMihomoResidualRoutes 检测 Mihomo 残留路由（针对用户遇到的特殊情况）
+// 返回残留路由列表和详细诊断信息
+func (rm *RouteManager) CheckMihomoResidualRoutes() ([]ResidualRoute, error) {
+	routes, err := rm.ListRoutes()
+	if err != nil {
+		return nil, err
+	}
+
+	var residualRoutes []ResidualRoute
+	for _, route := range routes {
+		if isMihomoResidualRoute(route) {
+			// 构建诊断信息
+			diag := ResidualRoute{
+				Route: route,
+				Reason: getResidualRouteReason(route),
+			}
+
+			// 尝试检测 TUN 接口状态
+			if route.Interface != "" {
+				diag.InterfaceExists = checkInterfaceExists(route.Interface)
+			}
+
+			// 检查度量值是否过低（可能导致网络问题）
+			if route.Metric == 0 && route.Destination == "0.0.0.0" {
+				diag.Issue = "Low priority default route (metric=0) may block network access"
+			}
+
+			// 检查网关是否可达
+			if route.Gateway != "" && !strings.Contains(route.Gateway, "On-link") {
+				diag.GatewayReachable = checkGatewayReachable(route.Gateway)
+				if !diag.GatewayReachable {
+					diag.Issue = fmt.Sprintf("Gateway %s is unreachable", route.Gateway)
+				}
+			}
+
+			residualRoutes = append(residualRoutes, diag)
+		}
+	}
+
+	return residualRoutes, nil
+}
+
+// CheckDefaultRouteConflicts 检查默认路由冲突（针对用户遇到的特殊情况）
+// 特别检测是否有多个默认路由，以及是否有低优先级的默认路由
+func (rm *RouteManager) CheckDefaultRouteConflicts() ([]RouteConflict, error) {
+	routes, err := rm.ListRoutes()
+	if err != nil {
+		return nil, err
+	}
+
+	var defaultRoutes []RouteEntry
+	for _, route := range routes {
+		// 检查是否是默认路由
+		if route.Destination == "0.0.0.0/0" || route.Destination == "::/0" || route.Destination == "default" {
+			defaultRoutes = append(defaultRoutes, route)
+		}
+	}
+
+	var conflicts []RouteConflict
+
+	// 检查是否有多个默认路由
+	if len(defaultRoutes) > 1 {
+		conflict := RouteConflict{
+			Type:     "MultipleDefaultRoutes",
+			Severity: "High",
+			Message:  fmt.Sprintf("Found %d default routes, which may cause network conflicts", len(defaultRoutes)),
+			Routes:   defaultRoutes,
+		}
+
+		// 找出度量值最低的路由（优先级最高）
+		var lowestMetricRoute *RouteEntry
+		for i := range defaultRoutes {
+			if lowestMetricRoute == nil || defaultRoutes[i].Metric < lowestMetricRoute.Metric {
+				lowestMetricRoute = &defaultRoutes[i]
+			}
+		}
+
+		if lowestMetricRoute != nil {
+			conflict.ActiveRoute = *lowestMetricRoute
+			conflict.Recommendation = fmt.Sprintf("Remove route: 0.0.0.0 mask 0.0.0.0 %s",
+				lowestMetricRoute.Gateway)
+		}
+
+		conflicts = append(conflicts, conflict)
+	}
+
+	// 检查是否有指向 Mihomo 网关的默认路由
+	for _, route := range defaultRoutes {
+		if isMihomoGateway(route.Gateway) {
+			ifaceExists := false
+			if route.Interface != "" {
+				ifaceExists = checkInterfaceExists(route.Interface)
+			}
+
+			if !ifaceExists {
+				conflict := RouteConflict{
+					Type:        "OrphanedMihomoRoute",
+					Severity:    "Critical",
+					Message:     "Default route points to Mihomo gateway but TUN interface does not exist",
+					Routes:      []RouteEntry{route},
+					ActiveRoute: route,
+					Recommendation: fmt.Sprintf("Delete route: route delete 0.0.0.0 mask 0.0.0.0 %s",
+						route.Gateway),
+				}
+				conflicts = append(conflicts, conflict)
+			}
+		}
+	}
+
+	return conflicts, nil
+}
+
+// DiagnoseNetworkRouting 诊断网络路由问题（综合检查）
+func (rm *RouteManager) DiagnoseNetworkRouting() (*NetworkDiagnosis, error) {
+	diagnosis := &NetworkDiagnosis{
+		Timestamp: time.Now(),
+	}
+
+	// 1. 检查默认路由冲突
+	conflicts, err := rm.CheckDefaultRouteConflicts()
+	if err != nil {
+		diagnosis.Error = err
+		return diagnosis, err
+	}
+	diagnosis.DefaultRouteConflicts = conflicts
+
+	// 2. 检查残留路由
+	residualRoutes, err := rm.CheckMihomoResidualRoutes()
+	if err != nil {
+		diagnosis.Error = err
+		return diagnosis, err
+	}
+	diagnosis.ResidualRoutes = residualRoutes
+
+	// 3. 检查活动接口
+	activeInterfaces, err := getActiveInterfaceList()
+	if err != nil {
+		diagnosis.Error = err
+		return diagnosis, err
+	}
+	diagnosis.ActiveInterfaces = activeInterfaces
+
+	// 4. 综合判断网络状态
+	diagnosis.Health = "Healthy"
+	if len(conflicts) > 0 {
+		for _, conflict := range conflicts {
+			if conflict.Severity == "Critical" {
+				diagnosis.Health = "Critical"
+				break
+			}
+			if diagnosis.Health == "Healthy" && conflict.Severity == "High" {
+				diagnosis.Health = "Warning"
+			}
+		}
+	}
+
+	if len(residualRoutes) > 0 && diagnosis.Health == "Healthy" {
+		diagnosis.Health = "Warning"
+	}
+
+	return diagnosis, nil
+}
+
+// RouteConflict 路由冲突信息
+type RouteConflict struct {
+	Type           string      `json:"type"`
+	Severity       string      `json:"severity"` // Critical, High, Medium, Low
+	Message        string      `json:"message"`
+	Routes         []RouteEntry `json:"routes"`
+	ActiveRoute    RouteEntry  `json:"active_route"`
+	Recommendation string      `json:"recommendation"`
+}
+
+// NetworkDiagnosis 网络路由诊断结果
+type NetworkDiagnosis struct {
+	Timestamp              time.Time        `json:"timestamp"`
+	Health                 string           `json:"health"` // Healthy, Warning, Critical
+	DefaultRouteConflicts  []RouteConflict  `json:"default_route_conflicts"`
+	ResidualRoutes         []ResidualRoute  `json:"residual_routes"`
+	ActiveInterfaces       []string         `json:"active_interfaces"`
+	Error                  error            `json:"error,omitempty"`
+}
+
+// isMihomoResidualRoute 检测是否是 Mihomo 残留路由
+func isMihomoResidualRoute(route RouteEntry) bool {
+	// 情况1：网关指向 Mihomo 地址范围
+	if strings.HasPrefix(route.Gateway, "198.18.") {
+		// 检查接口是否存在 TUN 特征
+		if !isTunInterface(route.Interface) {
+			// 网关指向 Mihomo 但接口不是 TUN 接口，可能是残留路由
+			return true
+		}
+
+		// 即使是 TUN 接口，如果度量值异常低也可能是残留
+		if route.Metric == 0 && route.Destination == "0.0.0.0" {
+			return true
+		}
+	}
+
+	// 情况2：接口地址在 Mihomo 地址范围
+	if route.Interface != "" && strings.HasPrefix(route.Interface, "198.18.") {
+		// 但网关不是 Mihomo，可能是配置错误
+		if !isMihomoGateway(route.Gateway) {
+			return true
+		}
+	}
+
+	// 情况3：目的地址在 Mihomo 范围但不是直连路由
+	if strings.HasPrefix(route.Destination, "198.18.") &&
+		!strings.Contains(route.Gateway, "On-link") &&
+		route.Gateway != "" {
+		return true
+	}
+
+	return false
+}
+
+// getResidualRouteReason 获取残留路由的原因
+func getResidualRouteReason(route RouteEntry) string {
+	if strings.HasPrefix(route.Gateway, "198.18.") && !isTunInterface(route.Interface) {
+		return "Gateway points to Mihomo but TUN interface does not exist"
+	}
+
+	if route.Metric == 0 && route.Destination == "0.0.0.0" {
+		return "Default route with metric 0 may cause network conflicts"
+	}
+
+	if strings.HasPrefix(route.Interface, "198.18.") && !isMihomoGateway(route.Gateway) {
+		return "Interface in Mihomo range but gateway is not Mihomo"
+	}
+
+	return "Potential Mihomo residual route detected"
+}
+
+// checkInterfaceExists 检查接口是否存在
+func checkInterfaceExists(iface string) bool {
+	if iface == "" {
+		return false
+	}
+	// 调用平台特定的实现
+	return checkInterfaceExistsImpl(iface)
+}
+
+// checkGatewayReachable 检查网关是否可达
+func checkGatewayReachable(gateway string) bool {
+	// 调用平台特定的实现
+	return checkGatewayReachableImpl(gateway)
+}
+
+// getInterfaceInfo 获取接口详细信息
+func getInterfaceInfo(iface string) (map[string]string, error) {
+	if iface == "" {
+		return nil, fmt.Errorf("interface name is empty")
+	}
+	return getInterfaceInfoImpl(iface)
+}
+
+// getActiveInterfaceList 获取活动接口列表
+func getActiveInterfaceList() ([]string, error) {
+	return getActiveInterfaceListImpl()
+}
+
+// checkInterfaceExistsImpl 平台特定的接口检测实现（由各平台文件实现）
+func checkInterfaceExistsImpl(iface string) bool {
+	return false // 默认实现，子类覆盖
+}
+
+// checkGatewayReachableImpl 平台特定的网关可达性检测实现（由各平台文件实现）
+func checkGatewayReachableImpl(gateway string) bool {
+	return false // 默认实现，子类覆盖
+}
+
+// getInterfaceInfoImpl 平台特定的接口信息获取实现（由各平台文件实现）
+func getInterfaceInfoImpl(iface string) (map[string]string, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// getActiveInterfaceListImpl 平台特定的活动接口列表获取实现（由各平台文件实现）
+func getActiveInterfaceListImpl() ([]string, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// ResidualRoute 残留路由诊断信息
+type ResidualRoute struct {
+	Route            RouteEntry `json:"route"`
+	Reason           string     `json:"reason"`
+	InterfaceExists  bool       `json:"interface_exists"`
+	GatewayReachable bool       `json:"gateway_reachable"`
+	Issue            string     `json:"issue,omitempty"`
 }
 
 // DeleteRoute 删除路由
@@ -101,6 +393,72 @@ func (rm *RouteManager) CleanupMihomoRoutes() error {
 	}
 
 	return lastErr
+}
+
+// CleanupMihomoResidualRoutes 清理 Mihomo 残留路由并返回详细报告
+func (rm *RouteManager) CleanupMihomoResidualRoutes() (*CleanupReport, error) {
+	residualRoutes, err := rm.CheckMihomoResidualRoutes()
+	if err != nil {
+		return nil, err
+	}
+
+	report := &CleanupReport{
+		TotalFound:    len(residualRoutes),
+		TotalRemoved:  0,
+		Failed:        []RouteEntry{},
+		Skipped:       []RouteEntry{},
+	}
+
+	for _, residual := range residualRoutes {
+		route := residual.Route
+
+		// 检查是否需要跳过（例如度量值不是 0 的默认路由）
+		if shouldSkipRoute(route) {
+			report.Skipped = append(report.Skipped, route)
+			continue
+		}
+
+		// 尝试删除路由
+		if err := rm.DeleteRoute(route); err != nil {
+			report.Failed = append(report.Failed, route)
+			report.LastError = err
+		} else {
+			report.TotalRemoved++
+			report.Removed = append(report.Removed, route)
+		}
+	}
+
+	return report, nil
+}
+
+// shouldSkipRoute 判断是否应该跳过删除某些路由
+func shouldSkipRoute(route RouteEntry) bool {
+	// 不要删除直连路由（On-link）
+	if strings.Contains(route.Gateway, "On-link") {
+		return true
+	}
+
+	// 不要删除不是 Mihomo 路由的配置
+	if !isMihomoGateway(route.Gateway) && !strings.HasPrefix(route.Interface, "198.18.") {
+		return true
+	}
+
+	// 对于非默认路由，如果度量值较高，可能是系统自动添加的，跳过
+	if route.Destination != "0.0.0.0" && route.Metric > 100 {
+		return true
+	}
+
+	return false
+}
+
+// CleanupReport 清理报告
+type CleanupReport struct {
+	TotalFound   int          `json:"total_found"`
+	TotalRemoved int          `json:"total_removed"`
+	Removed      []RouteEntry `json:"removed"`
+	Failed       []RouteEntry `json:"failed"`
+	Skipped      []RouteEntry `json:"skipped"`
+	LastError    error        `json:"last_error,omitempty"`
 }
 
 // CheckResidual 检查是否有残留路由
