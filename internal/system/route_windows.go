@@ -267,8 +267,8 @@ func cidrToNetmask(cidrStr string) string {
 		mask&0xFF)
 }
 
-// checkInterfaceExists 检查 Windows 接口是否存在
-func checkInterfaceExists(iface string) bool {
+// Windows 平台特定实现
+func checkInterfaceExistsImpl(iface string) bool {
 	if iface == "" {
 		return false
 	}
@@ -300,8 +300,7 @@ func checkInterfaceExists(iface string) bool {
 	return false
 }
 
-// checkGatewayReachable 检查网关是否可达
-func checkGatewayReachable(gateway string) bool {
+func checkGatewayReachableImpl(gateway string) bool {
 	if gateway == "" || gateway == "On-link" {
 		return true // 直连路由或空网关不需要检查
 	}
@@ -314,8 +313,7 @@ func checkGatewayReachable(gateway string) bool {
 	return err == nil
 }
 
-// getInterfaceInfo 获取 Windows 接口详细信息
-func getInterfaceInfo(iface string) (map[string]string, error) {
+func getInterfaceInfoImpl(iface string) (map[string]string, error) {
 	if iface == "" {
 		return nil, fmt.Errorf("interface name is empty")
 	}
@@ -345,8 +343,7 @@ func getInterfaceInfo(iface string) (map[string]string, error) {
 	return info, nil
 }
 
-// getActiveInterfaceList 获取 Windows 活动接口列表
-func getActiveInterfaceList() ([]string, error) {
+func getActiveInterfaceListImpl() ([]string, error) {
 	cmd := exec.Command("netsh", "interface", "show", "interface")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -375,21 +372,4 @@ func getActiveInterfaceList() ([]string, error) {
 	}
 
 	return interfaces, nil
-}
-
-// Windows 平台特定实现
-func checkInterfaceExistsImpl(iface string) bool {
-	return checkInterfaceExists(iface)
-}
-
-func checkGatewayReachableImpl(gateway string) bool {
-	return checkGatewayReachable(gateway)
-}
-
-func getInterfaceInfoImpl(iface string) (map[string]string, error) {
-	return getInterfaceInfo(iface)
-}
-
-func getActiveInterfaceListImpl() ([]string, error) {
-	return getActiveInterfaceList()
 }

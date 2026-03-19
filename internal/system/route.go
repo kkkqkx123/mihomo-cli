@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // RouteManager 路由表管理器
@@ -154,11 +153,10 @@ func (rm *RouteManager) CheckDefaultRouteConflicts() ([]RouteConflict, error) {
 	return conflicts, nil
 }
 
-// DiagnoseNetworkRouting 诊断网络路由问题（综合检查）
+// DiagnoseNetworkRouting 诊断网络路由问题（按需检查）
+// 用于用户遇到问题时主动调用诊断
 func (rm *RouteManager) DiagnoseNetworkRouting() (*NetworkDiagnosis, error) {
-	diagnosis := &NetworkDiagnosis{
-		Timestamp: time.Now(),
-	}
+	diagnosis := &NetworkDiagnosis{}
 
 	// 1. 检查默认路由冲突
 	conflicts, err := rm.CheckDefaultRouteConflicts()
@@ -176,15 +174,7 @@ func (rm *RouteManager) DiagnoseNetworkRouting() (*NetworkDiagnosis, error) {
 	}
 	diagnosis.ResidualRoutes = residualRoutes
 
-	// 3. 检查活动接口
-	activeInterfaces, err := getActiveInterfaceList()
-	if err != nil {
-		diagnosis.Error = err
-		return diagnosis, err
-	}
-	diagnosis.ActiveInterfaces = activeInterfaces
-
-	// 4. 综合判断网络状态
+	// 3. 综合判断网络状态
 	diagnosis.Health = "Healthy"
 	if len(conflicts) > 0 {
 		for _, conflict := range conflicts {
@@ -205,6 +195,102 @@ func (rm *RouteManager) DiagnoseNetworkRouting() (*NetworkDiagnosis, error) {
 	return diagnosis, nil
 }
 
+// FixRouteIssues 自动修复路由问题（一键修复）
+// 用于用户遇到问题时快速修复
+func (rm *RouteManager) FixRouteIssues() (*FixReport, error) {
+	report := &FixReport{}
+
+	// 1. 清理残留路由
+	cleanupReport, err := rm.CleanupMihomoResidualRoutes()
+	if err != nil {
+		report.Errors = append(report.Errors, err)
+	} else {
+		report.CleanupReport = cleanupReport
+	}
+
+	// 2. 检查是否还有问题
+	diagnosis, err := rm.DiagnoseNetworkRouting()
+	if err != nil {
+		report.Errors = append(report.Errors, err)
+	} else {
+		report.Diagnosis = diagnosis
+	}
+
+	// 3. 综合判断修复结果
+	report.Success = len(report.Errors) == 0 && diagnosis.Health == "Healthy"
+	if !report.Success {
+		if diagnosis.Health == "Critical" {
+			report.Message = "Critical issues remain, manual intervention required"
+		} else if diagnosis.Health == "Warning" {
+			report.Message = "Minor issues remain, check details"
+		}
+	} else {
+		report.Message = "All route issues fixed successfully"
+	}
+
+	return report, nil
+}
+
+// CheckBeforeStart Mihomo 启动前检查
+// 在启动 Mihomo 之前检查残留路由，避免冲突
+func (rm *RouteManager) CheckBeforeStart() (*StartCheckResult, error) {
+	result := &StartCheckResult{
+		ReadyToStart: true,
+	}
+
+	// 检查残留路由
+	residualRoutes, err := rm.CheckMihomoResidualRoutes()
+	if err != nil {
+		return result, fmt.Errorf("failed to check residual routes: %w", err)
+	}
+
+	if len(residualRoutes) > 0 {
+		result.ReadyToStart = false
+		result.HasResidualRoutes = true
+		result.ResidualRoutes = residualRoutes
+		result.Recommendation = "Clean up residual routes before starting Mihomo"
+		result.CleanupCommand = "mihomo-cli system cleanup --route"
+	}
+
+	// 检查默认路由冲突
+	conflicts, err := rm.CheckDefaultRouteConflicts()
+	if err != nil {
+		return result, fmt.Errorf("failed to check route conflicts: %w", err)
+	}
+
+	if len(conflicts) > 0 {
+		for _, conflict := range conflicts {
+			if conflict.Severity == "Critical" {
+				result.ReadyToStart = false
+				result.HasCriticalConflicts = true
+				result.CriticalConflicts = append(result.CriticalConflicts, conflict)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// CheckAfterStop Mihomo 停止后检查
+// 在停止 Mihomo 之后检查是否有残留路由
+func (rm *RouteManager) CheckAfterStop() (*StopCheckResult, error) {
+	result := &StopCheckResult{}
+
+	// 检查残留路由
+	residualRoutes, err := rm.CheckMihomoResidualRoutes()
+	if err != nil {
+		return result, fmt.Errorf("failed to check residual routes: %w", err)
+	}
+
+	if len(residualRoutes) > 0 {
+		result.HasResidualRoutes = true
+		result.ResidualRoutes = residualRoutes
+		result.CleanupCommand = "mihomo-cli system cleanup --route"
+	}
+
+	return result, nil
+}
+
 // RouteConflict 路由冲突信息
 type RouteConflict struct {
 	Type           string      `json:"type"`
@@ -217,12 +303,37 @@ type RouteConflict struct {
 
 // NetworkDiagnosis 网络路由诊断结果
 type NetworkDiagnosis struct {
-	Timestamp              time.Time        `json:"timestamp"`
-	Health                 string           `json:"health"` // Healthy, Warning, Critical
+	Health                 string          `json:"health"` // Healthy, Warning, Critical
 	DefaultRouteConflicts  []RouteConflict  `json:"default_route_conflicts"`
 	ResidualRoutes         []ResidualRoute  `json:"residual_routes"`
-	ActiveInterfaces       []string         `json:"active_interfaces"`
 	Error                  error            `json:"error,omitempty"`
+}
+
+// FixReport 修复报告
+type FixReport struct {
+	Success        bool                `json:"success"`
+	Message        string              `json:"message"`
+	CleanupReport  *CleanupReport      `json:"cleanup_report,omitempty"`
+	Diagnosis      *NetworkDiagnosis   `json:"diagnosis,omitempty"`
+	Errors         []error             `json:"errors,omitempty"`
+}
+
+// StartCheckResult 启动前检查结果
+type StartCheckResult struct {
+	ReadyToStart        bool             `json:"ready_to_start"`
+	HasResidualRoutes   bool             `json:"has_residual_routes"`
+	HasCriticalConflicts bool            `json:"has_critical_conflicts"`
+	ResidualRoutes      []ResidualRoute  `json:"residual_routes,omitempty"`
+	CriticalConflicts   []RouteConflict  `json:"critical_conflicts,omitempty"`
+	Recommendation      string           `json:"recommendation,omitempty"`
+	CleanupCommand      string           `json:"cleanup_command,omitempty"`
+}
+
+// StopCheckResult 停止后检查结果
+type StopCheckResult struct {
+	HasResidualRoutes bool            `json:"has_residual_routes"`
+	ResidualRoutes    []ResidualRoute `json:"residual_routes,omitempty"`
+	CleanupCommand    string          `json:"cleanup_command,omitempty"`
 }
 
 // isMihomoResidualRoute 检测是否是 Mihomo 残留路由
@@ -302,26 +413,6 @@ func getInterfaceInfo(iface string) (map[string]string, error) {
 // getActiveInterfaceList 获取活动接口列表
 func getActiveInterfaceList() ([]string, error) {
 	return getActiveInterfaceListImpl()
-}
-
-// checkInterfaceExistsImpl 平台特定的接口检测实现（由各平台文件实现）
-func checkInterfaceExistsImpl(iface string) bool {
-	return false // 默认实现，子类覆盖
-}
-
-// checkGatewayReachableImpl 平台特定的网关可达性检测实现（由各平台文件实现）
-func checkGatewayReachableImpl(gateway string) bool {
-	return false // 默认实现，子类覆盖
-}
-
-// getInterfaceInfoImpl 平台特定的接口信息获取实现（由各平台文件实现）
-func getInterfaceInfoImpl(iface string) (map[string]string, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// getActiveInterfaceListImpl 平台特定的活动接口列表获取实现（由各平台文件实现）
-func getActiveInterfaceListImpl() ([]string, error) {
-	return nil, fmt.Errorf("not implemented")
 }
 
 // ResidualRoute 残留路由诊断信息

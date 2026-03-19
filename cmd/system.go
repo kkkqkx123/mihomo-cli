@@ -48,6 +48,13 @@ var systemValidateCmd = &cobra.Command{
 	RunE:  runSystemValidate,
 }
 
+var systemFixCmd = &cobra.Command{
+	Use:   "fix",
+	Short: "修复系统配置问题",
+	Long:  "自动检测并修复系统配置问题，包括路由残留、冲突等。",
+	RunE:  runSystemFix,
+}
+
 var systemSnapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "配置快照管理",
@@ -111,6 +118,7 @@ func init() {
 	systemCmd.AddCommand(systemStatusCmd)
 	systemCmd.AddCommand(systemCleanupCmd)
 	systemCmd.AddCommand(systemValidateCmd)
+	systemCmd.AddCommand(systemFixCmd)
 	systemCmd.AddCommand(systemSnapshotCmd)
 	systemCmd.AddCommand(systemAuditCmd)
 
@@ -459,6 +467,62 @@ func runSystemAuditClear(cmd *cobra.Command, args []string) error {
 	}
 
 	output.Println("审计日志已清空")
+
+	return nil
+}
+
+func runSystemFix(cmd *cobra.Command, args []string) error {
+	// 检查管理员权限
+	if !util.IsAdmin() {
+		return pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
+	}
+
+	// 创建路由管理器
+	audit, err := system.NewAuditLogger("route_audit.log")
+	if err != nil {
+		return pkgerrors.ErrService("failed to create audit logger", err)
+	}
+	routeManager := system.NewRouteManager(audit)
+
+	output.Println("开始修复路由问题...")
+
+	// 自动修复路由问题
+	report, err := routeManager.FixRouteIssues()
+	if err != nil {
+		return pkgerrors.ErrService("failed to fix route issues", err)
+	}
+
+	// 输出修复报告
+	output.Println("\n修复报告:")
+	output.Printf("  状态: %s\n", report.Message)
+
+	if report.CleanupReport != nil {
+		output.Printf("  发现残留路由: %d\n", report.CleanupReport.TotalFound)
+		output.Printf("  已清理: %d\n", report.CleanupReport.TotalRemoved)
+		if len(report.CleanupReport.Failed) > 0 {
+			output.Printf("  清理失败: %d\n", len(report.CleanupReport.Failed))
+		}
+		if len(report.CleanupReport.Skipped) > 0 {
+			output.Printf("  跳过: %d\n", len(report.CleanupReport.Skipped))
+		}
+	}
+
+	if report.Diagnosis != nil {
+		output.Printf("  网络健康状态: %s\n", report.Diagnosis.Health)
+	}
+
+	if len(report.Errors) > 0 {
+		output.Println("\n错误:")
+		for i, err := range report.Errors {
+			output.Printf("  %d. %v\n", i+1, err)
+		}
+	}
+
+	if report.Success {
+		output.Success("\n路由问题修复成功")
+	} else {
+		output.Warning("\n路由问题修复未完全成功，请检查详情")
+	}
 
 	return nil
 }
