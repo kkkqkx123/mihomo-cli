@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -19,12 +18,10 @@ var (
 	apiURL    string
 	secret    string
 	timeout   int
-	outputFile string
-	appendMode bool
 )
 
-// outputFileHandle 输出文件句柄
-var outputFileHandle *os.File
+// logOutput 日志输出管理器
+var logOutput *output.LogOutput
 
 // historyManager 历史记录管理器
 var historyManager *history.Manager
@@ -56,19 +53,17 @@ func preRun(cmd *cobra.Command, args []string) error {
 	// 设置输出格式
 	output.SetGlobalFormat(outputFmt)
 
-	// 初始化文件输出
-	if outputFile != "" {
-		var err error
-		if appendMode {
-			outputFileHandle, err = os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		} else {
-			outputFileHandle, err = os.Create(outputFile)
-		}
+	// 初始化日志输出（从配置文件读取）
+	cfg, err := config.LoadFromViper()
+	if err == nil && cfg.Log.Mode != "console" && cfg.Log.Mode != "" {
+		logOutput, err = output.InitLogOutput(cfg.Log.File, cfg.Log.Mode, cfg.Log.Append)
 		if err != nil {
-			return pkgerrors.ErrService("打开输出文件失败", err)
+			return pkgerrors.ErrService("初始化日志输出失败", err)
 		}
-		output.SetGlobalStdout(outputFileHandle)
-		output.SetGlobalStderr(outputFileHandle)
+
+		// 设置全局输出
+		output.SetGlobalStdout(logOutput.GetWriter())
+		output.SetGlobalStderr(logOutput.GetWriter())
 	}
 
 	// 初始化历史记录管理器
@@ -101,12 +96,12 @@ func postRun(cmd *cobra.Command, args []string) error {
 		_ = historyManager.Add(entry)
 	}
 
-	// 关闭输出文件
-	if outputFileHandle != nil {
-		if err := outputFileHandle.Close(); err != nil {
-			return pkgerrors.ErrService("关闭输出文件失败", err)
+	// 关闭日志输出
+	if logOutput != nil {
+		if err := logOutput.Close(); err != nil {
+			return pkgerrors.ErrService("关闭日志输出失败", err)
 		}
-		outputFileHandle = nil
+		logOutput = nil
 	}
 	return nil
 }
@@ -142,8 +137,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&apiURL, "api", "", "API 地址 (覆盖配置文件)")
 	rootCmd.PersistentFlags().StringVar(&secret, "secret", "", "API 密钥 (覆盖配置文件)")
 	rootCmd.PersistentFlags().IntVarP(&timeout, "timeout", "t", 10, "请求超时时间（秒）")
-	rootCmd.PersistentFlags().StringVarP(&outputFile, "file", "f", "", "输出到指定文件")
-	rootCmd.PersistentFlags().BoolVar(&appendMode, "append", false, "追加模式（与 -f 一起使用）")
 }
 
 // initConfig 初始化配置

@@ -94,6 +94,11 @@ func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
 	l.v.Set("proxy.timeout", cfg.Proxy.Timeout)
 	l.v.Set("proxy.concurrent", cfg.Proxy.Concurrent)
 
+	// 设置 Log 配置
+	l.v.Set("log.file", cfg.Log.File)
+	l.v.Set("log.mode", cfg.Log.Mode)
+	l.v.Set("log.append", cfg.Log.Append)
+
 	// 确保目录存在
 	configDir := filepath.Dir(configPath)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
