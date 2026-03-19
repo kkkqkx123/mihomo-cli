@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/operation"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/system"
 	"github.com/spf13/cobra"
@@ -57,11 +58,11 @@ var diagnoseNetworkCmd = &cobra.Command{
 
 func runDiagnoseRoute() error {
 	// 创建路由管理器
-	audit, err := createAuditLogger()
+	op, err := createOperationManager()
 	if err != nil {
 		return err
 	}
-	routeManager := system.NewRouteManager(audit)
+	routeManager := system.NewRouteManager(op)
 
 	// 诊断路由
 	diagnosis, err := routeManager.DiagnoseNetworkRouting()
@@ -81,11 +82,11 @@ func runDiagnoseRoute() error {
 
 func runDiagnoseNetwork() error {
 	// 创建路由管理器
-	audit, err := createAuditLogger()
+	op, err := createOperationManager()
 	if err != nil {
 		return err
 	}
-	routeManager := system.NewRouteManager(audit)
+	routeManager := system.NewRouteManager(op)
 
 	// 诊断网络
 	diagnosis, err := routeManager.DiagnoseNetworkRouting()
@@ -103,14 +104,14 @@ func runDiagnoseNetwork() error {
 	return printNetworkDiagnosis(diagnosis)
 }
 
-// createAuditLogger 创建审计日志记录器（使用统一的数据目录）
-func createAuditLogger() (*system.AuditLogger, error) {
+// createOperationManager 创建操作记录管理器（使用统一的数据目录）
+func createOperationManager() (*operation.Manager, error) {
 	dataDir, err := config.GetDataDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get data directory: %w", err)
 	}
-	auditFile := filepath.Join(dataDir, "audit.log")
-	return system.NewAuditLogger(auditFile)
+	operationFile := filepath.Join(dataDir, "operation.log")
+	return operation.NewManager(operationFile)
 }
 
 // printRouteDiagnosis 打印路由诊断结果（表格格式）

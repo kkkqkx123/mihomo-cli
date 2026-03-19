@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/operation"
 )
 
 // SystemConfigManager 系统配置管理器
@@ -16,7 +17,7 @@ type SystemConfigManager struct {
 	tun            *TUNManager
 	route          *RouteManager
 	snapshot       *SnapshotManager
-	audit          *AuditLogger
+	operation      *operation.Manager
 	mu             sync.RWMutex
 }
 
@@ -28,26 +29,26 @@ func NewSystemConfigManager() (*SystemConfigManager, error) {
 		return nil, fmt.Errorf("failed to get data directory: %w", err)
 	}
 
-	// 创建审计日志记录器
-	auditFile := filepath.Join(dataDir, "audit.log")
-	audit, err := NewAuditLogger(auditFile)
+	// 创建操作记录管理器
+	operationFile := filepath.Join(dataDir, "operation.log")
+	opManager, err := operation.NewManager(operationFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create audit logger: %w", err)
+		return nil, fmt.Errorf("failed to create operation manager: %w", err)
 	}
 
 	// 创建快照管理器
 	snapshotDir := filepath.Join(dataDir, "snapshots")
-	snapshot, err := NewSnapshotManager(snapshotDir, audit)
+	snapshot, err := NewSnapshotManager(snapshotDir, opManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create snapshot manager: %w", err)
 	}
 
 	return &SystemConfigManager{
-		sysproxy: NewSysProxyManager(audit),
-		tun:      NewTUNManager(audit),
-		route:    NewRouteManager(audit),
+		sysproxy: NewSysProxyManager(opManager),
+		tun:      NewTUNManager(opManager),
+		route:    NewRouteManager(opManager),
 		snapshot: snapshot,
-		audit:    audit,
+		operation: opManager,
 	}, nil
 }
 
@@ -188,9 +189,9 @@ func (scm *SystemConfigManager) GetSnapshotManager() *SnapshotManager {
 	return scm.snapshot
 }
 
-// GetAuditLogger 获取审计日志记录器
-func (scm *SystemConfigManager) GetAuditLogger() *AuditLogger {
-	return scm.audit
+// GetOperationManager 获取操作记录管理器
+func (scm *SystemConfigManager) GetOperationManager() *operation.Manager {
+	return scm.operation
 }
 
 // ListSnapshots 列出所有快照
@@ -203,19 +204,19 @@ func (scm *SystemConfigManager) DeleteSnapshot(id string) error {
 	return scm.snapshot.DeleteSnapshot(id)
 }
 
-// QueryAuditLog 查询审计日志
-func (scm *SystemConfigManager) QueryAuditLog(component string, since time.Time, limit int) ([]AuditRecord, error) {
-	return scm.audit.Query(component, since, limit)
+// QueryOperationLog 查询操作记录
+func (scm *SystemConfigManager) QueryOperationLog(component string, since time.Time, limit int) ([]operation.Record, error) {
+	return scm.operation.Query(component, since, limit)
 }
 
-// ClearAuditLog 清空审计日志
-func (scm *SystemConfigManager) ClearAuditLog() error {
-	return scm.audit.Clear()
+// ClearOperationLog 清空操作记录
+func (scm *SystemConfigManager) ClearOperationLog() error {
+	return scm.operation.Clear()
 }
 
-// PruneAuditLog 清理指定时间之前的审计日志
-func (scm *SystemConfigManager) PruneAuditLog(before time.Time) (int, error) {
-	return scm.audit.Prune(before)
+// PruneOperationLog 清理指定时间之前的操作记录
+func (scm *SystemConfigManager) PruneOperationLog(before time.Time) (int, error) {
+	return scm.operation.Prune(before)
 }
 
 // GetDataDir 获取数据目录

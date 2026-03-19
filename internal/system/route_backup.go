@@ -61,9 +61,9 @@ func (rm *RouteManager) BackupRoutes(note string) (*RouteBackup, error) {
 		Note:      note,
 	}
 
-	// 记录审计日志
-	if rm.audit != nil {
-		_ = rm.audit.Record("backup", "route", fmt.Sprintf("backed up %d routes", len(routes)), "success", nil)
+	// 记录操作日志
+	if rm.operation != nil {
+		_ = rm.operation.Record("backup", "route", fmt.Sprintf("backed up %d routes", len(routes)), "success", nil)
 	}
 
 	return backup, nil
@@ -314,9 +314,9 @@ func (rm *RouteManager) RestoreRoutes(backupID string, mode string) (*RestoreRes
 
 	result.Success = len(result.Errors) == 0
 
-	// 记录审计日志
-	if rm.audit != nil {
-		_ = rm.audit.Record("restore", "route", fmt.Sprintf("mode=%s, added=%d, deleted=%d", mode, len(result.AddedRoutes), len(result.DeletedRoutes)), "success", nil)
+	// 记录操作日志
+	if rm.operation != nil {
+		_ = rm.operation.Record("restore", "route", fmt.Sprintf("mode=%s, added=%d, deleted=%d", mode, len(result.AddedRoutes), len(result.DeletedRoutes)), "success", nil)
 	}
 
 	return result, nil
@@ -337,9 +337,9 @@ func (rm *RouteManager) DeleteBackup(id string) error {
 		return fmt.Errorf("failed to delete backup: %w", err)
 	}
 
-	// 记录审计日志
-	if rm.audit != nil {
-		_ = rm.audit.Record("delete", "route", id, "success", nil)
+	// 记录操作日志
+	if rm.operation != nil {
+		_ = rm.operation.Record("delete", "route", id, "success", nil)
 	}
 
 	return nil

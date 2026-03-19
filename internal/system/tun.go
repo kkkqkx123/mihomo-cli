@@ -8,17 +8,19 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/kkkqkx123/mihomo-cli/internal/operation"
 )
 
 // TUNManager TUN 网卡管理器
 type TUNManager struct {
-	audit *AuditLogger
+	operation *operation.Manager
 }
 
 // NewTUNManager 创建 TUN 管理器
-func NewTUNManager(audit *AuditLogger) *TUNManager {
+func NewTUNManager(op *operation.Manager) *TUNManager {
 	return &TUNManager{
-		audit: audit,
+		operation: op,
 	}
 }
 
@@ -62,12 +64,12 @@ func (tm *TUNManager) isMihomoTUNDevice(name string) bool {
 func (tm *TUNManager) RemoveTUN(name string) error {
 	err := tm.removeTUN(name)
 
-	if tm.audit != nil {
+	if tm.operation != nil {
 		result := "success"
 		if err != nil {
 			result = "failed"
 		}
-		_ = tm.audit.Record("remove", "tun", name, result, err)
+		_ = tm.operation.Record("remove", "tun", name, result, err)
 	}
 
 	return err
@@ -179,9 +181,9 @@ func (tm *TUNManager) BackupTUNState(note string) (*TUNBackup, error) {
 		Note:      note,
 	}
 
-	// 记录审计日志
-	if tm.audit != nil {
-		_ = tm.audit.Record("backup", "tun", fmt.Sprintf("backed up %d TUN devices", len(devices)), "success", nil)
+	// 记录操作日志
+	if tm.operation != nil {
+		_ = tm.operation.Record("backup", "tun", fmt.Sprintf("backed up %d TUN devices", len(devices)), "success", nil)
 	}
 
 	return backup, nil
@@ -424,9 +426,9 @@ func (tm *TUNManager) RestoreTUNState(backupID string, mode string) (*TUNRestore
 
 	result.Success = len(result.Errors) == 0
 
-	// 记录审计日志
-	if tm.audit != nil {
-		_ = tm.audit.Record("restore", "tun", fmt.Sprintf("mode=%s, removed=%d, need_restore=%d", mode, len(result.RemovedDevices), len(result.NeedRestoreDevices)), "success", nil)
+	// 记录操作日志
+	if tm.operation != nil {
+		_ = tm.operation.Record("restore", "tun", fmt.Sprintf("mode=%s, removed=%d, need_restore=%d", mode, len(result.RemovedDevices), len(result.NeedRestoreDevices)), "success", nil)
 	}
 
 	return result, nil
@@ -447,9 +449,9 @@ func (tm *TUNManager) DeleteTUNBackup(id string) error {
 		return fmt.Errorf("failed to delete backup: %w", err)
 	}
 
-	// 记录审计日志
-	if tm.audit != nil {
-		_ = tm.audit.Record("delete", "tun", id, "success", nil)
+	// 记录操作日志
+	if tm.operation != nil {
+		_ = tm.operation.Record("delete", "tun", id, "success", nil)
 	}
 
 	return nil

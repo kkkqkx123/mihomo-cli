@@ -7,16 +7,18 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/kkkqkx123/mihomo-cli/internal/operation"
 )
 
 // SnapshotManager 快照管理器
 type SnapshotManager struct {
 	snapshotDir string
-	audit       *AuditLogger
+	operation   *operation.Manager
 }
 
 // NewSnapshotManager 创建快照管理器
-func NewSnapshotManager(snapshotDir string, audit *AuditLogger) (*SnapshotManager, error) {
+func NewSnapshotManager(snapshotDir string, op *operation.Manager) (*SnapshotManager, error) {
 	// 确保目录存在
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create snapshot directory: %w", err)
@@ -24,7 +26,7 @@ func NewSnapshotManager(snapshotDir string, audit *AuditLogger) (*SnapshotManage
 
 	return &SnapshotManager{
 		snapshotDir: snapshotDir,
-		audit:       audit,
+		operation:   op,
 	}, nil
 }
 
@@ -53,8 +55,8 @@ func (sm *SnapshotManager) CreateSnapshot(state ConfigState, note string) (*Conf
 		return nil, fmt.Errorf("failed to save snapshot: %w", err)
 	}
 
-	if sm.audit != nil {
-		_ = sm.audit.Record("create", "snapshot", note, "success", nil)
+	if sm.operation != nil {
+		_ = sm.operation.Record("create", "snapshot", note, "success", nil)
 	}
 
 	return &snapshot, nil
@@ -76,8 +78,8 @@ func (sm *SnapshotManager) RestoreSnapshot(id string) (*ConfigSnapshot, error) {
 		return nil, fmt.Errorf("failed to unmarshal snapshot: %w", err)
 	}
 
-	if sm.audit != nil {
-		_ = sm.audit.Record("restore", "snapshot", id, "success", nil)
+	if sm.operation != nil {
+		_ = sm.operation.Record("restore", "snapshot", id, "success", nil)
 	}
 
 	return &snapshot, nil
@@ -137,8 +139,8 @@ func (sm *SnapshotManager) DeleteSnapshot(id string) error {
 		return fmt.Errorf("failed to delete snapshot: %w", err)
 	}
 
-	if sm.audit != nil {
-		_ = sm.audit.Record("delete", "snapshot", id, "success", nil)
+	if sm.operation != nil {
+		_ = sm.operation.Record("delete", "snapshot", id, "success", nil)
 	}
 
 	return nil

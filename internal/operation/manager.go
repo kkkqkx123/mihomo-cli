@@ -1,4 +1,4 @@
-package system
+package operation
 
 import (
 	"encoding/json"
@@ -10,41 +10,31 @@ import (
 	"time"
 )
 
-// AuditRecord 审计记录
-type AuditRecord struct {
-	Timestamp time.Time `json:"timestamp"`
-	Operation string    `json:"operation"` // "enable", "disable", "cleanup", etc.
-	Component string    `json:"component"` // "sysproxy", "tun", "route", etc.
-	Details   string    `json:"details"`
-	Result    string    `json:"result"` // "success", "failed"
-	Error     string    `json:"error,omitempty"`
-}
-
-// AuditLogger 审计日志记录器
-type AuditLogger struct {
+// Manager 操作记录管理器
+type Manager struct {
 	logFile string
 	mu      sync.Mutex
 }
 
-// NewAuditLogger 创建审计日志记录器
-func NewAuditLogger(logFile string) (*AuditLogger, error) {
+// NewManager 创建操作记录管理器
+func NewManager(logFile string) (*Manager, error) {
 	// 确保目录存在
 	logDir := filepath.Dir(logFile)
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create audit log directory: %w", err)
+		return nil, fmt.Errorf("failed to create operation log directory: %w", err)
 	}
 
-	return &AuditLogger{
+	return &Manager{
 		logFile: logFile,
 	}, nil
 }
 
-// Record 记录审计日志
-func (al *AuditLogger) Record(operation, component, details, result string, err error) error {
-	al.mu.Lock()
-	defer al.mu.Unlock()
+// Record 记录操作
+func (m *Manager) Record(operation, component, details, result string, err error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	record := AuditRecord{
+	record := Record{
 		Timestamp: time.Now(),
 		Operation: operation,
 		Component: component,
@@ -57,54 +47,54 @@ func (al *AuditLogger) Record(operation, component, details, result string, err 
 	}
 
 	// 追加写入日志文件（JSONL 格式）
-	f, err := os.OpenFile(al.logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(m.logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open audit log file: %w", err)
+		return fmt.Errorf("failed to open operation log file: %w", err)
 	}
 	defer f.Close()
 
 	// 每条记录一行 JSON
 	data, err := json.Marshal(record)
 	if err != nil {
-		return fmt.Errorf("failed to marshal audit record: %w", err)
+		return fmt.Errorf("failed to marshal operation record: %w", err)
 	}
 
 	if _, err := f.WriteString(string(data) + "\n"); err != nil {
-		return fmt.Errorf("failed to write audit record: %w", err)
+		return fmt.Errorf("failed to write operation record: %w", err)
 	}
 
 	return nil
 }
 
-// Query 查询审计日志
-func (al *AuditLogger) Query(component string, since time.Time, limit int) ([]AuditRecord, error) {
-	al.mu.Lock()
-	defer al.mu.Unlock()
+// Query 查询操作记录
+func (m *Manager) Query(component string, since time.Time, limit int) ([]Record, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	// 打开文件
-	f, err := os.Open(al.logFile)
+	f, err := os.Open(m.logFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []AuditRecord{}, nil
+			return []Record{}, nil
 		}
-		return nil, fmt.Errorf("failed to open audit log file: %w", err)
+		return nil, fmt.Errorf("failed to open operation log file: %w", err)
 	}
 	defer f.Close()
 
 	// 获取文件大小
 	stat, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("failed to stat audit log file: %w", err)
+		return nil, fmt.Errorf("failed to stat operation log file: %w", err)
 	}
 	fileSize := stat.Size()
 
 	// 如果文件为空，直接返回
 	if fileSize == 0 {
-		return []AuditRecord{}, nil
+		return []Record{}, nil
 	}
 
 	// 从文件末尾向前读取，直到收集足够的记录
-	var records []AuditRecord
+	var records []Record
 	buf := make([]byte, 4096) // 4KB 缓冲区
 	lineBuf := make([]byte, 0, 1024)
 	offset := fileSize
@@ -133,7 +123,7 @@ func (al *AuditLogger) Query(component string, since time.Time, limit int) ([]Au
 				// 找到一行，解析它
 				if len(lineBuf) > 0 {
 					line := reverseBytes(lineBuf)
-					if record, ok := al.parseAndFilterRecord(line, component, since); ok {
+					if record, ok := m.parseAndFilterRecord(line, component, since); ok {
 						records = append(records, record)
 						if limit > 0 && len(records) >= limit {
 							break
@@ -150,7 +140,7 @@ func (al *AuditLogger) Query(component string, since time.Time, limit int) ([]Au
 	// 处理最后一行（文件开头可能没有换行符）
 	if len(lineBuf) > 0 && (limit <= 0 || len(records) < limit) {
 		line := reverseBytes(lineBuf)
-		if record, ok := al.parseAndFilterRecord(line, component, since); ok {
+		if record, ok := m.parseAndFilterRecord(line, component, since); ok {
 			records = append(records, record)
 		}
 	}
@@ -164,18 +154,18 @@ func (al *AuditLogger) Query(component string, since time.Time, limit int) ([]Au
 }
 
 // parseAndFilterRecord 解析并过滤记录
-func (al *AuditLogger) parseAndFilterRecord(line []byte, component string, since time.Time) (AuditRecord, bool) {
-	var record AuditRecord
+func (m *Manager) parseAndFilterRecord(line []byte, component string, since time.Time) (Record, bool) {
+	var record Record
 	if err := json.Unmarshal(line, &record); err != nil {
-		return AuditRecord{}, false
+		return Record{}, false
 	}
 
 	// 过滤条件
 	if component != "" && record.Component != component {
-		return AuditRecord{}, false
+		return Record{}, false
 	}
 	if !since.IsZero() && record.Timestamp.Before(since) {
-		return AuditRecord{}, false
+		return Record{}, false
 	}
 
 	return record, true
@@ -190,31 +180,31 @@ func reverseBytes(b []byte) []byte {
 	return result
 }
 
-// Clear 清空审计日志
-func (al *AuditLogger) Clear() error {
-	al.mu.Lock()
-	defer al.mu.Unlock()
+// Clear 清空操作记录
+func (m *Manager) Clear() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	if err := os.Remove(al.logFile); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to clear audit log: %w", err)
+	if err := os.Remove(m.logFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to clear operation log: %w", err)
 	}
 
 	return nil
 }
 
-// Prune 清理指定时间之前的审计日志
+// Prune 清理指定时间之前的操作记录
 // 返回删除的记录数量
-func (al *AuditLogger) Prune(before time.Time) (int, error) {
-	al.mu.Lock()
-	defer al.mu.Unlock()
+func (m *Manager) Prune(before time.Time) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	// 读取日志文件
-	data, err := os.ReadFile(al.logFile)
+	data, err := os.ReadFile(m.logFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0, nil
 		}
-		return 0, fmt.Errorf("failed to read audit log file: %w", err)
+		return 0, fmt.Errorf("failed to read operation log file: %w", err)
 	}
 
 	// 解析并过滤
@@ -226,7 +216,7 @@ func (al *AuditLogger) Prune(before time.Time) (int, error) {
 			continue
 		}
 
-		var record AuditRecord
+		var record Record
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			continue
 		}
@@ -245,15 +235,15 @@ func (al *AuditLogger) Prune(before time.Time) (int, error) {
 	}
 
 	// 写回文件
-	f, err := os.Create(al.logFile)
+	f, err := os.Create(m.logFile)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create audit log file: %w", err)
+		return 0, fmt.Errorf("failed to create operation log file: %w", err)
 	}
 	defer f.Close()
 
 	for _, line := range keptRecords {
 		if _, err := f.WriteString(line + "\n"); err != nil {
-			return 0, fmt.Errorf("failed to write audit log: %w", err)
+			return 0, fmt.Errorf("failed to write operation log: %w", err)
 		}
 	}
 
@@ -261,6 +251,6 @@ func (al *AuditLogger) Prune(before time.Time) (int, error) {
 }
 
 // GetLogFile 获取日志文件路径
-func (al *AuditLogger) GetLogFile() string {
-	return al.logFile
+func (m *Manager) GetLogFile() string {
+	return m.logFile
 }

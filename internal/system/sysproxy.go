@@ -3,18 +3,19 @@ package system
 import (
 	"fmt"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/operation"
 	"github.com/kkkqkx123/mihomo-cli/internal/sysproxy"
 )
 
 // SysProxyManager 系统代理管理器
 type SysProxyManager struct {
-	audit *AuditLogger
+	operation *operation.Manager
 }
 
 // NewSysProxyManager 创建系统代理管理器
-func NewSysProxyManager(audit *AuditLogger) *SysProxyManager {
+func NewSysProxyManager(op *operation.Manager) *SysProxyManager {
 	return &SysProxyManager{
-		audit: audit,
+		operation: op,
 	}
 }
 
@@ -26,13 +27,13 @@ func (spm *SysProxyManager) Enable(server, bypassList string) error {
 	}
 
 	err := proxy.Enable(server, bypassList)
-	if spm.audit != nil {
+	if spm.operation != nil {
 		details := fmt.Sprintf("server=%s, bypass=%s", server, bypassList)
 		result := "success"
 		if err != nil {
 			result = "failed"
 		}
-		_ = spm.audit.Record("enable", "sysproxy", details, result, err)
+		_ = spm.operation.Record("enable", "sysproxy", details, result, err)
 	}
 
 	return err
@@ -46,12 +47,12 @@ func (spm *SysProxyManager) Disable() error {
 	}
 
 	err := proxy.Disable()
-	if spm.audit != nil {
+	if spm.operation != nil {
 		result := "success"
 		if err != nil {
 			result = "failed"
 		}
-		_ = spm.audit.Record("disable", "sysproxy", "", result, err)
+		_ = spm.operation.Record("disable", "sysproxy", "", result, err)
 	}
 
 	return err

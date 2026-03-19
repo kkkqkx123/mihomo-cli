@@ -4,17 +4,19 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/kkkqkx123/mihomo-cli/internal/operation"
 )
 
 // RouteManager 路由表管理器
 type RouteManager struct {
-	audit *AuditLogger
+	operation *operation.Manager
 }
 
 // NewRouteManager 创建路由表管理器
-func NewRouteManager(audit *AuditLogger) *RouteManager {
+func NewRouteManager(op *operation.Manager) *RouteManager {
 	return &RouteManager{
-		audit: audit,
+		operation: op,
 	}
 }
 
@@ -27,13 +29,13 @@ func (rm *RouteManager) ListRoutes() ([]RouteEntry, error) {
 func (rm *RouteManager) DeleteRoute(route RouteEntry) error {
 	err := rm.deleteRoute(route)
 
-	if rm.audit != nil {
+	if rm.operation != nil {
 		details := fmt.Sprintf("%s via %s", route.Destination, route.Gateway)
 		result := "success"
 		if err != nil {
 			result = "failed"
 		}
-		_ = rm.audit.Record("delete", "route", details, result, err)
+		_ = rm.operation.Record("delete", "route", details, result, err)
 	}
 
 	return err
@@ -53,13 +55,13 @@ func (rm *RouteManager) AddRoute(route RouteEntry) error {
 
 	err := rm.addRoute(route)
 
-	if rm.audit != nil {
+	if rm.operation != nil {
 		details := fmt.Sprintf("%s via %s", route.Destination, route.Gateway)
 		result := "success"
 		if err != nil {
 			result = "failed"
 		}
-		_ = rm.audit.Record("add", "route", details, result, err)
+		_ = rm.operation.Record("add", "route", details, result, err)
 	}
 
 	return err

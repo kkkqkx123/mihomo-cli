@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"time"
-
 	"github.com/spf13/cobra"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
@@ -16,10 +14,6 @@ var (
 	cleanupTUN      bool
 	cleanupRoute    bool
 	snapshotNote    string
-	auditComponent  string
-	auditLimit      int
-	auditSince      string
-	auditBefore     string // 用于 prune 命令
 )
 
 var systemCmd = &cobra.Command{
@@ -92,33 +86,6 @@ var systemSnapshotDeleteCmd = &cobra.Command{
 	RunE:  runSystemSnapshotDelete,
 }
 
-var systemAuditCmd = &cobra.Command{
-	Use:   "audit",
-	Short: "审计日志管理",
-	Long:  "管理系统配置审计日志。",
-}
-
-var systemAuditQueryCmd = &cobra.Command{
-	Use:   "query",
-	Short: "查询审计日志",
-	Long:  "查询系统配置审计日志。",
-	RunE:  runSystemAuditQuery,
-}
-
-var systemAuditClearCmd = &cobra.Command{
-	Use:   "clear",
-	Short: "清空审计日志",
-	Long:  "清空所有系统配置审计日志。",
-	RunE:  runSystemAuditClear,
-}
-
-var systemAuditPruneCmd = &cobra.Command{
-	Use:   "prune",
-	Short: "清理旧审计日志",
-	Long:  "清理指定时间之前的审计日志。",
-	RunE:  runSystemAuditPrune,
-}
-
 func init() {
 	rootCmd.AddCommand(systemCmd)
 
@@ -128,18 +95,12 @@ func init() {
 	systemCmd.AddCommand(systemValidateCmd)
 	systemCmd.AddCommand(systemFixCmd)
 	systemCmd.AddCommand(systemSnapshotCmd)
-	systemCmd.AddCommand(systemAuditCmd)
 
 	// 快照子命令
 	systemSnapshotCmd.AddCommand(systemSnapshotCreateCmd)
 	systemSnapshotCmd.AddCommand(systemSnapshotListCmd)
 	systemSnapshotCmd.AddCommand(systemSnapshotRestoreCmd)
 	systemSnapshotCmd.AddCommand(systemSnapshotDeleteCmd)
-
-	// 审计子命令
-	systemAuditCmd.AddCommand(systemAuditQueryCmd)
-	systemAuditCmd.AddCommand(systemAuditClearCmd)
-	systemAuditCmd.AddCommand(systemAuditPruneCmd)
 
 	// cleanup 命令标志
 	systemCleanupCmd.Flags().BoolVar(&cleanupSysProxy, "sysproxy", true, "清理系统代理")
@@ -148,14 +109,6 @@ func init() {
 
 	// snapshot create 命令标志
 	systemSnapshotCreateCmd.Flags().StringVarP(&snapshotNote, "note", "n", "", "快照备注")
-
-	// audit query 命令标志
-	systemAuditQueryCmd.Flags().StringVarP(&auditComponent, "component", "c", "", "过滤组件 (sysproxy, tun, route)")
-	systemAuditQueryCmd.Flags().IntVarP(&auditLimit, "limit", "l", 20, "限制返回数量")
-	systemAuditQueryCmd.Flags().StringVar(&auditSince, "since", "", "起始时间 (格式: 2006-01-02)")
-
-	// audit prune 命令标志
-	systemAuditPruneCmd.Flags().StringVar(&auditBefore, "before", "", "清理此时间之前的日志 (格式: 2006-01-02)")
 }
 
 func runSystemStatus(cmd *cobra.Command, args []string) error {
@@ -419,93 +372,6 @@ func runSystemSnapshotDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	output.Printf("配置快照 %s 已删除\n", snapshotID)
-
-	return nil
-}
-
-func runSystemAuditQuery(cmd *cobra.Command, args []string) error {
-	// 创建系统配置管理器
-	mgr, err := system.NewSystemConfigManager()
-	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
-	}
-
-	// 解析时间
-	var since time.Time
-	if auditSince != "" {
-		since, err = time.Parse("2006-01-02", auditSince)
-		if err != nil {
-			return pkgerrors.ErrInvalidArg("invalid time format, use YYYY-MM-DD", nil)
-		}
-	}
-
-	// 查询审计日志
-	records, err := mgr.QueryAuditLog(auditComponent, since, auditLimit)
-	if err != nil {
-		return pkgerrors.ErrService("failed to query audit log", err)
-	}
-
-	if len(records) == 0 {
-		output.Println("没有找到审计日志")
-		return nil
-	}
-
-	output.Printf("找到 %d 条审计日志:\n\n", len(records))
-	for i, record := range records {
-		output.Printf("%d. [%s] %s.%s\n", i+1, record.Timestamp.Format("2006-01-02 15:04:05"), record.Component, record.Operation)
-		if record.Details != "" {
-			output.Printf("   详情: %s\n", record.Details)
-		}
-		output.Printf("   结果: %s\n", record.Result)
-		if record.Error != "" {
-			output.Printf("   错误: %s\n", record.Error)
-		}
-		output.Println()
-	}
-
-	return nil
-}
-
-func runSystemAuditClear(cmd *cobra.Command, args []string) error {
-	// 创建系统配置管理器
-	mgr, err := system.NewSystemConfigManager()
-	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
-	}
-
-	// 清空审计日志
-	if err := mgr.ClearAuditLog(); err != nil {
-		return pkgerrors.ErrService("failed to clear audit log", err)
-	}
-
-	output.Println("审计日志已清空")
-
-	return nil
-}
-
-func runSystemAuditPrune(cmd *cobra.Command, args []string) error {
-	// 解析时间
-	if auditBefore == "" {
-		return pkgerrors.ErrInvalidArg("--before is required, use format YYYY-MM-DD", nil)
-	}
-	before, err := time.Parse("2006-01-02", auditBefore)
-	if err != nil {
-		return pkgerrors.ErrInvalidArg("invalid time format, use YYYY-MM-DD", nil)
-	}
-
-	// 创建系统配置管理器
-	mgr, err := system.NewSystemConfigManager()
-	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
-	}
-
-	// 清理审计日志
-	removed, err := mgr.PruneAuditLog(before)
-	if err != nil {
-		return pkgerrors.ErrService("failed to prune audit log", err)
-	}
-
-	output.Printf("已清理 %d 条审计日志 (时间早于 %s)\n", removed, auditBefore)
 
 	return nil
 }
