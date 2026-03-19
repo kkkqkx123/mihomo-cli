@@ -19,6 +19,7 @@ var (
 	auditComponent  string
 	auditLimit      int
 	auditSince      string
+	auditBefore     string // 用于 prune 命令
 )
 
 var systemCmd = &cobra.Command{
@@ -111,6 +112,13 @@ var systemAuditClearCmd = &cobra.Command{
 	RunE:  runSystemAuditClear,
 }
 
+var systemAuditPruneCmd = &cobra.Command{
+	Use:   "prune",
+	Short: "清理旧审计日志",
+	Long:  "清理指定时间之前的审计日志。",
+	RunE:  runSystemAuditPrune,
+}
+
 func init() {
 	rootCmd.AddCommand(systemCmd)
 
@@ -131,6 +139,7 @@ func init() {
 	// 审计子命令
 	systemAuditCmd.AddCommand(systemAuditQueryCmd)
 	systemAuditCmd.AddCommand(systemAuditClearCmd)
+	systemAuditCmd.AddCommand(systemAuditPruneCmd)
 
 	// cleanup 命令标志
 	systemCleanupCmd.Flags().BoolVar(&cleanupSysProxy, "sysproxy", true, "清理系统代理")
@@ -144,6 +153,9 @@ func init() {
 	systemAuditQueryCmd.Flags().StringVarP(&auditComponent, "component", "c", "", "过滤组件 (sysproxy, tun, route)")
 	systemAuditQueryCmd.Flags().IntVarP(&auditLimit, "limit", "l", 20, "限制返回数量")
 	systemAuditQueryCmd.Flags().StringVar(&auditSince, "since", "", "起始时间 (格式: 2006-01-02)")
+
+	// audit prune 命令标志
+	systemAuditPruneCmd.Flags().StringVar(&auditBefore, "before", "", "清理此时间之前的日志 (格式: 2006-01-02)")
 }
 
 func runSystemStatus(cmd *cobra.Command, args []string) error {
@@ -471,18 +483,45 @@ func runSystemAuditClear(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runSystemAuditPrune(cmd *cobra.Command, args []string) error {
+	// 解析时间
+	if auditBefore == "" {
+		return pkgerrors.ErrInvalidArg("--before is required, use format YYYY-MM-DD", nil)
+	}
+	before, err := time.Parse("2006-01-02", auditBefore)
+	if err != nil {
+		return pkgerrors.ErrInvalidArg("invalid time format, use YYYY-MM-DD", nil)
+	}
+
+	// 创建系统配置管理器
+	mgr, err := system.NewSystemConfigManager()
+	if err != nil {
+		return pkgerrors.ErrService("failed to create system config manager", err)
+	}
+
+	// 清理审计日志
+	removed, err := mgr.PruneAuditLog(before)
+	if err != nil {
+		return pkgerrors.ErrService("failed to prune audit log", err)
+	}
+
+	output.Printf("已清理 %d 条审计日志 (时间早于 %s)\n", removed, auditBefore)
+
+	return nil
+}
+
 func runSystemFix(cmd *cobra.Command, args []string) error {
 	// 检查管理员权限
 	if !util.IsAdmin() {
 		return pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
 	}
 
-	// 创建路由管理器
-	audit, err := system.NewAuditLogger("route_audit.log")
+	// 创建系统配置管理器
+	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create audit logger", err)
+		return pkgerrors.ErrService("failed to create system config manager", err)
 	}
-	routeManager := system.NewRouteManager(audit)
+	routeManager := mgr.GetRouteManager()
 
 	output.Println("开始修复路由问题...")
 

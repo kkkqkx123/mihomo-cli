@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/system"
 	"github.com/spf13/cobra"
@@ -55,9 +57,9 @@ var diagnoseNetworkCmd = &cobra.Command{
 
 func runDiagnoseRoute() error {
 	// 创建路由管理器
-	audit, err := system.NewAuditLogger("route_audit.log")
+	audit, err := createAuditLogger()
 	if err != nil {
-		return fmt.Errorf("failed to create audit logger: %w", err)
+		return err
 	}
 	routeManager := system.NewRouteManager(audit)
 
@@ -79,9 +81,9 @@ func runDiagnoseRoute() error {
 
 func runDiagnoseNetwork() error {
 	// 创建路由管理器
-	audit, err := system.NewAuditLogger("route_audit.log")
+	audit, err := createAuditLogger()
 	if err != nil {
-		return fmt.Errorf("failed to create audit logger: %w", err)
+		return err
 	}
 	routeManager := system.NewRouteManager(audit)
 
@@ -99,6 +101,16 @@ func runDiagnoseNetwork() error {
 
 	// 表格格式输出
 	return printNetworkDiagnosis(diagnosis)
+}
+
+// createAuditLogger 创建审计日志记录器（使用统一的数据目录）
+func createAuditLogger() (*system.AuditLogger, error) {
+	dataDir, err := config.GetDataDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data directory: %w", err)
+	}
+	auditFile := filepath.Join(dataDir, "audit.log")
+	return system.NewAuditLogger(auditFile)
 }
 
 // printRouteDiagnosis 打印路由诊断结果（表格格式）

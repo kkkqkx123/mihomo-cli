@@ -213,6 +213,11 @@ func (scm *SystemConfigManager) ClearAuditLog() error {
 	return scm.audit.Clear()
 }
 
+// PruneAuditLog 清理指定时间之前的审计日志
+func (scm *SystemConfigManager) PruneAuditLog(before time.Time) (int, error) {
+	return scm.audit.Prune(before)
+}
+
 // GetDataDir 获取数据目录
 func GetDataDir() (string, error) {
 	return config.GetDataDir()
