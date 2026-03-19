@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -63,7 +64,7 @@ func (cv *ConfigValidator) ValidateConfigSyntax() error {
 	for _, field := range requiredFields {
 		if _, exists := configMap[field]; !exists {
 			// 这不是致命错误，只是警告
-			fmt.Printf("Warning: missing recommended field '%s'\n", field)
+			output.Warning("missing recommended field: " + field)
 		}
 	}
 
@@ -155,53 +156,53 @@ func (cv *ConfigValidator) warnByTextAnalysis(content string) {
 
 // warnTunEnabled 警告 TUN 模式已启用
 func (cv *ConfigValidator) warnTunEnabled() {
-	fmt.Println("=" + strings.Repeat("=", 60))
-	fmt.Println("WARNING: TUN mode is enabled in the configuration file")
-	fmt.Println("=" + strings.Repeat("=", 60))
-	fmt.Println()
-	fmt.Println("TUN mode creates a virtual network adapter and modifies the routing table.")
-	fmt.Println("If the process is forcibly terminated or crashes, the following may remain:")
-	fmt.Println("  - Virtual network adapter (TUN device)")
-	fmt.Println("  - Modified routing table")
-	fmt.Println("  - DNS redirect settings")
-	fmt.Println()
-	fmt.Println("Recovery suggestions:")
-	fmt.Println("  1. Use graceful shutdown: press Ctrl+C or run 'mihomo-cli stop'")
-	fmt.Println("  2. If process is forcefully terminated, manually clean up:")
-	fmt.Println("     - Delete TUN network adapter (Windows: Network Adapter Settings)")
-	fmt.Println("     - Clean up routing table")
-	fmt.Println("  3. Restart the system (simplest and most reliable)")
-	fmt.Println()
-	fmt.Println("It is recommended to test the configuration before use:")
-	fmt.Println("  1. Start Mihomo")
-	fmt.Println("  2. Test network connectivity")
-	fmt.Println("  3. Stop Mihomo gracefully")
-	fmt.Println("  4. Verify system configuration is cleaned up")
-	fmt.Println()
+	output.PrintSeparator("=", 80)
+	output.Warning("TUN mode is enabled in the configuration file")
+	output.PrintSeparator("=", 80)
+	output.PrintEmptyLine()
+	output.Println("TUN mode creates a virtual network adapter and modifies the routing table.")
+	output.Println("If the process is forcibly terminated or crashes, the following may remain:")
+	output.Printf("  - Virtual network adapter (TUN device)\n")
+	output.Printf("  - Modified routing table\n")
+	output.Printf("  - DNS redirect settings\n")
+	output.PrintEmptyLine()
+	output.Println("Recovery suggestions:")
+	output.Printf("  1. Use graceful shutdown: press Ctrl+C or run 'mihomo-cli stop'\n")
+	output.Printf("  2. If process is forcefully terminated, manually clean up:\n")
+	output.Printf("     - Delete TUN network adapter (Windows: Network Adapter Settings)\n")
+	output.Printf("     - Clean up routing table\n")
+	output.Printf("  3. Restart the system (simplest and most reliable)\n")
+	output.PrintEmptyLine()
+	output.Println("It is recommended to test the configuration before use:")
+	output.Printf("  1. Start Mihomo\n")
+	output.Printf("  2. Test network connectivity\n")
+	output.Printf("  3. Stop Mihomo gracefully\n")
+	output.Printf("  4. Verify system configuration is cleaned up\n")
+	output.PrintEmptyLine()
 }
 
 // warnTProxyEnabled 警告 TProxy 模式已启用
 func (cv *ConfigValidator) warnTProxyEnabled() {
-	fmt.Println("=" + strings.Repeat("=", 60))
-	fmt.Println("WARNING: TProxy mode is enabled in the configuration file")
-	fmt.Println("=" + strings.Repeat("=", 60))
-	fmt.Println()
-	fmt.Println("TProxy mode modifies iptables rules to implement transparent proxying.")
-	fmt.Println("If the process is forcibly terminated or crashes, the following may remain:")
-	fmt.Println("  - iptables rules")
-	fmt.Println("  - Routing table modifications")
-	fmt.Println()
-	fmt.Println("Recovery suggestions:")
-	fmt.Println("  1. Use graceful shutdown: press Ctrl+C or run 'mihomo-cli stop'")
-	fmt.Println("  2. If process is forcefully terminated, manually clean up:")
-	fmt.Println("     - Clean up iptables rules")
-	fmt.Println("     - Clean up routing table")
-	fmt.Println("  3. Restart the system (simplest and most reliable)")
-	fmt.Println()
-	fmt.Println("It is recommended to test the configuration before use:")
-	fmt.Println("  1. Start Mihomo")
-	fmt.Println("  2. Test network connectivity")
-	fmt.Println("  3. Stop Mihomo gracefully")
-	fmt.Println("  4. Verify system configuration is cleaned up")
-	fmt.Println()
+	output.PrintSeparator("=", 80)
+	output.Warning("TProxy mode is enabled in the configuration file")
+	output.PrintSeparator("=", 80)
+	output.PrintEmptyLine()
+	output.Println("TProxy mode modifies iptables rules to implement transparent proxying.")
+	output.Println("If the process is forcibly terminated or crashes, the following may remain:")
+	output.Printf("  - iptables rules\n")
+	output.Printf("  - Routing table modifications\n")
+	output.PrintEmptyLine()
+	output.Println("Recovery suggestions:")
+	output.Printf("  1. Use graceful shutdown: press Ctrl+C or run 'mihomo-cli stop'\n")
+	output.Printf("  2. If process is forcefully terminated, manually clean up:\n")
+	output.Printf("     - Clean up iptables rules\n")
+	output.Printf("     - Clean up routing table\n")
+	output.Printf("  3. Restart the system (simplest and most reliable)\n")
+	output.PrintEmptyLine()
+	output.Println("It is recommended to test the configuration before use:")
+	output.Printf("  1. Start Mihomo\n")
+	output.Printf("  2. Test network connectivity\n")
+	output.Printf("  3. Stop Mihomo gracefully\n")
+	output.Printf("  4. Verify system configuration is cleaned up\n")
+	output.PrintEmptyLine()
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -81,7 +82,7 @@ func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) e
 	}
 	defer func() {
 		if err := lm.lock.Release(); err != nil {
-			fmt.Printf("Warning: failed to release process lock: %v\n", err)
+			output.Warning("failed to release process lock: " + err.Error())
 		}
 	}()
 
@@ -120,7 +121,7 @@ func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) e
 		// 启动监控
 		lm.monitor = NewProcessMonitor(pid, 5*time.Second)
 		if err := lm.monitor.Start(); err != nil {
-			fmt.Printf("Warning: failed to start process monitor: %v\n", err)
+			output.Warning("failed to start process monitor: " + err.Error())
 		}
 
 		// 执行 PostStart 钩子
@@ -173,7 +174,7 @@ func (lm *LifecycleManager) Stop(ctx context.Context, pid int) error {
 	if err := lm.executeStage(ctx, StageStopped, func() error {
 		// 清除状态
 		if err := lm.state.Clear(); err != nil {
-			fmt.Printf("Warning: failed to clear state: %v\n", err)
+			output.Warning("failed to clear state: " + err.Error())
 		}
 
 		// 执行 PostStop 钩子
@@ -303,5 +304,5 @@ func (d *DefaultLifecycleHooks) OnPostStop(ctx context.Context) error {
 // OnFailure 失败钩子
 func (d *DefaultLifecycleHooks) OnFailure(ctx context.Context, stage LifecycleStage, err error) {
 	// 记录失败日志
-	fmt.Printf("Lifecycle failure at stage %s: %v\n", stage, err)
+	output.Error("Lifecycle failure at stage " + string(stage) + ": " + err.Error())
 }

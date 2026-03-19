@@ -8,6 +8,7 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -53,7 +54,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		validator := config.NewConfigValidator(cfg.Mihomo.ConfigFile)
 		if err := validator.ValidateAndWarn(); err != nil {
 			// 配置检查失败不影响启动，只记录警告
-			fmt.Printf("Warning: config validation failed: %v\n", err)
+			output.Warning("config validation failed: " + err.Error())
 		}
 	}
 
@@ -84,7 +85,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	checkCtx, cancel := context.WithTimeout(context.Background(), time.Duration(healthCheckTimeout)*time.Second)
 	defer cancel()
 
-	fmt.Printf("等待 Mihomo 内核启动（最多 %d 秒）...\n", healthCheckTimeout)
+	output.Printf("等待 Mihomo 内核启动（最多 %d 秒）...\n", healthCheckTimeout)
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -125,28 +126,31 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 
 			if err == nil {
 				// 基础健康检查成功，进行增强健康检查
-				fmt.Println("\nPerforming detailed health check...")
-				
+				output.PrintEmptyLine()
+				output.Info("Performing detailed health check...")
+
 				// 创建新的 context 用于详细健康检查
 				healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer healthCancel()
-				
+
 				healthChecker := NewHealthChecker(apiClient, cfg.Mihomo.ConfigFile, 5*time.Second)
 				healthStatus, err := healthChecker.CheckHealth(healthCtx)
 				if err != nil {
-					fmt.Printf("Warning: detailed health check failed: %v\n", err)
-					fmt.Println("Process started but may have issues")
+					output.Warning("detailed health check failed: " + err.Error())
+					output.Warning("Process started but may have issues")
 				} else {
 					healthChecker.PrintHealthStatus(healthStatus)
-					
+
 					if !healthChecker.IsHealthy(healthStatus) {
-						fmt.Println("\n⚠ Mihomo started but some components may not be working properly")
-						fmt.Println("  Check the warnings above for details")
+						output.PrintEmptyLine()
+						output.Warning("⚠ Mihomo started but some components may not be working properly")
+						output.Printf("  Check the warnings above for details\n")
 					}
 				}
 
 				// 健康检查成功
-				fmt.Println("\nMihomo 内核启动成功！")
+				output.PrintEmptyLine()
+				output.Success("Mihomo 内核启动成功！")
 				return result, nil
 			}
 		}
@@ -205,7 +209,7 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 	checker := config.NewSystemChecker()
 	if err := checker.CheckAfterStop(); err != nil {
 		// 检查失败不影响停止操作，只记录警告
-		fmt.Printf("Warning: failed to check system configuration: %v\n", err)
+		output.Warning("failed to check system configuration: " + err.Error())
 	}
 
 	return &StopResult{PID: pid}, nil

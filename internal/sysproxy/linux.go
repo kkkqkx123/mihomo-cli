@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -82,11 +83,11 @@ func (sp *linuxSysProxy) Enable(server, bypassList string) error {
 	// 尝试写入 systemd environment.d 目录
 	if err := writeProxyConfig(ProxyEnvFile, content); err == nil {
 		// 警告：环境变量不会立即生效到当前终端会话
-		fmt.Println("Warning: Proxy settings have been saved to configuration file.")
-		fmt.Println("Note: The current terminal session will not reflect these changes immediately.")
-		fmt.Println("To apply the proxy settings to your current session, run:")
-		fmt.Println("  source /etc/environment.d/proxy.conf")
-		fmt.Println("Or start a new terminal session.")
+		output.Warning("Proxy settings have been saved to configuration file.")
+		output.Println("Note: The current terminal session will not reflect these changes immediately.")
+		output.Println("To apply the proxy settings to your current session, run:")
+		output.Printf("  source /etc/environment.d/proxy.conf\n")
+		output.Println("Or start a new terminal session.")
 		return nil
 	}
 
@@ -96,11 +97,11 @@ func (sp *linuxSysProxy) Enable(server, bypassList string) error {
 	}
 
 	// 警告：环境变量不会立即生效到当前终端会话
-	fmt.Println("Warning: Proxy settings have been saved to /etc/environment.")
-	fmt.Println("Note: The current terminal session will not reflect these changes immediately.")
-	fmt.Println("To apply the proxy settings to your current session, run:")
-	fmt.Println("  source /etc/environment")
-	fmt.Println("Or start a new terminal session.")
+	output.Warning("Proxy settings have been saved to /etc/environment.")
+	output.Println("Note: The current terminal session will not reflect these changes immediately.")
+	output.Println("To apply the proxy settings to your current session, run:")
+	output.Printf("  source /etc/environment\n")
+	output.Println("Or start a new terminal session.")
 
 	return nil
 }

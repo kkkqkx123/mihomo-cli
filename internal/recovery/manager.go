@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/system"
 )
 
@@ -77,7 +78,7 @@ func (rm *RecoveryManager) Recover(ctx context.Context, problems []*system.Probl
 	if rm.config.BackupBeforeRecover {
 		if _, err := rm.manager.CreateSnapshot("before-recovery"); err != nil {
 			// 备份失败，记录但不影响恢复
-			fmt.Printf("Warning: failed to create backup snapshot: %v\n", err)
+			output.Warning("failed to create backup snapshot: " + err.Error())
 		}
 	}
 
@@ -237,7 +238,7 @@ func (rm *RecoveryManager) StartPeriodicCheck(ctx context.Context, interval time
 				// 执行自动恢复
 				_, err := rm.AutoRecover(ctx)
 				if err != nil {
-					fmt.Printf("Auto recovery failed: %v\n", err)
+					output.Error("Auto recovery failed: " + err.Error())
 				}
 			}
 		}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -174,9 +175,9 @@ func CleanupPIDFiles() error {
 	}
 
 	if cleanedCount > 0 {
-		fmt.Printf("清理了 %d 个残留的 PID 文件\n", cleanedCount)
+		output.Printf("清理了 %d 个残留的 PID 文件\n", cleanedCount)
 	} else {
-		fmt.Println("没有需要清理的残留 PID 文件")
+		output.Println("没有需要清理的残留 PID 文件")
 	}
 
 	return nil
@@ -207,27 +208,27 @@ func StopAllMihomoProcesses() error {
 	}
 
 	if len(pids) == 0 {
-		fmt.Println("没有正在运行的 Mihomo 进程")
+		output.Println("没有正在运行的 Mihomo 进程")
 		return nil
 	}
 
-	fmt.Printf("找到 %d 个 Mihomo 进程，开始停止...\n", len(pids))
+	output.Printf("找到 %d 个 Mihomo 进程，开始停止...\n", len(pids))
 
 	stoppedCount := 0
 	for _, pid := range pids {
 		if IsProcessRunning(pid) {
 			proc, err := os.FindProcess(pid)
 			if err != nil {
-				fmt.Printf("  ✗ 无法停止进程 %d: %v\n", pid, err)
+				output.Error("  ✗ 无法停止进程 " + fmt.Sprintf("%d", pid) + ": " + err.Error())
 				continue
 			}
 
 			if err := proc.Kill(); err != nil {
-				fmt.Printf("  ✗ 无法停止进程 %d: %v\n", pid, err)
+				output.Error("  ✗ 无法停止进程 " + fmt.Sprintf("%d", pid) + ": " + err.Error())
 				continue
 			}
 
-			fmt.Printf("  ✓ 已停止进程 %d\n", pid)
+			output.Success("  ✓ 已停止进程 " + fmt.Sprintf("%d", pid))
 			stoppedCount++
 		}
 	}
@@ -241,6 +242,6 @@ func StopAllMihomoProcesses() error {
 		}
 	}
 
-	fmt.Printf("停止完成: 成功 %d 个\n", stoppedCount)
+	output.Printf("停止完成: 成功 %d 个\n", stoppedCount)
 	return nil
 }

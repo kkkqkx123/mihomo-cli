@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/sysproxy"
 )
 
@@ -58,41 +59,42 @@ func (sc *SystemChecker) CheckSystemConfig() (*SystemStatus, error) {
 
 // PrintSystemStatus 打印系统配置状态
 func (sc *SystemChecker) PrintSystemStatus(status *SystemStatus) {
-	fmt.Println("System Configuration Status:")
-	fmt.Println("=============================")
+	output.Println("System Configuration Status:")
+	output.PrintSeparator("=", 80)
 
 	// 打印系统代理状态
-	fmt.Printf("System Proxy: ")
+	output.Printf("System Proxy: ")
 	if status.ProxyEnabled {
-		fmt.Printf("ENABLED (%s)\n", status.ProxyServer)
+		output.Printf("ENABLED (%s)\n", status.ProxyServer)
 	} else {
-		fmt.Println("DISABLED")
+		output.Println("DISABLED")
 	}
 
 	// 打印TUN设备状态
-	fmt.Printf("TUN Device: ")
+	output.Printf("TUN Device: ")
 	if status.TunDetected {
-		fmt.Println("DETECTED")
+		output.Println("DETECTED")
 	} else {
-		fmt.Println("NOT DETECTED")
+		output.Println("NOT DETECTED")
 	}
 
 	// 打印警告信息
 	if len(status.Warnings) > 0 {
-		fmt.Println("\nWarnings:")
-		fmt.Println("---------")
+		output.PrintSection("Warnings")
+		output.PrintSeparator("-", 80)
 		for i, warning := range status.Warnings {
-			fmt.Printf("%d. %s\n", i+1, warning)
+			output.Printf("%d. %s\n", i+1, warning)
 		}
 	}
 
-	fmt.Println("=============================")
+	output.PrintSeparator("=", 80)
 }
 
 // CheckAfterStop 在停止Mihomo后检查系统配置
 func (sc *SystemChecker) CheckAfterStop() error {
-	fmt.Println("\nChecking system configuration after stopping Mihomo...")
-	fmt.Println("------------------------------------------------")
+	output.PrintEmptyLine()
+	output.Println("Checking system configuration after stopping Mihomo...")
+	output.PrintSeparator("-", 80)
 
 	status, err := sc.CheckSystemConfig()
 	if err != nil {
@@ -103,29 +105,32 @@ func (sc *SystemChecker) CheckAfterStop() error {
 
 	// 如果有警告，提供恢复建议
 	if len(status.Warnings) > 0 {
-		fmt.Println("\nRecovery Suggestions:")
-		fmt.Println("---------------------")
-		
+		output.PrintSection("Recovery Suggestions")
+		output.PrintSeparator("-", 80)
+
 		if status.ProxyEnabled {
-			fmt.Println("System proxy is still enabled. To disable:")
-			fmt.Println("  1. Run: mihomo-cli sysproxy set off")
-			fmt.Println("  2. Or manually disable through Windows Settings")
-			fmt.Println("  3. Or restart the computer")
+			output.Println("System proxy is still enabled. To disable:")
+			output.Printf("  1. Run: mihomo-cli sysproxy set off\n")
+			output.Printf("  2. Or manually disable through Windows Settings\n")
+			output.Printf("  3. Or restart the computer\n")
 		}
 
 		if status.TunDetected {
-			fmt.Println("\nTUN device may still exist. To clean up:")
-			fmt.Println("  1. Delete TUN network adapter (Windows: Network Adapter Settings)")
-			fmt.Println("  2. Clean up routing table")
-			fmt.Println("  3. Or restart the computer")
+			output.PrintEmptyLine()
+			output.Println("TUN device may still exist. To clean up:")
+			output.Printf("  1. Delete TUN network adapter (Windows: Network Adapter Settings)\n")
+			output.Printf("  2. Clean up routing table\n")
+			output.Printf("  3. Or restart the computer\n")
 		}
 
-		fmt.Println("\nIf you continue to experience network issues, restart the computer")
-		fmt.Println("to ensure all system configurations are cleaned up.")
+		output.PrintEmptyLine()
+		output.Println("If you continue to experience network issues, restart the computer")
+		output.Println("to ensure all system configurations are cleaned up.")
 	} else {
-		fmt.Println("\n✓ System configuration appears to be clean")
+		output.PrintEmptyLine()
+		output.Success("System configuration appears to be clean")
 	}
 
-	fmt.Println("------------------------------------------------")
+	output.PrintSeparator("-", 80)
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -100,7 +101,7 @@ func (pm *ProcessManager) Start() error {
 	// 保存 PID 到文件
 	if err := pm.SavePID(pm.process.Pid); err != nil {
 		// 如果保存 PID 失败，记录但不影响启动
-		fmt.Printf("Warning: failed to save pid file: %v\n", err)
+		output.Warning("failed to save pid file: " + err.Error())
 	}
 
 	// 等待进程退出（后台模式）
@@ -113,12 +114,12 @@ func (pm *ProcessManager) Start() error {
 		
 		// 如果进程异常退出，输出错误信息
 		if err != nil {
-			fmt.Printf("\n[Mihomo 进程异常退出] 错误: %v\n", err)
+			output.Error("\n[Mihomo 进程异常退出] 错误: " + err.Error())
 			if pm.stderr.Len() > 0 {
-				fmt.Printf("错误输出:\n%s\n", pm.stderr.String())
+				output.Printf("错误输出:\n%s\n", pm.stderr.String())
 			}
 			if pm.stdout.Len() > 0 {
-				fmt.Printf("标准输出:\n%s\n", pm.stdout.String())
+				output.Printf("标准输出:\n%s\n", pm.stdout.String())
 			}
 		}
 		pm.mu.Unlock()
@@ -288,19 +289,19 @@ func StopProcessByPID(pid int) error {
 	}
 
 	// 第一步：尝试优雅关闭（发送 SIGTERM 信号）
-	fmt.Printf("Attempting graceful shutdown of process %d...\n", pid)
-	
+	output.Printf("Attempting graceful shutdown of process %d...\n", pid)
+
 	// 在 Windows 上，使用 SIGTERM 信号
 	// 在 Unix 系统上，也使用 SIGTERM 信号
 	// 这给 Mihomo 内核机会执行清理操作（如删除 TUN 网卡、清理路由表等）
 	if err := proc.Signal(syscall.SIGTERM); err != nil {
 		// 如果发送信号失败，直接使用 Kill
-		fmt.Printf("Failed to send signal, will force kill process: %v\n", err)
+		output.Warning("Failed to send signal, will force kill process: " + err.Error())
 		return forceKillProcess(proc, pid)
 	}
 
 	// 第二步：等待进程优雅退出（最多 10 秒）
-	fmt.Printf("Waiting for graceful shutdown (max 10 seconds)...\n")
+	output.Printf("Waiting for graceful shutdown (max 10 seconds)...\n")
 	
 	timeout := 10 * time.Second
 	checkInterval := 500 * time.Millisecond
@@ -314,13 +315,13 @@ func StopProcessByPID(pid int) error {
 		case <-checkTicker.C:
 			// 检查进程是否还在运行
 			if !IsProcessRunning(pid) {
-				fmt.Printf("Process %d has gracefully exited\n", pid)
+				output.Success("Process %d has gracefully exited", pid)
 				return nil
 			}
 
 			// 检查是否超时
 			if time.Now().After(deadline) {
-				fmt.Printf("Graceful shutdown timeout, will force kill\n")
+				output.Warning("Graceful shutdown timeout, will force kill")
 				return forceKillProcess(proc, pid)
 			}
 		}
@@ -329,8 +330,8 @@ func StopProcessByPID(pid int) error {
 
 // forceKillProcess 强制终止进程
 func forceKillProcess(proc *os.Process, pid int) error {
-	fmt.Printf("Force killing process %d...\n", pid)
-	
+	output.Printf("Force killing process %d...\n", pid)
+
 	if err := proc.Kill(); err != nil {
 		return pkgerrors.ErrService("failed to stop process", err)
 	}
@@ -346,10 +347,8 @@ func forceKillProcess(proc *os.Process, pid int) error {
 		return pkgerrors.ErrService("process did not exit as expected", nil)
 	}
 
-	fmt.Printf("Process %d has been force killed\n", pid)
-	fmt.Printf("WARNING: Process was forcefully terminated. If Mihomo configuration enabled TUN/TProxy mode,\n")
-	fmt.Printf("you may need to manually clean up system configuration (TUN network adapter, routing table, registry proxy settings, etc.)\n")
-	fmt.Printf("Or restart the system to ensure complete cleanup\n")
+	output.Success("Process %d has been force killed", pid)
+	output.Warning("Process was forcefully terminated. If Mihomo configuration enabled TUN/TProxy mode,\nyou may need to manually clean up system configuration (TUN network adapter, routing table, registry proxy settings, etc.)\nOr restart the system to ensure complete cleanup")
 
 	return nil
 }

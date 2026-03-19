@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 )
 
 // HealthChecker 健康检查器
@@ -88,7 +89,7 @@ func (hc *HealthChecker) checkAPI(ctx context.Context, status *HealthStatus) err
 
 	status.APIHealthy = true
 	if version != nil {
-		fmt.Printf("  Mihomo version: %s\n", version.Version)
+		output.Printf("  Mihomo version: %s\n", version.Version)
 	}
 
 	return nil
@@ -135,65 +136,66 @@ func (hc *HealthChecker) checkProxyStatus(ctx context.Context, status *HealthSta
 
 // PrintHealthStatus 打印健康状态
 func (hc *HealthChecker) PrintHealthStatus(status *HealthStatus) {
-	fmt.Println("\nHealth Check Results:")
-	fmt.Println("====================")
-	
+	output.PrintEmptyLine()
+	output.PrintSection("Health Check Results")
+	output.PrintSeparator("=", 80)
+
 	// 打印API状态
-	fmt.Printf("API Status: ")
+	output.Printf("API Status: ")
 	if status.APIHealthy {
-		fmt.Println("✓ Healthy")
+		output.Success("Healthy")
 	} else {
-		fmt.Println("✗ Unhealthy")
+		output.Error("Unhealthy")
 	}
 
 	// 打印TUN状态
-	fmt.Printf("TUN Mode: ")
+	output.Printf("TUN Mode: ")
 	if status.TunEnabled {
-		fmt.Printf("Enabled (Status: ")
+		output.Printf("Enabled (Status: ")
 		if status.TunHealthy {
-			fmt.Println("Healthy)")
+			output.Printf("Healthy)\n")
 		} else {
-			fmt.Println("Unhealthy)")
+			output.Printf("Unhealthy)\n")
 		}
 	} else {
-		fmt.Println("Disabled")
+		output.Println("Disabled")
 	}
 
 	// 打印代理状态
-	fmt.Printf("Proxy Status: ")
+	output.Printf("Proxy Status: ")
 	if status.ProxyHealthy {
-		fmt.Println("✓ Healthy")
+		output.Success("Healthy")
 	} else {
-		fmt.Println("✗ Unhealthy")
+		output.Error("Unhealthy")
 	}
 
 	// 打印隧道状态
-	fmt.Printf("Tunnel Status: ")
+	output.Printf("Tunnel Status: ")
 	if status.TunnelHealthy {
-		fmt.Println("✓ Healthy")
+		output.Success("Healthy")
 	} else {
-		fmt.Println("✗ Unhealthy")
+		output.Error("Unhealthy")
 	}
 
 	// 打印警告
 	if len(status.Warnings) > 0 {
-		fmt.Println("\nWarnings:")
-		fmt.Println("---------")
+		output.PrintSection("Warnings")
+		output.PrintSeparator("-", 80)
 		for i, warning := range status.Warnings {
-			fmt.Printf("%d. %s\n", i+1, warning)
+			output.Printf("%d. %s\n", i+1, warning)
 		}
 	}
 
 	// 打印错误
 	if len(status.Errors) > 0 {
-		fmt.Println("\nErrors:")
-		fmt.Println("-------")
+		output.PrintSection("Errors")
+		output.PrintSeparator("-", 80)
 		for i, err := range status.Errors {
-			fmt.Printf("%d. %s\n", i+1, err)
+			output.Printf("%d. %s\n", i+1, err)
 		}
 	}
 
-	fmt.Println("====================")
+	output.PrintSeparator("=", 80)
 }
 
 // IsHealthy 判断是否健康
