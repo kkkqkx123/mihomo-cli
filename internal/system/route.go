@@ -2,7 +2,6 @@ package system
 
 import (
 	"fmt"
-	"runtime"
 )
 
 // RouteManager 路由表管理器
@@ -19,16 +18,7 @@ func NewRouteManager(audit *AuditLogger) *RouteManager {
 
 // ListRoutes 列出所有路由
 func (rm *RouteManager) ListRoutes() ([]RouteEntry, error) {
-	switch runtime.GOOS {
-	case "windows":
-		return rm.listRoutesWindows()
-	case "linux":
-		return rm.listRoutesLinux()
-	case "darwin":
-		return rm.listRoutesDarwin()
-	default:
-		return []RouteEntry{}, nil
-	}
+	return rm.listRoutes()
 }
 
 // CheckAbnormalRoutes 检查异常路由
@@ -51,18 +41,7 @@ func (rm *RouteManager) CheckAbnormalRoutes() ([]RouteEntry, error) {
 
 // DeleteRoute 删除路由
 func (rm *RouteManager) DeleteRoute(route RouteEntry) error {
-	var err error
-
-	switch runtime.GOOS {
-	case "windows":
-		err = rm.deleteRouteWindows(route)
-	case "linux":
-		err = rm.deleteRouteLinux(route)
-	case "darwin":
-		err = rm.deleteRouteDarwin(route)
-	default:
-		err = fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-	}
+	err := rm.deleteRoute(route)
 
 	if rm.audit != nil {
 		details := fmt.Sprintf("%s via %s", route.Destination, route.Gateway)
@@ -170,41 +149,4 @@ func isMihomoRoute(route RouteEntry) bool {
 		}
 	}
 	return false
-}
-
-// 平台特定实现（stub）
-func (rm *RouteManager) listRoutesWindows() ([]RouteEntry, error) {
-	// TODO: 实现 Windows 路由表枚举
-	// 可以使用 route print 命令
-	return []RouteEntry{}, nil
-}
-
-func (rm *RouteManager) listRoutesLinux() ([]RouteEntry, error) {
-	// TODO: 实现 Linux 路由表枚举
-	// 可以使用 ip route show 命令
-	return []RouteEntry{}, nil
-}
-
-func (rm *RouteManager) listRoutesDarwin() ([]RouteEntry, error) {
-	// TODO: 实现 macOS 路由表枚举
-	// 可以使用 netstat -rn 命令
-	return []RouteEntry{}, nil
-}
-
-func (rm *RouteManager) deleteRouteWindows(route RouteEntry) error {
-	// TODO: 实现 Windows 路由删除
-	// 可以使用 route delete 命令
-	return fmt.Errorf("route deletion not implemented on Windows")
-}
-
-func (rm *RouteManager) deleteRouteLinux(route RouteEntry) error {
-	// TODO: 实现 Linux 路由删除
-	// 可以使用 ip route del 命令
-	return fmt.Errorf("route deletion not implemented on Linux")
-}
-
-func (rm *RouteManager) deleteRouteDarwin(route RouteEntry) error {
-	// TODO: 实现 macOS 路由删除
-	// 可以使用 route delete 命令
-	return fmt.Errorf("route deletion not implemented on macOS")
 }

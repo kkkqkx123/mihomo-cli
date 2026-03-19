@@ -158,7 +158,7 @@ func (sp *windowsSysProxy) Disable() error {
 	wr, err := NewWindowsRegistry()
 	if err != nil {
 		return pkgerrors.ErrService(
-			fmt.Sprintf("failed to open registry key, please check permissions\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer"), err)
+			"failed to open registry key, please check permissions\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer", err)
 	}
 	defer wr.Close()
 
