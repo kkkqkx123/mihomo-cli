@@ -33,8 +33,8 @@ func (tm *TUNManager) listTUNDevices() ([]TUNState, error) {
 			continue
 		}
 
-		// 检查是否是 TUN 设备
-		isTUN, err := isTUNDevice(name)
+		// 检查是否是 TUN/TAP 设备
+		isTUN, err := isTUNTAPDevice(name)
 		if err != nil || !isTUN {
 			continue
 		}
@@ -52,8 +52,9 @@ func (tm *TUNManager) listTUNDevices() ([]TUNState, error) {
 	return devices, nil
 }
 
-// isTUNDevice 检查是否是 TUN 设备
-func isTUNDevice(name string) (bool, error) {
+// isTUNTAPDevice 检查是否是 TUN/TAP 设备
+// 注意：此函数同时检测 TUN (type=512) 和 TAP (type=65536) 设备
+func isTUNTAPDevice(name string) (bool, error) {
 	// 方法1: 检查 tun_flags 文件存在
 	// TUN/TAP 设备会有 tun_flags 文件
 	tunFlagsPath := fmt.Sprintf("/sys/class/net/%s/tun_flags", name)
@@ -167,6 +168,18 @@ func getInterfaceIP(name string) (string, error) {
 	return "", fmt.Errorf("IP address not found for interface %s", name)
 }
 
+// isMihomoTUN 检查是否是 Mihomo 创建的 TUN 设备
+func isMihomoTUN(name string) bool {
+	// Mihomo 通常使用以下前缀
+	prefixes := []string{"utun", "tun", "clash", "mihomo"}
+	for _, prefix := range prefixes {
+		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {
+			return true
+		}
+	}
+	return false
+}
+
 // removeTUN 删除 Linux TUN 设备
 // 使用 ip link delete 命令
 func (tm *TUNManager) removeTUN(name string) error {
@@ -187,92 +200,4 @@ func (tm *TUNManager) removeTUN(name string) error {
 	return nil
 }
 
-// listTUNDevicesFromProc 从 /proc/net/dev 获取网络设备列表（备选方法）
-func (tm *TUNManager) listTUNDevicesFromProc() ([]TUNState, error) {
-	procPath := "/proc/net/dev"
-	data, err := os.ReadFile(procPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", procPath, err)
-	}
 
-	var devices []TUNState
-	lines := strings.Split(string(data), "\n")
-
-	// 跳过前两行标题
-	for i := 2; i < len(lines); i++ {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
-			continue
-		}
-
-		// 格式: Inter-|   Receive                                                |  Transmit
-		//       face  |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
-		//       tun0: 1234567   1234    0    0    0     0          0         0  1234567   1234    0    0    0     0       0          0
-
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		name := strings.TrimSpace(parts[0])
-
-		// 检查是否是 TUN 设备
-		isTUN, err := isTUNDevice(name)
-		if err != nil || !isTUN {
-			continue
-		}
-
-		device, err := tm.getTUNDeviceInfo(name)
-		if err != nil {
-			device = TUNState{Name: name, Enabled: true}
-		}
-
-		devices = append(devices, device)
-	}
-
-	return devices, nil
-}
-
-// checkTUNModule 检查 TUN 内核模块是否加载
-func checkTUNModule() bool {
-	// 检查 /dev/net/tun 设备是否存在
-	if _, err := os.Stat("/dev/net/tun"); err == nil {
-		return true
-	}
-
-	// 检查内核模块
-	if _, err := os.Stat("/sys/module/tun"); err == nil {
-		return true
-	}
-
-	return false
-}
-
-// getTUNDeviceStats 获取 TUN 设备统计信息
-func getTUNDeviceStats(name string) (map[string]uint64, error) {
-	stats := make(map[string]uint64)
-
-	// 读取 /sys/class/net/<name>/statistics/ 目录
-	statsDir := filepath.Join("/sys/class/net", name, "statistics")
-	entries, err := os.ReadDir(statsDir)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, entry := range entries {
-		statName := entry.Name()
-		data, err := os.ReadFile(filepath.Join(statsDir, statName))
-		if err != nil {
-			continue
-		}
-
-		value, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
-		if err != nil {
-			continue
-		}
-
-		stats[statName] = value
-	}
-
-	return stats, nil
-}

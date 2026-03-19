@@ -84,6 +84,41 @@ func (rm *RouteManager) deleteRoute(route RouteEntry) error {
 	return nil
 }
 
+// addRoute 添加 Linux 系统路由
+func (rm *RouteManager) addRoute(route RouteEntry) error {
+	// 根据路由 IP 版本选择合适的命令参数
+	args := []string{"route", "add"}
+
+	if route.IPVersion == IPVersion6 {
+		args = []string{"-6", "route", "add"}
+	}
+
+	args = append(args, route.Destination)
+
+	// 添加网关信息（如果有）
+	if route.Gateway != "" {
+		args = append(args, "via", route.Gateway)
+	}
+
+	// 添加设备信息（如果有）
+	if route.Interface != "" {
+		args = append(args, "dev", route.Interface)
+	}
+
+	// 添加度量值（如果有）
+	if route.Metric > 0 {
+		args = append(args, "metric", strconv.Itoa(route.Metric))
+	}
+
+	cmd := exec.Command("ip", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to add route %s: %w, stderr: %s", route.Destination, err, stderr.String())
+	}
+	return nil
+}
+
 // parseLinuxRouteOutput 解析 Linux ip route show 命令输出
 // Linux ip route show 输出格式示例 (IPv4):
 // default via 192.168.1.1 dev eth0 proto dhcp metric 100

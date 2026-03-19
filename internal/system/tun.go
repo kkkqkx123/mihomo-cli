@@ -28,12 +28,24 @@ func (tm *TUNManager) CheckMihomoTUN() ([]TUNState, error) {
 	var mihomoDevices []TUNState
 	for _, dev := range devices {
 		// Mihomo 通常使用 "utun" 或 "tun" 作为前缀
-		if isMihomoTUN(dev.Name) {
+		if tm.isMihomoTUNDevice(dev.Name) {
 			mihomoDevices = append(mihomoDevices, dev)
 		}
 	}
 
 	return mihomoDevices, nil
+}
+
+// isMihomoTUNDevice 检查是否是 Mihomo 创建的 TUN 设备
+func (tm *TUNManager) isMihomoTUNDevice(name string) bool {
+	// Mihomo 通常使用以下前缀
+	prefixes := []string{"utun", "tun", "clash", "mihomo"}
+	for _, prefix := range prefixes {
+		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {
+			return true
+		}
+	}
+	return false
 }
 
 // RemoveTUN 删除 TUN 设备
@@ -130,16 +142,4 @@ func (tm *TUNManager) Cleanup() error {
 	}
 
 	return lastErr
-}
-
-// isMihomoTUN 检查是否是 Mihomo 创建的 TUN 设备
-func isMihomoTUN(name string) bool {
-	// Mihomo 通常使用以下前缀
-	prefixes := []string{"utun", "tun", "clash", "mihomo"}
-	for _, prefix := range prefixes {
-		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {
-			return true
-		}
-	}
-	return false
 }

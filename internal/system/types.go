@@ -100,3 +100,26 @@ type Solution struct {
 	Command     string `json:"command"`
 	Auto        bool   `json:"auto"` // 是否可以自动执行
 }
+
+// RouteFilter 路由过滤器
+type RouteFilter struct {
+	Interface   string    `json:"interface,omitempty"`
+	Gateway     string    `json:"gateway,omitempty"`
+	Destination string    `json:"destination,omitempty"`
+	IPVersion   IPVersion `json:"ip_version,omitempty"`
+}
+
+// RouteDiff 路由差异
+type RouteDiff struct {
+	Type       string      `json:"type"`       // "added", "removed", "modified"
+	Route      RouteEntry  `json:"route"`
+	OldRoute   *RouteEntry `json:"old_route,omitempty"` // 仅用于 modified 类型
+}
+
+// RouteSnapshot 路由快照
+type RouteSnapshot struct {
+	ID        string      `json:"id"`
+	Routes    []RouteEntry `json:"routes"`
+	CreatedAt time.Time   `json:"created_at"`
+	Note      string      `json:"note"`
+}

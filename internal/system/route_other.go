@@ -13,3 +13,8 @@ func (rm *RouteManager) listRoutes() ([]RouteEntry, error) {
 func (rm *RouteManager) deleteRoute(route RouteEntry) error {
 	return fmt.Errorf("route deletion not supported on this platform")
 }
+
+// addRoute 添加路由（不支持的平台）
+func (rm *RouteManager) addRoute(route RouteEntry) error {
+	return fmt.Errorf("route addition not supported on this platform")
+}

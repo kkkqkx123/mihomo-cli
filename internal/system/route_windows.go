@@ -47,6 +47,52 @@ func (rm *RouteManager) deleteRoute(route RouteEntry) error {
 	return nil
 }
 
+// addRoute 添加 Windows 系统路由
+func (rm *RouteManager) addRoute(route RouteEntry) error {
+	// route add 目标 mask 子网掩码 网关 metric 度量值
+	args := []string{"add", route.Destination}
+
+	// 对于 IPv4 路由，添加 mask 参数
+	if route.IPVersion == IPVersion4 {
+		if route.Netmask != "" {
+			args = append(args, "mask", route.Netmask)
+		} else {
+			// 如果没有提供子网掩码，尝试从目的地址中提取
+			if strings.Contains(route.Destination, "/") {
+				parts := strings.Split(route.Destination, "/")
+				if len(parts) == 2 {
+					cidr := parts[1]
+					netmask := cidrToNetmask(cidr)
+					args = append(args, "mask", netmask)
+				}
+			}
+		}
+	}
+
+	// 添加网关
+	if route.Gateway != "" {
+		args = append(args, route.Gateway)
+	}
+
+	// 添加度量值
+	if route.Metric > 0 {
+		args = append(args, "metric", strconv.Itoa(route.Metric))
+	}
+
+	// 添加接口（如果有）
+	if route.Interface != "" {
+		args = append(args, "if", route.Interface)
+	}
+
+	cmd := exec.Command("route", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to add route %s: %w, stderr: %s", route.Destination, err, stderr.String())
+	}
+	return nil
+}
+
 // parseWindowsRouteOutput 解析 Windows route print 命令输出
 // Windows route print 输出格式示例 (IPv4):
 // ===========================================================================
@@ -196,4 +242,27 @@ func netmaskToCIDR(netmask string) int {
 		}
 	}
 	return bits
+}
+
+// cidrToNetmask 将 CIDR 前缀长度转换为子网掩码
+func cidrToNetmask(cidrStr string) string {
+	cidr, err := strconv.Atoi(cidrStr)
+	if err != nil {
+		return ""
+	}
+
+	if cidr < 0 || cidr > 32 {
+		return ""
+	}
+
+	var mask uint32
+	for i := 0; i < cidr; i++ {
+		mask |= 1 << (31 - i)
+	}
+
+	return fmt.Sprintf("%d.%d.%d.%d",
+		(mask>>24)&0xFF,
+		(mask>>16)&0xFF,
+		(mask>>8)&0xFF,
+		mask&0xFF)
 }

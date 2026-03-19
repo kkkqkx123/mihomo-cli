@@ -37,6 +37,35 @@ func (rm *RouteManager) deleteRoute(route RouteEntry) error {
 	return nil
 }
 
+// addRoute 添加 macOS 系统路由
+func (rm *RouteManager) addRoute(route RouteEntry) error {
+	// route -n add 目标 网关 [netmask] [metric]
+	args := []string{"-n", "add", route.Destination}
+
+	// 添加网关
+	if route.Gateway != "" {
+		args = append(args, route.Gateway)
+	}
+
+	// 对于 IPv4 路由，添加子网掩码
+	if route.IPVersion == IPVersion4 && route.Netmask != "" {
+		args = append(args, route.Netmask)
+	}
+
+	// 添加度量值（如果有）
+	if route.Metric > 0 {
+		args = append(args, strconv.Itoa(route.Metric))
+	}
+
+	cmd := exec.Command("route", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to add route %s: %w, stderr: %s", route.Destination, err, stderr.String())
+	}
+	return nil
+}
+
 // parseDarwinRouteOutput 解析 macOS netstat -rn 命令输出
 // macOS netstat -rn 输出格式示例:
 // Routing tables

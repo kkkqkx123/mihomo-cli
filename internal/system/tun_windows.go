@@ -4,6 +4,7 @@ package system
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -60,56 +61,45 @@ func parsePowerShellTUNOutput(output []byte) ([]TUNState, error) {
 		return devices, nil
 	}
 
-	// PowerShell JSON 输出可能是数组或单个对象
-	// 简单解析，不使用 encoding/json 以避免额外依赖
-	// 格式示例:
-	// [
-	//   {
-	//     "Name": "Wintun",
-	//     "InterfaceDescription": "Wintun Userspace Tunnel",
-	//     "Status": "Up",
-	//     "MacAddress": "00-00-00-00-00-00"
-	//   }
-	// ]
+	// 定义 JSON 结构
+	type netAdapter struct {
+		Name                string `json:"Name"`
+		InterfaceDescription string `json:"InterfaceDescription"`
+		Status              string `json:"Status"`
+		MacAddress          string `json:"MacAddress"`
+	}
 
-	// 使用正则提取设备信息
-	namePattern := regexp.MustCompile(`"Name"\s*:\s*"([^"]+)"`)
-	descPattern := regexp.MustCompile(`"InterfaceDescription"\s*:\s*"([^"]+)"`)
-	statusPattern := regexp.MustCompile(`"Status"\s*:\s*"([^"]+)"`)
-
-	// 分割多个设备
-	blocks := regexp.MustCompile(`\}\s*,\s*\{`).Split(outputStr, -1)
-
-	for _, block := range blocks {
-		nameMatch := namePattern.FindStringSubmatch(block)
-		descMatch := descPattern.FindStringSubmatch(block)
-		statusMatch := statusPattern.FindStringSubmatch(block)
-
-		if len(nameMatch) > 1 {
-			device := TUNState{
-				Name:    nameMatch[1],
-				Enabled: len(statusMatch) > 1 && statusMatch[1] == "Up",
-			}
-
-			// 尝试获取 IP 地址
-			ip, err := getInterfaceIP(nameMatch[1])
-			if err == nil {
-				device.IPAddress = ip
-			}
-
-			// 尝试获取 MTU
-			mtu, err := getInterfaceMTU(nameMatch[1])
-			if err == nil {
-				device.MTU = mtu
-			}
-
-			// 记录接口描述（用于调试）
-			if len(descMatch) > 1 {
-				_ = descMatch[1] // InterfaceDescription
-			}
-
-			devices = append(devices, device)
+	// 尝试解析为数组
+	var adapters []netAdapter
+	if err := json.Unmarshal(output, &adapters); err != nil {
+		// 如果解析数组失败，尝试解析为单个对象
+		var singleAdapter netAdapter
+		if err2 := json.Unmarshal(output, &singleAdapter); err2 != nil {
+			return nil, fmt.Errorf("failed to parse PowerShell JSON output: %w", err)
 		}
+		adapters = []netAdapter{singleAdapter}
+	}
+
+	// 转换为 TUNState
+	for _, adapter := range adapters {
+		device := TUNState{
+			Name:    adapter.Name,
+			Enabled: adapter.Status == "Up",
+		}
+
+		// 尝试获取 IP 地址
+		ip, err := getInterfaceIP(adapter.Name)
+		if err == nil {
+			device.IPAddress = ip
+		}
+
+		// 尝试获取 MTU
+		mtu, err := getInterfaceMTU(adapter.Name)
+		if err == nil {
+			device.MTU = mtu
+		}
+
+		devices = append(devices, device)
 	}
 
 	return devices, nil
@@ -193,6 +183,11 @@ func parseNetshTUNOutput(output []byte) ([]TUNState, error) {
 
 // getInterfaceIP 获取接口的 IP 地址
 func getInterfaceIP(ifaceName string) (string, error) {
+	// 验证接口名，防止命令注入
+	if !isValidInterfaceName(ifaceName) {
+		return "", fmt.Errorf("invalid interface name: %s", ifaceName)
+	}
+
 	// 使用 netsh interface ip show config name="接口名"
 	cmd := exec.Command("netsh", "interface", "ip", "show", "config", fmt.Sprintf("name=\"%s\"", ifaceName))
 	output, err := cmd.Output()
@@ -209,6 +204,32 @@ func getInterfaceIP(ifaceName string) (string, error) {
 	}
 
 	return "", fmt.Errorf("IP address not found")
+}
+
+// isValidInterfaceName 验证接口名是否安全
+// 只允许字母、数字、空格、下划线、连字符和点
+func isValidInterfaceName(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	// 检查长度
+	if len(name) > 256 {
+		return false
+	}
+
+	// 检查字符
+	for _, ch := range name {
+		// 允许字母、数字、空格、下划线、连字符、点
+		if !((ch >= 'a' && ch <= 'z') ||
+			(ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') ||
+			ch == ' ' || ch == '_' || ch == '-' || ch == '.') {
+			return false
+		}
+	}
+
+	return true
 }
 
 // getInterfaceMTU 获取接口的 MTU
@@ -238,9 +259,26 @@ func getInterfaceMTU(ifaceName string) (int, error) {
 	return 0, fmt.Errorf("MTU not found")
 }
 
+// isMihomoTUN 检查是否是 Mihomo 创建的 TUN 设备
+func isMihomoTUN(name string) bool {
+	// Mihomo 通常使用以下前缀
+	prefixes := []string{"utun", "tun", "clash", "mihomo", "wintun"}
+	for _, prefix := range prefixes {
+		if len(name) >= len(prefix) && strings.ToLower(name[:len(prefix)]) == prefix {
+			return true
+		}
+	}
+	return false
+}
+
 // removeTUN 删除 Windows TUN 设备
 // Windows 上 TUN 设备通常由驱动管理，需要禁用接口或卸载驱动
 func (tm *TUNManager) removeTUN(name string) error {
+	// 验证接口名，防止命令注入
+	if !isValidInterfaceName(name) {
+		return fmt.Errorf("invalid interface name: %s", name)
+	}
+
 	// 方法1: 禁用接口
 	cmd := exec.Command("netsh", "interface", "set", "interface", name, "admin=disable")
 	var stderr bytes.Buffer
