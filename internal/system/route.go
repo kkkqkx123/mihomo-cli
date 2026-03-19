@@ -208,47 +208,145 @@ func (rm *RouteManager) DeleteRoutes(routes []RouteEntry) error {
 
 // isAbnormalRoute 检查是否是异常路由
 func isAbnormalRoute(route RouteEntry) bool {
-	// 1. 检查网关是否为空但路由不是直连路由
-	if route.Gateway == "" && route.Destination != "0.0.0.0/0" && route.Destination != "::/0" {
-		// 如果没有网关，且不是默认路由，可能是异常路由
-		// 但也可能是直连路由，需要进一步检查
-		// 这里暂时不做严格检查
-	}
-
-	// 2. 检查接口是否为空
-	if route.Interface == "" {
-		// 没有接口的路由可能是异常的
-		return true
-	}
-
-	// 3. 检查网关是否为本地地址（0.0.0.0 或 ::）
-	if route.Gateway == "0.0.0.0" || route.Gateway == "::" {
-		// 本地地址作为网关通常是异常的
-		return true
-	}
-
-	// 4. 检查度量值是否为负数或异常大
-	if route.Metric < 0 || route.Metric > 9999 {
-		return true
-	}
-
-	// 5. 检查目的地址格式
+	// 1. 检查目的地址是否为空
 	if route.Destination == "" {
 		return true
 	}
 
-	// 6. 检查 IPv4 子网掩码格式（仅 Windows）
-	if route.IPVersion == IPVersion4 && route.Netmask != "" {
-		// 验证子网掩码格式
-		parts := strings.Split(route.Netmask, ".")
-		if len(parts) != 4 {
+	// 2. 检查度量值是否异常
+	if route.Metric < 0 || route.Metric > 9999 {
+		return true
+	}
+
+	// 3. 处理直连路由（On-link）
+	// 直连路由没有网关，但有接口，这是正常的
+	isOnLink := strings.Contains(route.Gateway, "On-link") ||
+		route.Gateway == "" && route.Interface != ""
+
+	if isOnLink {
+		// 直连路由，检查接口是否有效
+		if route.Interface == "" {
 			return true
 		}
-		for _, part := range parts {
-			val, err := strconv.Atoi(part)
-			if err != nil || val < 0 || val > 255 {
+		return false // 直连路由是正常的
+	}
+
+	// 4. 对于非直连路由，检查网关
+	if route.Gateway == "" {
+		// 非直连路由必须有网关
+		return true
+	}
+
+	// 5. 检查网关是否为无效地址
+	invalidGateways := []string{"0.0.0.0", "::", "127.0.0.1", "::1"}
+	for _, invalid := range invalidGateways {
+		if route.Gateway == invalid {
+			// 如果网关是无效地址，且接口为空，则异常
+			if route.Interface == "" {
 				return true
 			}
+		}
+	}
+
+	// 6. 检查接口和网关的兼容性
+	// 如果有网关但接口为空，可能有问题
+	if route.Gateway != "" && route.Interface == "" {
+		// 某些情况下可能是正常的（如默认路由）
+		// 但对于非默认路由，应该有接口
+		if route.Destination != "0.0.0.0/0" &&
+			route.Destination != "default" &&
+			route.Destination != "::/0" {
+			return true
+		}
+	}
+
+	// 7. 检查 IPv4 子网掩码格式（仅 Windows）
+	if route.IPVersion == IPVersion4 && route.Netmask != "" {
+		if !isValidNetmask(route.Netmask) {
+			return true
+		}
+	}
+
+	// 8. 检查 Mihomo 相关的异常路由（重点）
+	// 例如：Mihomo 添加的路由但没有对应的 TUN 接口
+	mihomoGateway := isMihomoGateway(route.Gateway)
+	hasTunInterface := isTunInterface(route.Interface)
+
+	if mihomoGateway && !hasTunInterface {
+		// 网关指向 Mihomo 但没有 TUN 接口，可能是残留路由
+		// 这正是你遇到的情况：网关 198.18.0.2，但接口不存在
+		return true
+	}
+
+	// 9. 检查路由标志（仅 Unix-like 系统）
+	if route.Flags != "" {
+		// 某些异常标志可能表示路由问题
+		// 例如：RTF_REJECT, RTF_BLACKHOLE 等
+		rejectFlags := []string{"reject", "blackhole", "unreachable"}
+		lowerFlags := strings.ToLower(route.Flags)
+		for _, rejectFlag := range rejectFlags {
+			if strings.Contains(lowerFlags, rejectFlag) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isValidNetmask 验证子网掩码是否有效
+func isValidNetmask(netmask string) bool {
+	parts := strings.Split(netmask, ".")
+	if len(parts) != 4 {
+		return false
+	}
+
+	var value uint32
+	for _, part := range parts {
+		val, err := strconv.Atoi(part)
+		if err != nil || val < 0 || val > 255 {
+			return false
+		}
+		value = (value << 8) | uint32(val)
+	}
+
+	// 检查是否是有效的子网掩码（连续的 1 后跟连续的 0）
+	invertedValue := ^value
+	if invertedValue == 0 {
+		return true // 255.255.255.255
+	}
+
+	// 检查是否是连续的
+	if (invertedValue & (invertedValue + 1)) == 0 {
+		return true
+	}
+
+	return false
+}
+
+// isMihomoGateway 检查网关是否指向 Mihomo
+func isMihomoGateway(gateway string) bool {
+	mihomoGateways := []string{"198.18.0.1", "198.18.0.2", "198.18.0.3"}
+	for _, mg := range mihomoGateways {
+		if gateway == mg {
+			return true
+		}
+	}
+	return false
+}
+
+// isTunInterface 检查是否是 TUN 接口
+func isTunInterface(iface string) bool {
+	if iface == "" {
+		return false
+	}
+
+	tunPrefixes := []string{"utun", "tun", "clash", "mihomo", "wintun", "Meta Tunnel"}
+	lowerIface := strings.ToLower(iface)
+
+	for _, prefix := range tunPrefixes {
+		if strings.Contains(lowerIface, prefix) {
+			return true
 		}
 	}
 

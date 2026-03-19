@@ -66,9 +66,11 @@ func init() {
 
 func runStart(cmd *cobra.Command, args []string) error {
 	// 查找配置文件路径
+	output.Info("查找配置文件...")
 	configPath := config.FindTomlConfigPath(cfgFile)
 
 	// 加载配置
+	output.Info("加载配置: %s", configPath)
 	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)
@@ -82,6 +84,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// 在另一个 goroutine 中启动内核
+	output.Info("启动 Mihomo 进程...")
 	startErrChan := make(chan error, 1)
 	var result *mihomo.StartResult
 
@@ -151,9 +154,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 func runStop(cmd *cobra.Command, args []string) error {
 	// 查找配置文件路径
+	output.Info("查找配置文件...")
 	configPath := config.FindTomlConfigPath(cfgFile)
 
 	// 加载配置
+	output.Info("加载配置: %s", configPath)
 	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)
@@ -163,13 +168,14 @@ func runStop(cmd *cobra.Command, args []string) error {
 	handler := mihomo.NewProcessHandler("")
 
 	// 停止内核
+	output.Info("停止 Mihomo 进程...")
 	result, err := handler.Stop(cfg, stopAll, stopConfig, args)
 	if err != nil {
 		return err
 	}
 
 	if result != nil {
-		output.Printf("Mihomo 内核已停止 (PID: %d)\n", result.PID)
+		output.Success("Mihomo 内核已停止 (PID: %d)", result.PID)
 	}
 
 	return nil
@@ -177,9 +183,11 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	// 查找配置文件路径
+	output.Info("查找配置文件...")
 	configPath := config.FindTomlConfigPath(cfgFile)
 
 	// 加载配置
+	output.Info("加载配置: %s", configPath)
 	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)

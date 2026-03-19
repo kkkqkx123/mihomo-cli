@@ -10,6 +10,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 )
 
 // HTTPClient HTTP 客户端封装
@@ -74,6 +76,9 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, baseURL, endpoint st
 		return nil, NewConnectionError(err)
 	}
 
+	// 记录请求开始
+	output.Info("API 请求: %s %s", method, endpoint)
+
 	// 准备请求体
 	var reqBody io.Reader
 	if body != nil {
@@ -94,6 +99,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, baseURL, endpoint st
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
 	if err != nil {
+		output.Error("创建请求失败: %s - %v", endpoint, err)
 		return nil, NewConnectionError(err)
 	}
 
@@ -110,8 +116,10 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, baseURL, endpoint st
 	if err != nil {
 		// 检查是否为超时错误
 		if ctx.Err() == context.DeadlineExceeded || err.Error() == "http: Client.Timeout exceeded" {
+			output.Warning("API 请求超时: %s", endpoint)
 			return nil, NewTimeoutError(err)
 		}
+		output.Error("API 连接失败: %s - %v", endpoint, err)
 		return nil, NewConnectionError(err)
 	}
 
@@ -124,6 +132,7 @@ func (c *HTTPClient) handleResponse(resp *http.Response, target interface{}) err
 
 	// 检查状态码
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		output.Warning("API 响应错误: %s (状态码: %d)", resp.Request.URL.Path, resp.StatusCode)
 		return ParseErrorResponse(resp)
 	}
 
