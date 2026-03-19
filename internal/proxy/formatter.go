@@ -6,7 +6,6 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 
-	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/tw"
 
@@ -66,10 +65,9 @@ func formatProxyTable(proxies map[string]*types.ProxyInfo, showOnlyOneGroup bool
 			delayStr := formatDelay(proxy.Delay)
 
 			// 获取状态
-			status := "✓"
+			status := output.StatusOK()
 			if !proxy.Alive {
-				status = "✗"
-				status = color.RedString(status)
+				status = output.StatusError()
 			}
 
 			if err := table.Append([]string{
@@ -104,10 +102,9 @@ func formatProxyTable(proxies map[string]*types.ProxyInfo, showOnlyOneGroup bool
 			delayStr := formatDelay(proxy.Delay)
 
 			// 获取状态
-			status := "✓"
+			status := output.StatusOK()
 			if !proxy.Alive {
-				status = "✗"
-				status = color.RedString(status)
+				status = output.StatusError()
 			}
 
 			if err := table.Append([]string{
@@ -164,20 +161,20 @@ func formatTestResultsTable(results []types.DelayResult) error {
 		if result.Error != nil {
 			delayStr = "-"
 			timeStr = fmt.Sprintf("%dms", result.Time)
-			status = color.RedString(result.Status)
+			status = output.RedString(result.Status)
 		} else if result.Delay == 0 {
 			delayStr = "-"
 			timeStr = fmt.Sprintf("%dms", result.Time)
-			status = color.YellowString(result.Status)
+			status = output.YellowString(result.Status)
 		} else {
 			delayStr = fmt.Sprintf("%dms", result.Delay)
 			timeStr = fmt.Sprintf("%dms", result.Time)
 			if result.Delay < 100 {
-				status = color.GreenString(result.Status)
+				status = output.GreenString(result.Status)
 			} else if result.Delay < 300 {
-				status = color.YellowString(result.Status)
+				status = output.YellowString(result.Status)
 			} else {
-				status = color.RedString(result.Status)
+				status = output.RedString(result.Status)
 			}
 		}
 
@@ -288,7 +285,7 @@ func FormatCurrentProxy(groupName string, proxy *types.ProxyInfo) error {
 // formatAliveStatus 格式化存活状态
 func formatAliveStatus(alive bool) string {
 	if alive {
-		return color.GreenString("可用")
+		return output.GreenString("可用")
 	}
-	return color.RedString("不可用")
+	return output.RedString("不可用")
 }

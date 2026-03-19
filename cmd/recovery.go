@@ -113,24 +113,24 @@ func runRecoveryDetect(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Fprintf(output.GetGlobalStdout(), "检测到 %d 个问题:\n\n", len(problems))
+	output.Printf("检测到 %d 个问题:\n\n", len(problems))
 	for i, problem := range problems {
-		fmt.Fprintf(output.GetGlobalStdout(), "%d. [%s] %s\n", i+1, problem.Severity, problem.Description)
-		fmt.Fprintf(output.GetGlobalStdout(), "   类型: %s\n", problem.Type)
+		output.Printf("%d. [%s] %s\n", i+1, problem.Severity, problem.Description)
+		output.Printf("   类型: %s\n", problem.Type)
 		if len(problem.Solutions) > 0 {
-			fmt.Fprintf(output.GetGlobalStdout(), "   解决方案:\n")
+			output.Println("   解决方案:")
 			for j, solution := range problem.Solutions {
 				auto := ""
 				if solution.Auto {
 					auto = " (可自动执行)"
 				}
-				fmt.Fprintf(output.GetGlobalStdout(), "   %d. %s%s\n", j+1, solution.Description, auto)
+				output.Printf("   %d. %s%s\n", j+1, solution.Description, auto)
 				if solution.Command != "" {
-					fmt.Fprintf(output.GetGlobalStdout(), "      命令: %s\n", solution.Command)
+					output.Printf("      命令: %s\n", solution.Command)
 				}
 			}
 		}
-		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		output.PrintEmptyLine()
 	}
 
 	return nil
@@ -165,34 +165,35 @@ func runRecoveryExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// 显示报告
-	fmt.Fprintf(output.GetGlobalStdout(), "恢复报告:\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "  时间: %s\n", report.Timestamp.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(output.GetGlobalStdout(), "  问题数量: %d\n", len(report.Problems))
-	fmt.Fprintf(output.GetGlobalStdout(), "  执行动作: %d\n", len(report.Actions))
-	fmt.Fprintf(output.GetGlobalStdout(), "  结果: ")
+	output.Println("恢复报告:")
+	output.PrintKeyValue("时间", report.Timestamp.Format("2006-01-02 15:04:05"))
+	output.PrintKeyValue("问题数量", len(report.Problems))
+	output.PrintKeyValue("执行动作", len(report.Actions))
+	fmt.Fprint(output.GetGlobalStdout(), "  结果: ")
 	if report.Success {
-		output.Success("成功")
+		output.Println("成功")
 	} else {
-		output.Error("失败")
+		output.Println("失败")
 		if report.ErrorMessage != "" {
-			fmt.Fprintf(output.GetGlobalStderr(), "  错误: %s\n", report.ErrorMessage)
+			output.Printf("  错误: %s\n", report.ErrorMessage)
 		}
 	}
-	fmt.Fprintf(output.GetGlobalStdout(), "  耗时: %v\n", report.Duration)
+	output.PrintKeyValue("耗时", report.Duration)
 
 	if len(report.Actions) > 0 {
-		fmt.Fprintf(output.GetGlobalStdout(), "\n执行的动作:\n")
+		output.PrintEmptyLine()
+		output.Println("执行的动作:")
 		for i, action := range report.Actions {
-			fmt.Fprintf(output.GetGlobalStdout(), "%d. %s - %s\n", i+1, action.Action, action.Problem.Type)
+			output.Printf("%d. %s - %s\n", i+1, action.Action, action.Problem.Type)
 			if action.Success {
-				output.Success("   结果: 成功")
+				output.Println("   结果: 成功")
 			} else {
-				output.Error("   结果: 失败")
+				output.Println("   结果: 失败")
 				if action.ErrorMessage != "" {
-					fmt.Fprintf(output.GetGlobalStderr(), "   错误: %s\n", action.ErrorMessage)
+					output.Printf("   错误: %s\n", action.ErrorMessage)
 				}
 			}
-			fmt.Fprintf(output.GetGlobalStdout(), "   耗时: %v\n", action.Duration)
+			output.Printf("   耗时: %v\n", action.Duration)
 		}
 	}
 
@@ -209,32 +210,34 @@ func runRecoveryStatus(cmd *cobra.Command, args []string) error {
 	// 获取状态
 	status := mgr.GetStatus()
 
-	fmt.Fprintf(output.GetGlobalStdout(), "自动恢复状态:\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "  启用: %v\n", status.Enabled)
+	output.Println("自动恢复状态:")
+	output.PrintKeyValue("启用", status.Enabled)
 	if !status.LastCheckTime.IsZero() {
-		fmt.Fprintf(output.GetGlobalStdout(), "  上次检查: %s\n", status.LastCheckTime.Format("2006-01-02 15:04:05"))
+		output.PrintKeyValue("上次检查", status.LastCheckTime.Format("2006-01-02 15:04:05"))
 	}
 	if status.LastRecovery != nil {
-		fmt.Fprintf(output.GetGlobalStdout(), "\n上次恢复:\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  时间: %s\n", status.LastRecovery.Timestamp.Format("2006-01-02 15:04:05"))
-		fmt.Fprintf(output.GetGlobalStdout(), "  问题数量: %d\n", len(status.LastRecovery.Problems))
-		fmt.Fprintf(output.GetGlobalStdout(), "  结果: ")
+		output.PrintEmptyLine()
+		output.Println("上次恢复:")
+		output.PrintKeyValue("时间", status.LastRecovery.Timestamp.Format("2006-01-02 15:04:05"))
+		output.PrintKeyValue("问题数量", len(status.LastRecovery.Problems))
+		fmt.Fprint(output.GetGlobalStdout(), "  结果: ")
 		if status.LastRecovery.Success {
-			output.Success("成功")
+			output.Println("成功")
 		} else {
-			output.Error("失败")
+			output.Println("失败")
 		}
-		fmt.Fprintf(output.GetGlobalStdout(), "  耗时: %v\n", status.LastRecovery.Duration)
+		output.PrintKeyValue("耗时", status.LastRecovery.Duration)
 	}
 
 	// 显示配置
 	config := mgr.GetConfig()
-	fmt.Fprintf(output.GetGlobalStdout(), "\n恢复配置:\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "  自动恢复: %v\n", config.AutoRecover)
-	fmt.Fprintf(output.GetGlobalStdout(), "  备份后恢复: %v\n", config.BackupBeforeRecover)
-	fmt.Fprintf(output.GetGlobalStdout(), "  最大重试次数: %d\n", config.MaxRetryCount)
-	fmt.Fprintf(output.GetGlobalStdout(), "  重试间隔: %v\n", config.RetryInterval)
-	fmt.Fprintf(output.GetGlobalStdout(), "  检查组件: %v\n", config.Components)
+	output.PrintEmptyLine()
+	output.Println("恢复配置:")
+	output.PrintKeyValue("自动恢复", config.AutoRecover)
+	output.PrintKeyValue("备份后恢复", config.BackupBeforeRecover)
+	output.PrintKeyValue("最大重试次数", config.MaxRetryCount)
+	output.PrintKeyValue("重试间隔", config.RetryInterval)
+	output.PrintKeyValue("检查组件", config.Components)
 
 	return nil
 }
@@ -260,7 +263,7 @@ func runRecoveryEnable(cmd *cobra.Command, args []string) error {
 	}
 
 	output.Success("自动恢复已启用")
-	fmt.Fprintf(output.GetGlobalStdout(), "检查间隔: %v\n", interval)
+	output.PrintKeyValue("检查间隔", interval)
 
 	return nil
 }

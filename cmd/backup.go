@@ -61,11 +61,11 @@ func runBackupCreate(mihomoConfigPath, note string) error {
 	}
 
 	output.Success("备份创建成功")
-	fmt.Fprintf(output.GetGlobalStdout(), "  配置文件: %s\n", mihomoConfigPath)
-	fmt.Fprintf(output.GetGlobalStdout(), "  备份文件: %s\n", info.Path)
-	fmt.Fprintf(output.GetGlobalStdout(), "  文件大小: %s\n", config.FormatSize(info.Size))
+	output.PrintKeyValue("配置文件", mihomoConfigPath)
+	output.PrintKeyValue("备份文件", info.Path)
+	output.PrintKeyValue("文件大小", config.FormatSize(info.Size))
 	if note != "" {
-		fmt.Fprintf(output.GetGlobalStdout(), "  备注: %s\n", note)
+		output.PrintKeyValue("备注", note)
 	}
 
 	return nil
@@ -107,8 +107,9 @@ func runBackupList(mihomoConfigPath string) error {
 	}
 
 	// 显示备份列表
-	fmt.Fprintf(output.GetGlobalStdout(), "备份列表:\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "  序号  时间                  大小      备注\n")
+	output.Println("备份列表:")
+	table := output.NewTable()
+	table.SetHeader([]string{"序号", "时间", "大小", "备注"})
 
 	for i, backup := range backups {
 		timeStr := backup.CreatedAt.Format("2006-01-02 15:04:05")
@@ -117,10 +118,15 @@ func runBackupList(mihomoConfigPath string) error {
 		if note == "" {
 			note = "-"
 		}
-		fmt.Fprintf(output.GetGlobalStdout(), "  %-4d  %-19s  %-8s  %s\n", i+1, timeStr, sizeStr, note)
+		table.Append([]string{
+			fmt.Sprintf("%d", i+1),
+			timeStr,
+			sizeStr,
+			note,
+		})
 	}
 
-	return nil
+	return table.Render()
 }
 
 // newBackupRestoreCmd 创建 backup restore 命令
@@ -169,8 +175,8 @@ func runBackupRestore(ctx context.Context, mihomoConfigPath, backupRef string, n
 
 	output.Cyan("已备份当前配置: %s", result.CurrentBackup.Path)
 	output.Success("配置已恢复")
-	fmt.Fprintf(output.GetGlobalStdout(), "  恢复源: %s\n", result.BackupPath)
-	fmt.Fprintf(output.GetGlobalStdout(), "  配置文件: %s\n", result.ConfigPath)
+	output.PrintKeyValue("恢复源", result.BackupPath)
+	output.PrintKeyValue("配置文件", result.ConfigPath)
 
 	if result.ReloadError != nil {
 		output.Warning("重载配置失败: %v", result.ReloadError)
@@ -224,7 +230,7 @@ func runBackupDelete(mihomoConfigPath string, args []string, deleteAll bool, kee
 
 	if deleteAll {
 		for _, path := range result.Deleted {
-			fmt.Fprintf(output.GetGlobalStdout(), "已删除: %s\n", path)
+			output.Printf("已删除: %s\n", path)
 		}
 		for path, err := range result.Failed {
 			output.Warning("删除失败: %s - %v", path, err)
@@ -235,7 +241,7 @@ func runBackupDelete(mihomoConfigPath string, args []string, deleteAll bool, kee
 
 	if keep > 0 || olderThan > 0 {
 		for _, path := range result.Deleted {
-			fmt.Fprintf(output.GetGlobalStdout(), "已删除: %s\n", path)
+			output.Printf("已删除: %s\n", path)
 		}
 		output.Success("已删除 %d 个备份", len(result.Deleted))
 		return nil
@@ -295,14 +301,14 @@ func runBackupPrune(mihomoConfigPath string, keep, olderThan int, dryRun bool) e
 	if dryRun {
 		output.Cyan("将删除以下 %d 个备份:", len(result.ToDelete))
 		for _, path := range result.ToDelete {
-			fmt.Fprintf(output.GetGlobalStdout(), "  %s\n", path)
+			output.PrintIndent(1, path)
 		}
 		return nil
 	}
 
 	// 执行删除
 	for _, path := range result.Deleted {
-		fmt.Fprintf(output.GetGlobalStdout(), "已删除: %s\n", path)
+		output.Printf("已删除: %s\n", path)
 	}
 	for path, err := range result.Failed {
 		output.Warning("删除失败: %s - %v", path, err)

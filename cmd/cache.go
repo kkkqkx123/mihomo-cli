@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -74,7 +72,7 @@ func runCacheClearFakeIP(cmd *cobra.Command, args []string) error {
 			"action":  "cache_clear_fakeip",
 		})
 	} else {
-		fmt.Println("✓ FakeIP 池已清空")
+		output.Println("✓ FakeIP 池已清空")
 	}
 
 	return nil
@@ -116,7 +114,7 @@ func runCacheClearDNS(cmd *cobra.Command, args []string) error {
 			"action":  "cache_clear_dns",
 		})
 	} else {
-		fmt.Println("✓ DNS 缓存已清空")
+		output.Println("✓ DNS 缓存已清空")
 	}
 
 	return nil

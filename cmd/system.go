@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/system"
 	"github.com/kkkqkx123/mihomo-cli/internal/util"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -153,51 +153,51 @@ func runSystemStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// 显示状态
-	fmt.Println("系统配置状态:")
-	fmt.Printf("  时间: %s\n", state.Timestamp.Format("2006-01-02 15:04:05"))
-	fmt.Println()
+	output.Println("系统配置状态:")
+	output.Printf("  时间: %s\n", state.Timestamp.Format("2006-01-02 15:04:05"))
+	output.Println()
 
 	// 系统代理状态
-	fmt.Println("系统代理:")
+	output.Println("系统代理:")
 	if state.SysProxy != nil {
 		if state.SysProxy.Enabled {
-			fmt.Println("  状态: 已启用")
-			fmt.Printf("  代理服务器: %s\n", state.SysProxy.Server)
+			output.Println("  状态: 已启用")
+			output.Printf("  代理服务器: %s\n", state.SysProxy.Server)
 			if state.SysProxy.BypassList != "" {
-				fmt.Printf("  绕过列表: %s\n", state.SysProxy.BypassList)
+				output.Printf("  绕过列表: %s\n", state.SysProxy.BypassList)
 			}
 		} else {
-			fmt.Println("  状态: 已禁用")
+			output.Println("  状态: 已禁用")
 		}
 	} else {
-		fmt.Println("  状态: 未知")
+		output.Println("  状态: 未知")
 	}
-	fmt.Println()
+	output.Println()
 
 	// TUN 设备状态
-	fmt.Println("TUN 设备:")
+	output.Println("TUN 设备:")
 	if state.TUN != nil {
 		if state.TUN.Enabled {
-			fmt.Println("  状态: 已启用")
-			fmt.Printf("  设备名: %s\n", state.TUN.Name)
+			output.Println("  状态: 已启用")
+			output.Printf("  设备名: %s\n", state.TUN.Name)
 			if state.TUN.IPAddress != "" {
-				fmt.Printf("  IP 地址: %s\n", state.TUN.IPAddress)
+				output.Printf("  IP 地址: %s\n", state.TUN.IPAddress)
 			}
 			if state.TUN.MTU > 0 {
-				fmt.Printf("  MTU: %d\n", state.TUN.MTU)
+				output.Printf("  MTU: %d\n", state.TUN.MTU)
 			}
 		} else {
-			fmt.Println("  状态: 未启用")
+			output.Println("  状态: 未启用")
 		}
 	} else {
-		fmt.Println("  状态: 未知")
+		output.Println("  状态: 未知")
 	}
-	fmt.Println()
+	output.Println()
 
 	// 路由表状态
-	fmt.Println("路由表:")
+	output.Println("路由表:")
 	if len(state.Routes) > 0 {
-		fmt.Printf("  路由数量: %d\n", len(state.Routes))
+		output.Printf("  路由数量: %d\n", len(state.Routes))
 		// 只显示前 5 条路由
 		limit := 5
 		if len(state.Routes) < limit {
@@ -205,13 +205,13 @@ func runSystemStatus(cmd *cobra.Command, args []string) error {
 		}
 		for i := 0; i < limit; i++ {
 			route := state.Routes[i]
-			fmt.Printf("  - %s via %s dev %s\n", route.Destination, route.Gateway, route.Interface)
+			output.Printf("  - %s via %s dev %s\n", route.Destination, route.Gateway, route.Interface)
 		}
 		if len(state.Routes) > 5 {
-			fmt.Printf("  ... 还有 %d 条路由\n", len(state.Routes)-5)
+			output.Printf("  ... 还有 %d 条路由\n", len(state.Routes)-5)
 		}
 	} else {
-		fmt.Println("  路由数量: 0")
+		output.Println("  路由数量: 0")
 	}
 
 	return nil
@@ -229,39 +229,39 @@ func runSystemCleanup(cmd *cobra.Command, args []string) error {
 		return pkgerrors.ErrService("failed to create system config manager", err)
 	}
 
-	fmt.Println("开始清理系统配置...")
+	output.Println("开始清理系统配置...")
 
 	// 清理系统代理
 	if cleanupSysProxy {
-		fmt.Println("清理系统代理...")
+		output.Println("清理系统代理...")
 		if err := mgr.GetSysProxyManager().Cleanup(); err != nil {
-			fmt.Printf("  警告: %v\n", err)
+			output.Printf("  警告: %v\n", err)
 		} else {
-			fmt.Println("  完成")
+			output.Println("  完成")
 		}
 	}
 
 	// 清理 TUN 设备
 	if cleanupTUN {
-		fmt.Println("清理 TUN 设备...")
+		output.Println("清理 TUN 设备...")
 		if err := mgr.GetTUNManager().Cleanup(); err != nil {
-			fmt.Printf("  警告: %v\n", err)
+			output.Printf("  警告: %v\n", err)
 		} else {
-			fmt.Println("  完成")
+			output.Println("  完成")
 		}
 	}
 
 	// 清理路由表
 	if cleanupRoute {
-		fmt.Println("清理路由表...")
+		output.Println("清理路由表...")
 		if err := mgr.GetRouteManager().Cleanup(); err != nil {
-			fmt.Printf("  警告: %v\n", err)
+			output.Printf("  警告: %v\n", err)
 		} else {
-			fmt.Println("  完成")
+			output.Println("  完成")
 		}
 	}
 
-	fmt.Println("清理完成")
+	output.Println("清理完成")
 
 	return nil
 }
@@ -280,28 +280,28 @@ func runSystemValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(problems) == 0 {
-		fmt.Println("系统配置状态正常，未检测到问题")
+		output.Println("系统配置状态正常，未检测到问题")
 		return nil
 	}
 
-	fmt.Printf("检测到 %d 个问题:\n\n", len(problems))
+	output.Printf("检测到 %d 个问题:\n\n", len(problems))
 	for i, problem := range problems {
-		fmt.Printf("%d. [%s] %s\n", i+1, problem.Severity, problem.Description)
-		fmt.Printf("   类型: %s\n", problem.Type)
+		output.Printf("%d. [%s] %s\n", i+1, problem.Severity, problem.Description)
+		output.Printf("   类型: %s\n", problem.Type)
 		if len(problem.Solutions) > 0 {
-			fmt.Println("   解决方案:")
+			output.Println("   解决方案:")
 			for j, solution := range problem.Solutions {
 				auto := ""
 				if solution.Auto {
 					auto = " (可自动执行)"
 				}
-				fmt.Printf("   %d. %s%s\n", j+1, solution.Description, auto)
+				output.Printf("   %d. %s%s\n", j+1, solution.Description, auto)
 				if solution.Command != "" {
-					fmt.Printf("      命令: %s\n", solution.Command)
+					output.Printf("      命令: %s\n", solution.Command)
 				}
 			}
 		}
-		fmt.Println()
+		output.Println()
 	}
 
 	return nil
@@ -320,11 +320,11 @@ func runSystemSnapshotCreate(cmd *cobra.Command, args []string) error {
 		return pkgerrors.ErrService("failed to create snapshot", err)
 	}
 
-	fmt.Println("配置快照已创建:")
-	fmt.Printf("  ID: %s\n", snapshot.ID)
-	fmt.Printf("  时间: %s\n", snapshot.CreatedAt.Format("2006-01-02 15:04:05"))
+	output.Println("配置快照已创建:")
+	output.Printf("  ID: %s\n", snapshot.ID)
+	output.Printf("  时间: %s\n", snapshot.CreatedAt.Format("2006-01-02 15:04:05"))
 	if snapshot.Note != "" {
-		fmt.Printf("  备注: %s\n", snapshot.Note)
+		output.Printf("  备注: %s\n", snapshot.Note)
 	}
 
 	return nil
@@ -344,18 +344,18 @@ func runSystemSnapshotList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(snapshots) == 0 {
-		fmt.Println("没有找到配置快照")
+		output.Println("没有找到配置快照")
 		return nil
 	}
 
-	fmt.Printf("找到 %d 个配置快照:\n\n", len(snapshots))
+	output.Printf("找到 %d 个配置快照:\n\n", len(snapshots))
 	for i, snapshot := range snapshots {
-		fmt.Printf("%d. ID: %s\n", i+1, snapshot.ID)
-		fmt.Printf("   时间: %s\n", snapshot.CreatedAt.Format("2006-01-02 15:04:05"))
+		output.Printf("%d. ID: %s\n", i+1, snapshot.ID)
+		output.Printf("   时间: %s\n", snapshot.CreatedAt.Format("2006-01-02 15:04:05"))
 		if snapshot.Note != "" {
-			fmt.Printf("   备注: %s\n", snapshot.Note)
+			output.Printf("   备注: %s\n", snapshot.Note)
 		}
-		fmt.Println()
+		output.Println()
 	}
 
 	return nil
@@ -380,7 +380,7 @@ func runSystemSnapshotRestore(cmd *cobra.Command, args []string) error {
 		return pkgerrors.ErrService("failed to restore snapshot", err)
 	}
 
-	fmt.Printf("配置快照 %s 已恢复\n", snapshotID)
+	output.Printf("配置快照 %s 已恢复\n", snapshotID)
 
 	return nil
 }
@@ -399,7 +399,7 @@ func runSystemSnapshotDelete(cmd *cobra.Command, args []string) error {
 		return pkgerrors.ErrService("failed to delete snapshot", err)
 	}
 
-	fmt.Printf("配置快照 %s 已删除\n", snapshotID)
+	output.Printf("配置快照 %s 已删除\n", snapshotID)
 
 	return nil
 }
@@ -427,21 +427,21 @@ func runSystemAuditQuery(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(records) == 0 {
-		fmt.Println("没有找到审计日志")
+		output.Println("没有找到审计日志")
 		return nil
 	}
 
-	fmt.Printf("找到 %d 条审计日志:\n\n", len(records))
+	output.Printf("找到 %d 条审计日志:\n\n", len(records))
 	for i, record := range records {
-		fmt.Printf("%d. [%s] %s.%s\n", i+1, record.Timestamp.Format("2006-01-02 15:04:05"), record.Component, record.Operation)
+		output.Printf("%d. [%s] %s.%s\n", i+1, record.Timestamp.Format("2006-01-02 15:04:05"), record.Component, record.Operation)
 		if record.Details != "" {
-			fmt.Printf("   详情: %s\n", record.Details)
+			output.Printf("   详情: %s\n", record.Details)
 		}
-		fmt.Printf("   结果: %s\n", record.Result)
+		output.Printf("   结果: %s\n", record.Result)
 		if record.Error != "" {
-			fmt.Printf("   错误: %s\n", record.Error)
+			output.Printf("   错误: %s\n", record.Error)
 		}
-		fmt.Println()
+		output.Println()
 	}
 
 	return nil
@@ -459,7 +459,7 @@ func runSystemAuditClear(cmd *cobra.Command, args []string) error {
 		return pkgerrors.ErrService("failed to clear audit log", err)
 	}
 
-	fmt.Println("审计日志已清空")
+	output.Println("审计日志已清空")
 
 	return nil
 }

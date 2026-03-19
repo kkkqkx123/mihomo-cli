@@ -73,12 +73,12 @@ func runSysproxyGet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(output.GetGlobalStdout(), "系统代理状态:\n")
+	output.Println("系统代理状态:")
 	if settings.Enabled {
 		output.Success("  状态: 已启用")
-		fmt.Fprintf(output.GetGlobalStdout(), "  代理服务器: %s\n", settings.Server)
+		output.PrintKeyValue("代理服务器", settings.Server)
 		if settings.BypassList != "" {
-			fmt.Fprintf(output.GetGlobalStdout(), "  绕过列表: %s\n", settings.BypassList)
+			output.PrintKeyValue("绕过列表", settings.BypassList)
 		}
 	} else {
 		output.Info("  状态: 已禁用")
@@ -108,9 +108,9 @@ func runSysproxySet(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		output.Success("系统代理已启用")
-		fmt.Fprintf(output.GetGlobalStdout(), "代理服务器: %s\n", proxyServer)
+		output.PrintKeyValue("代理服务器", proxyServer)
 		if bypassList != "" {
-			fmt.Fprintf(output.GetGlobalStdout(), "绕过列表: %s\n", bypassList)
+			output.PrintKeyValue("绕过列表", bypassList)
 		}
 
 	case "off":

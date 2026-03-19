@@ -127,8 +127,12 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 				// 基础健康检查成功，进行增强健康检查
 				fmt.Println("\nPerforming detailed health check...")
 				
+				// 创建新的 context 用于详细健康检查
+				healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer healthCancel()
+				
 				healthChecker := NewHealthChecker(apiClient, cfg.Mihomo.ConfigFile, 5*time.Second)
-				healthStatus, err := healthChecker.CheckHealth(ctx)
+				healthStatus, err := healthChecker.CheckHealth(healthCtx)
 				if err != nil {
 					fmt.Printf("Warning: detailed health check failed: %v\n", err)
 					fmt.Println("Process started but may have issues")

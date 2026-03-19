@@ -85,7 +85,7 @@ func runHistory(cmd *cobra.Command, args []string) error {
 // runHistoryClear 执行清除历史记录
 func runHistoryClear(cmd *cobra.Command, args []string) error {
 	// 确认
-	fmt.Print("确定要清除所有历史记录吗？(y/N): ")
+	output.PrintRaw("确定要清除所有历史记录吗？(y/N): ")
 	var confirm string
 	fmt.Scanln(&confirm)
 

@@ -1,12 +1,11 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/mihomo"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -22,15 +21,15 @@ func init() {
 }
 
 func runCleanup(cmd *cobra.Command, args []string) error {
-	fmt.Println("正在检查残留的 PID 文件...")
-	fmt.Println()
+	output.Println("正在检查残留的 PID 文件...")
+	output.Println()
 
 	err := mihomo.CleanupPIDFiles()
 	if err != nil {
 		return pkgerrors.ErrService("cleanup failed", err)
 	}
 
-	fmt.Println()
+	output.Println()
 	color.Green("✓ 清理完成")
 	return nil
 }

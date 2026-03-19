@@ -206,3 +206,111 @@ func FInfo(w io.Writer, format string, a ...interface{}) {
 	c := color.New(color.FgCyan)
 	c.Fprint(w, c.Sprintf("ℹ "+format+"\n", a...))
 }
+
+// StatusOK 返回 OK 状态的彩色字符串
+func StatusOK() string {
+	return GreenString("✓")
+}
+
+// StatusError 返回 Error 状态的彩色字符串
+func StatusError() string {
+	return RedString("✗")
+}
+
+// StatusWarning 返回 Warning 状态的彩色字符串
+func StatusWarning() string {
+	return YellowString("⚠")
+}
+
+// StatusUnknown 返回 Unknown 状态的彩色字符串
+func StatusUnknown() string {
+	return YellowString("?")
+}
+
+// StatusString 根据布尔值返回状态彩色字符串
+func StatusString(ok bool) string {
+	if ok {
+		return StatusOK()
+	}
+	return StatusError()
+}
+
+// StatusAlive 返回存活状态的彩色字符串
+func StatusAlive(alive bool) string {
+	if alive {
+		return GreenString("可用")
+	}
+	return RedString("不可用")
+}
+
+// DelayStatus 根据延迟值返回延迟状态的颜色字符串
+func DelayStatus(delay uint16) string {
+	if delay == 0 {
+		return YellowString("超时")
+	}
+	if delay < 100 {
+		return GreenString("优秀")
+	}
+	if delay < 300 {
+		return YellowString("良好")
+	}
+	return RedString("较慢")
+}
+
+// DelayColor 根据延迟值返回颜色字符串
+func DelayColor(delay uint16) string {
+	if delay == 0 {
+		return YellowString(fmt.Sprintf("%dms", delay))
+	}
+	if delay < 100 {
+		return GreenString(fmt.Sprintf("%dms", delay))
+	}
+	if delay < 300 {
+		return YellowString(fmt.Sprintf("%dms", delay))
+	}
+	return RedString(fmt.Sprintf("%dms", delay))
+}
+
+// BoolString 返回布尔值的彩色字符串
+func BoolString(b bool, trueStr, falseStr string) string {
+	if b {
+		return GreenString(trueStr)
+	}
+	return RedString(falseStr)
+}
+
+// BoolStringSimple 返回布尔值的彩色字符串（使用"启用"/"禁用"）
+func BoolStringSimple(b bool) string {
+	return BoolString(b, "启用", "禁用")
+}
+
+// Highlight 高亮文本（黄色背景）
+func Highlight(format string, a ...interface{}) string {
+	return color.HiYellowString(format, a...)
+}
+
+// HighlightWithWriter 使用指定 Writer 高亮文本
+func HighlightWithWriter(w io.Writer, format string, a ...interface{}) {
+	c := color.New(color.BgYellow, color.FgBlack)
+	c.Fprint(w, c.Sprintf(" "+format+" \n", a...))
+}
+
+// PrintHighlight 打印高亮文本
+func PrintHighlight(format string, a ...interface{}) {
+	HighlightWithWriter(GetGlobalStdout(), format, a...)
+}
+
+// Dim 返回暗淡文本
+func Dim(format string, a ...interface{}) string {
+	return color.HiBlackString(format, a...)
+}
+
+// DimWithWriter 使用指定 Writer 打印暗淡文本
+func DimWithWriter(w io.Writer, format string, a ...interface{}) {
+	fmt.Fprint(w, Dim(format+"\n", a...))
+}
+
+// PrintDim 打印暗淡文本
+func PrintDim(format string, a ...interface{}) {
+	DimWithWriter(GetGlobalStdout(), format, a...)
+}

@@ -105,8 +105,8 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 	}
 
 	if asyncMode {
-		fmt.Fprintf(output.GetGlobalStdout(), "服务 %s 已启动（异步模式）\n", sm.GetServiceName())
-		fmt.Fprintf(output.GetGlobalStdout(), "使用 'mihomo-cli service status' 查询运行状态\n")
+		output.Printf("服务 %s 已启动（异步模式）\n", sm.GetServiceName())
+		output.Println("使用 'mihomo-cli service status' 查询运行状态")
 	} else {
 		output.Success("服务 %s 已成功启动", sm.GetServiceName())
 	}
@@ -129,8 +129,8 @@ func runServiceStop(cmd *cobra.Command, args []string) error {
 	}
 
 	if asyncMode {
-		fmt.Fprintf(output.GetGlobalStdout(), "服务 %s 已停止（异步模式）\n", sm.GetServiceName())
-		fmt.Fprintf(output.GetGlobalStdout(), "使用 'mihomo-cli service status' 查询运行状态\n")
+		output.Printf("服务 %s 已停止（异步模式）\n", sm.GetServiceName())
+		output.Println("使用 'mihomo-cli service status' 查询运行状态")
 	} else {
 		output.Success("服务 %s 已成功停止", sm.GetServiceName())
 	}
@@ -153,8 +153,8 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	output.Success("服务 %s 已成功安装", sm.GetServiceName())
-	fmt.Fprintf(output.GetGlobalStdout(), "显示名称: %s\n", sm.GetDisplayName())
-	fmt.Fprintf(output.GetGlobalStdout(), "可执行文件: %s\n", sm.GetExePath())
+	output.PrintKeyValue("显示名称", sm.GetDisplayName())
+	output.PrintKeyValue("可执行文件", sm.GetExePath())
 	return nil
 }
 
@@ -192,8 +192,8 @@ func runServiceStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(output.GetGlobalStdout(), "服务名称: %s\n", sm.GetServiceName())
-	fmt.Fprintf(output.GetGlobalStdout(), "显示名称: %s\n", sm.GetDisplayName())
+	output.PrintKeyValue("服务名称", sm.GetServiceName())
+	output.PrintKeyValue("显示名称", sm.GetDisplayName())
 
 	switch status {
 	case service.StatusRunning:
@@ -203,7 +203,7 @@ func runServiceStatus(cmd *cobra.Command, args []string) error {
 	case service.StatusNotInstalled:
 		output.Warning("状态: 未安装")
 	default:
-		fmt.Fprintf(output.GetGlobalStdout(), "状态: 未知\n")
+		output.Println("状态: 未知")
 	}
 
 	return nil

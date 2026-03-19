@@ -26,9 +26,9 @@ func formatConnectionJSON(connResp *types.ConnectionsResponse) error {
 // formatConnectionTable 以表格格式输出连接列表
 func formatConnectionTable(connResp *types.ConnectionsResponse) error {
 	// 显示总流量信息
-	fmt.Fprintf(output.GetGlobalStdout(), "总连接数: %d\n", len(connResp.Connections))
-	fmt.Fprintf(output.GetGlobalStdout(), "上传速度: %s/s\n", formatBytes(connResp.UploadSpeed))
-	fmt.Fprintf(output.GetGlobalStdout(), "下载速度: %s/s\n\n", formatBytes(connResp.DownloadSpeed))
+	output.Printf("总连接数: %d\n", len(connResp.Connections))
+	output.Printf("上传速度: %s/s\n", formatBytes(connResp.UploadSpeed))
+	output.Printf("下载速度: %s/s\n\n", formatBytes(connResp.DownloadSpeed))
 
 	if len(connResp.Connections) == 0 {
 		output.Info("当前没有活跃连接")
@@ -146,7 +146,7 @@ func FormatCloseResult(id string, err error) error {
 	}
 
 	output.Success("连接已关闭")
-	fmt.Fprintf(output.GetGlobalStdout(), "  连接 ID: %s\n", id)
+	output.PrintKeyValue("连接 ID", id)
 	return nil
 }
 
@@ -157,6 +157,6 @@ func FormatCloseAllResult(count int, err error) error {
 	}
 
 	output.Success("所有连接已关闭")
-	fmt.Fprintf(output.GetGlobalStdout(), "  关闭连接数: %d\n", count)
+	output.PrintKeyValue("关闭连接数", count)
 	return nil
 }

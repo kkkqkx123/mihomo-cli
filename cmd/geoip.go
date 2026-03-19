@@ -105,23 +105,23 @@ func runGeoIPStatus(cmd *cobra.Command, args []string) error {
 
 	// 表格输出
 	if info.Exists {
-		fmt.Fprintf(output.GetGlobalStdout(), "GeoIP 数据库状态: ✓ 已安装\n\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "文件路径: %s\n", info.FilePath)
-		fmt.Fprintf(output.GetGlobalStdout(), "文件名: %s\n", info.FileName)
-		fmt.Fprintf(output.GetGlobalStdout(), "文件大小: %.2f MB\n", float64(info.FileSize)/1024/1024)
-		fmt.Fprintf(output.GetGlobalStdout(), "最后更新: %s\n", info.ModTime.Format("2006-01-02 15:04:05"))
-		fmt.Fprintf(output.GetGlobalStdout(), "存储目录: %s\n", info.Directory)
+		output.Printf("GeoIP 数据库状态: %s 已安装\n\n", output.StatusOK())
+		output.PrintKeyValue("文件路径", info.FilePath)
+		output.PrintKeyValue("文件名", info.FileName)
+		output.Printf("文件大小: %.2f MB\n", float64(info.FileSize)/1024/1024)
+		output.PrintKeyValue("最后更新", info.ModTime.Format("2006-01-02 15:04:05"))
+		output.PrintKeyValue("存储目录", info.Directory)
 	} else {
-		fmt.Fprintf(output.GetGlobalStdout(), "GeoIP 数据库状态: ✗ 未安装\n\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "预期存储目录: %s\n", info.Directory)
-		fmt.Fprintf(output.GetGlobalStdout(), "\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "支持的文件名（按优先级）:\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  - Country.mmdb\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  - geoip.db\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  - geoip.metadb\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  - GeoIP.dat\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "提示: 使用 'mihomo-cli geoip update' 命令下载 GeoIP 数据库\n")
+		output.Printf("GeoIP 数据库状态: %s 未安装\n\n", output.StatusError())
+		output.PrintKeyValue("预期存储目录", info.Directory)
+		output.PrintEmptyLine()
+		output.Println("支持的文件名（按优先级）:")
+		output.Println("  - Country.mmdb")
+		output.Println("  - geoip.db")
+		output.Println("  - geoip.metadb")
+		output.Println("  - GeoIP.dat")
+		output.PrintEmptyLine()
+		output.Println("提示: 使用 'mihomo-cli geoip update' 命令下载 GeoIP 数据库")
 	}
 
 	return nil

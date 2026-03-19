@@ -71,8 +71,8 @@ func runConfigInit(force bool) error {
 	}
 
 	output.Success("配置文件创建成功: %s", configPath)
-	fmt.Fprintf(output.GetGlobalStdout(), "API 地址: %s\n", cfg.API.Address)
-	fmt.Fprintf(output.GetGlobalStdout(), "超时时间: %d 秒\n", cfg.API.Timeout)
+	output.PrintKeyValue("API 地址", cfg.API.Address)
+	output.PrintKeyValue("超时时间", fmt.Sprintf("%d 秒", cfg.API.Timeout))
 
 	return nil
 }
@@ -106,15 +106,15 @@ func runConfigShow() error {
 		return pkgerrors.ErrConfig("failed to load config", err)
 	}
 
-	fmt.Fprintf(output.GetGlobalStdout(), "%s\n", output.CyanString("当前配置："))
-	fmt.Fprintf(output.GetGlobalStdout(), "  API 地址: %s\n", cfg.API.Address)
-	fmt.Fprintf(output.GetGlobalStdout(), "  超时时间: %d 秒\n", cfg.API.Timeout)
+	output.Println(output.CyanString("当前配置："))
+	output.PrintKeyValue("API 地址", cfg.API.Address)
+	output.PrintKeyValue("超时时间", fmt.Sprintf("%d 秒", cfg.API.Timeout))
 
 	// Secret 脱敏显示
 	if cfg.API.Secret != "" {
-		fmt.Fprintf(output.GetGlobalStdout(), "  API 密钥: ****\n")
+		output.PrintKeyValue("API 密钥", "****")
 	} else {
-		fmt.Fprintf(output.GetGlobalStdout(), "  API 密钥: (未设置)\n")
+		output.PrintKeyValue("API 密钥", "(未设置)")
 	}
 
 	return nil

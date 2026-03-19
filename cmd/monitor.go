@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,6 +13,7 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
 	"github.com/kkkqkx123/mihomo-cli/internal/monitor"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 )
 
 var (
@@ -104,7 +104,7 @@ func runTrafficWatch(ctx context.Context, client *api.Client, formatter *monitor
 	dataChan, err := streamClient.StreamTraffic(ctx)
 	if err != nil {
 		// WebSocket 失败，使用 HTTP 轮询
-		fmt.Printf("WebSocket 连接失败，使用 HTTP 轮询模式 (间隔: %d秒)\n", watchInterval)
+		output.Printf("WebSocket 连接失败，使用 HTTP 轮询模式 (间隔: %d秒)\n", watchInterval)
 		dataChan = monitor.WatchTraffic(ctx, client.GetTraffic, time.Duration(watchInterval)*time.Second)
 	} else {
 		defer streamClient.Close()
@@ -118,11 +118,11 @@ func runTrafficWatch(ctx context.Context, client *api.Client, formatter *monitor
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("\n监控已停止")
+			output.Println("\n监控已停止")
 			return nil
 		case data, ok := <-dataChan:
 			if !ok {
-				fmt.Println("\n数据流已关闭")
+				output.Println("\n数据流已关闭")
 				return nil
 			}
 
@@ -210,7 +210,7 @@ func runMemoryWatch(ctx context.Context, client *api.Client, formatter *monitor.
 	dataChan, err := streamClient.StreamMemory(ctx)
 	if err != nil {
 		// WebSocket 失败，使用 HTTP 轮询
-		fmt.Printf("WebSocket 连接失败，使用 HTTP 轮询模式 (间隔: %d秒)\n", watchInterval)
+		output.Printf("WebSocket 连接失败，使用 HTTP 轮询模式 (间隔: %d秒)\n", watchInterval)
 		dataChan = monitor.WatchMemory(ctx, client.GetMemory, time.Duration(watchInterval)*time.Second)
 	} else {
 		defer streamClient.Close()
@@ -220,11 +220,11 @@ func runMemoryWatch(ctx context.Context, client *api.Client, formatter *monitor.
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("\n监控已停止")
+			output.Println("\n监控已停止")
 			return nil
 		case data, ok := <-dataChan:
 			if !ok {
-				fmt.Println("\n数据流已关闭")
+				output.Println("\n数据流已关闭")
 				return nil
 			}
 

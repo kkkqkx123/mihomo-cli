@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/proxy"
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 )
@@ -238,7 +237,7 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 
 		// 完成进度条
 		if showProgress && nodeCount > 0 {
-			fmt.Println()
+			output.Println()
 		}
 	}
 
@@ -336,7 +335,7 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 
 	// 完成进度条
 	if showProgress && nodeCount > 0 {
-		fmt.Println()
+		output.Println()
 	}
 
 	// 格式化输出结果

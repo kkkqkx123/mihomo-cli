@@ -60,12 +60,12 @@ func runModeGet(cmd *cobra.Command, args []string) error {
 	}
 
 	// 表格输出
-	fmt.Fprintf(output.GetGlobalStdout(), "当前模式: %s\n", modeInfo.Mode)
-	fmt.Fprintf(output.GetGlobalStdout(), "\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "可用模式:\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "  - rule    规则模式：根据规则文件决定流量走向\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "  - global  全局模式：所有流量通过代理\n")
-	fmt.Fprintf(output.GetGlobalStdout(), "  - direct  直连模式：所有流量不经过代理\n")
+	output.Printf("当前模式: %s\n", modeInfo.Mode)
+	output.PrintEmptyLine()
+	output.Println("可用模式:")
+	output.Println("  - rule    规则模式：根据规则文件决定流量走向")
+	output.Println("  - global  全局模式：所有流量通过代理")
+	output.Println("  - direct  直连模式：所有流量不经过代理")
 
 	return nil
 }

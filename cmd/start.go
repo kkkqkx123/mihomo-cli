@@ -99,49 +99,52 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 
 		// 启动成功
-		fmt.Fprintf(output.GetGlobalStdout(), "=====================================\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  Mihomo 内核已启动\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "=====================================\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "API 地址: http://%s\n", result.APIAddress)
-		fmt.Fprintf(output.GetGlobalStdout(), "密钥: %s\n", result.Secret)
-		fmt.Fprintf(output.GetGlobalStdout(), "\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "使用以下命令管理：\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  mihomo-cli status  - 查询运行状态\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  mihomo-cli stop    - 停止内核\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "=====================================\n")
+		output.Println("=====================================")
+		output.Println("  Mihomo 内核已启动")
+		output.Println("=====================================")
+		output.PrintKeyValue("API 地址", fmt.Sprintf("http://%s", result.APIAddress))
+		output.PrintKeyValue("密钥", result.Secret)
+		output.PrintEmptyLine()
+		output.Println("使用以下命令管理：")
+		output.Println("  mihomo-cli status  - 查询运行状态")
+		output.Println("  mihomo-cli stop    - 停止内核")
+		output.Println("=====================================")
 
 		return nil
 
 	case sig := <-sigChan:
 		// 收到中断信号
-		fmt.Fprintf(output.GetGlobalStdout(), "\nReceived signal %v, stopping Mihomo kernel...\n", sig)
+		output.PrintEmptyLine()
+		output.Printf("Received signal %v, stopping Mihomo kernel...\n", sig)
 
 		// 通过 PID 文件停止进程
 		pm := mihomo.NewProcessManager(cfg)
 		pid, err := pm.GetPIDFromPIDFile()
 		if err != nil {
-			fmt.Fprintf(output.GetGlobalStderr(), "Failed to get PID: %v\n", err)
-			fmt.Fprintf(output.GetGlobalStdout(), "Kernel may have already stopped or PID file is missing\n")
+			output.PrintError(fmt.Sprintf("Failed to get PID: %v", err))
+			output.Println("Kernel may have already stopped or PID file is missing")
 			return nil
 		}
 
-		fmt.Fprintf(output.GetGlobalStdout(), "Stopping Mihomo kernel (PID: %d)...\n", pid)
-		
+		output.Printf("Stopping Mihomo kernel (PID: %d)...\n", pid)
+
 		if err := mihomo.StopProcessByPID(pid); err != nil {
-			fmt.Fprintf(output.GetGlobalStderr(), "Failed to stop kernel: %v\n", err)
-			fmt.Fprintf(output.GetGlobalStdout(), "\nRecovery suggestions:\n")
-			fmt.Fprintf(output.GetGlobalStdout(), "  1. Check if the process is still running: mihomo-cli status\n")
-			fmt.Fprintf(output.GetGlobalStdout(), "  2. If process is running, try stopping again: mihomo-cli stop\n")
-			fmt.Fprintf(output.GetGlobalStdout(), "  3. If process is unresponsive, force kill: mihomo-cli stop --force\n")
-			fmt.Fprintf(output.GetGlobalStdout(), "  4. If system configuration is not cleaned up, restart the system\n")
+			output.PrintError(fmt.Sprintf("Failed to stop kernel: %v", err))
+			output.PrintEmptyLine()
+			output.Println("Recovery suggestions:")
+			output.Println("  1. Check if the process is still running: mihomo-cli status")
+			output.Println("  2. If process is running, try stopping again: mihomo-cli stop")
+			output.Println("  3. If process is unresponsive, force kill: mihomo-cli stop --force")
+			output.Println("  4. If system configuration is not cleaned up, restart the system")
 			return err
 		}
 
-		fmt.Fprintf(output.GetGlobalStdout(), "\nKernel stopped successfully\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "System configuration should be cleaned up\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "If you experience network issues, try:\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  1. Restarting Mihomo: mihomo-cli start\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "  2. Or restart the system\n")
+		output.PrintEmptyLine()
+		output.Println("Kernel stopped successfully")
+		output.Println("System configuration should be cleaned up")
+		output.Println("If you experience network issues, try:")
+		output.Println("  1. Restarting Mihomo: mihomo-cli start")
+		output.Println("  2. Or restart the system")
 		return nil
 	}
 }
@@ -166,7 +169,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	}
 
 	if result != nil {
-		fmt.Fprintf(output.GetGlobalStdout(), "Mihomo 内核已停止 (PID: %d)\n", result.PID)
+		output.Printf("Mihomo 内核已停止 (PID: %d)\n", result.PID)
 	}
 
 	return nil
@@ -192,11 +195,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if result.IsRunning {
-		fmt.Fprintf(output.GetGlobalStdout(), "状态: 运行中\n")
-		fmt.Fprintf(output.GetGlobalStdout(), "PID: %d\n", result.PID)
-		fmt.Fprintf(output.GetGlobalStdout(), "API 地址: http://%s\n", result.APIAddress)
+		output.Println("状态: 运行中")
+		output.PrintKeyValue("PID", result.PID)
+		output.PrintKeyValue("API 地址", fmt.Sprintf("http://%s", result.APIAddress))
 	} else {
-		fmt.Fprintf(output.GetGlobalStdout(), "状态: 未运行\n")
+		output.Println("状态: 未运行")
 	}
 
 	return nil

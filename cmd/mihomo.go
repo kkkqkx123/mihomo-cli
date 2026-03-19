@@ -14,6 +14,7 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -110,7 +111,7 @@ func runMihomoPatch(ctx context.Context, args []string, configFile string) error
 
 	color.Green("✓ 配置已热更新")
 	for k, v := range patchData {
-		fmt.Printf("  %s = %v\n", k, v)
+		output.Printf("  %s = %v\n", k, v)
 	}
 
 	return nil
@@ -183,7 +184,7 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 
 	// 在重载前备份当前配置
 	if actualConfigPath != "" {
-		fmt.Println("Creating backup before reload...")
+		output.Println("Creating backup before reload...")
 		backupHandler := config.NewBackupHandler(actualConfigPath)
 		backupInfo, err := backupHandler.CreateBackup("", "pre-reload")
 		if err != nil {
@@ -208,10 +209,10 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 
 	color.Green("✓ 配置已重载")
 	if configPath != "" {
-		fmt.Printf("  配置文件: %s\n", configPath)
+		output.Printf("  配置文件: %s\n", configPath)
 	}
 	if force {
-		fmt.Println("  模式: 强制重载")
+		output.Println("  模式: 强制重载")
 	}
 
 	return nil
@@ -281,10 +282,10 @@ func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, 
 	}
 
 	color.Green("✓ 配置文件已更新")
-	fmt.Printf("  配置文件: %s\n", configPath)
-	fmt.Printf("  %s = %v\n", key, value)
+	output.Printf("  配置文件: %s\n", configPath)
+	output.Printf("  %s = %v\n", key, value)
 	if backupPath != "" {
-		fmt.Printf("  备份文件: %s\n", backupPath)
+		output.Printf("  备份文件: %s\n", backupPath)
 	}
 
 	// 如果需要重载
