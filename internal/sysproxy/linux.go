@@ -81,13 +81,26 @@ func (sp *linuxSysProxy) Enable(server, bypassList string) error {
 
 	// 尝试写入 systemd environment.d 目录
 	if err := writeProxyConfig(ProxyEnvFile, content); err == nil {
+		// 警告：环境变量不会立即生效到当前终端会话
+		fmt.Println("Warning: Proxy settings have been saved to configuration file.")
+		fmt.Println("Note: The current terminal session will not reflect these changes immediately.")
+		fmt.Println("To apply the proxy settings to your current session, run:")
+		fmt.Println("  source /etc/environment.d/proxy.conf")
+		fmt.Println("Or start a new terminal session.")
 		return nil
 	}
 
-	// 回退到 /etc/environment
-	if err := writeProxyConfig(ProxyEnvFileFallback, content); err != nil {
+	// 回退到 /etc/environment（安全地添加配置，不会覆盖原有内容）
+	if err := addToEtcEnvironment(content); err != nil {
 		return pkgerrors.ErrService("failed to write proxy config", err)
 	}
+
+	// 警告：环境变量不会立即生效到当前终端会话
+	fmt.Println("Warning: Proxy settings have been saved to /etc/environment.")
+	fmt.Println("Note: The current terminal session will not reflect these changes immediately.")
+	fmt.Println("To apply the proxy settings to your current session, run:")
+	fmt.Println("  source /etc/environment")
+	fmt.Println("Or start a new terminal session.")
 
 	return nil
 }
@@ -168,6 +181,54 @@ func removeFromEtcEnvironment() error {
 
 	// 写回文件
 	newContent := strings.Join(newLines, "\n")
+	return os.WriteFile(ProxyEnvFileFallback, []byte(newContent), 0644)
+}
+
+// addToEtcEnvironment 安全地向 /etc/environment 添加代理配置
+// 该函数会读取现有内容，移除旧的代理变量，然后追加新的代理配置
+func addToEtcEnvironment(content string) error {
+	data, err := os.ReadFile(ProxyEnvFileFallback)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var newLines []string
+	proxyKeys := map[string]bool{
+		"HTTP_PROXY":  true,
+		"HTTPS_PROXY": true,
+		"http_proxy":  true,
+		"https_proxy": true,
+		"NO_PROXY":    true,
+		"no_proxy":    true,
+	}
+
+	for _, line := range lines {
+		// 移除旧的代理相关行
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) >= 1 {
+			key := strings.TrimSpace(parts[0])
+			if proxyKeys[key] {
+				continue
+			}
+		}
+		newLines = append(newLines, line)
+	}
+
+	// 追加新的代理配置
+	proxyLines := strings.Split(strings.TrimSpace(content), "\n")
+	for _, line := range proxyLines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			newLines = append(newLines, line)
+		}
+	}
+
+	// 写回文件
+	newContent := strings.Join(newLines, "\n")
+	if string(data) != "" && !strings.HasSuffix(string(data), "\n") {
+		newContent = strings.Join(newLines, "\n")
+	}
 	return os.WriteFile(ProxyEnvFileFallback, []byte(newContent), 0644)
 }
 

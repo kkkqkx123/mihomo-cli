@@ -4,10 +4,23 @@ package sysproxy
 
 import (
 	"fmt"
+	"syscall"
 
 	"golang.org/x/sys/windows/registry"
 
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
+)
+
+const (
+	// InternetSetOption 常量
+	INTERNET_OPTION_SETTINGS_CHANGED = 39
+	INTERNET_OPTION_REFRESH          = 37
+)
+
+var (
+	// wininet.dll 动态库和函数
+	wininet              = syscall.NewLazyDLL("wininet.dll")
+	procInternetSetOption = wininet.NewProc("InternetSetOptionW")
 )
 
 const (
@@ -28,6 +41,37 @@ type windowsSysProxy struct{}
 // newWindowsSysProxy 创建新的 Windows 系统代理管理器
 func newWindowsSysProxy() SysProxy {
 	return &windowsSysProxy{}
+}
+
+// refreshProxy 通知系统刷新代理设置
+// 该函数主要用于通知长期运行的旧版应用或特定系统组件刷新代理设置
+// 对于现代应用（如 Chrome、终端），注册表修改通常会立即生效
+func refreshProxy() error {
+	// 通知设置已更改
+	ret, _, _ := procInternetSetOption.Call(
+		0,
+		uintptr(INTERNET_OPTION_SETTINGS_CHANGED),
+		0,
+		0,
+	)
+	if ret == 0 {
+		// 即使失败也不返回错误，因为这不影响主要功能
+		// 这是兼容性增强功能，不是必需的
+		return nil
+	}
+
+	// 刷新设置
+	ret, _, _ = procInternetSetOption.Call(
+		0,
+		uintptr(INTERNET_OPTION_REFRESH),
+		0,
+		0,
+	)
+	if ret == 0 {
+		return nil
+	}
+
+	return nil
 }
 
 // WindowsRegistry Windows 注册表操作
@@ -150,6 +194,9 @@ func (sp *windowsSysProxy) Enable(server, bypassList string) error {
 		)
 	}
 
+	// 通知系统刷新代理设置（兼容性增强，用于通知旧版应用）
+	_ = refreshProxy()
+
 	return nil
 }
 
@@ -170,6 +217,9 @@ func (sp *windowsSysProxy) Disable() error {
 		return pkgerrors.ErrService(
 			fmt.Sprintf("failed to disable system proxy: %v\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer"), err)
 	}
+
+	// 通知系统刷新代理设置（兼容性增强，用于通知旧版应用）
+	_ = refreshProxy()
 
 	return nil
 }
