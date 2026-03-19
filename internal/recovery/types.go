@@ -11,9 +11,8 @@ type RecoveryConfig struct {
 	Enabled             bool          `json:"enabled"`
 	AutoRecover         bool          `json:"auto_recover"`
 	BackupBeforeRecover bool          `json:"backup_before_recover"`
-	MaxRetryCount       int           `json:"max_retry_count"`
-	RetryInterval       time.Duration `json:"retry_interval"`
-	Components          []string      `json:"components"` // 要检查的组件
+	Timeout             time.Duration `json:"timeout"` // 单次执行超时时间
+	Components          []string      `json:"components"`
 }
 
 // DefaultRecoveryConfig 默认恢复配置
@@ -22,8 +21,7 @@ func DefaultRecoveryConfig() *RecoveryConfig {
 		Enabled:             true,
 		AutoRecover:         true,
 		BackupBeforeRecover: true,
-		MaxRetryCount:       3,
-		RetryInterval:       5 * time.Second,
+		Timeout:             30 * time.Second,
 		Components:          []string{"sysproxy", "tun", "route"},
 	}
 }
@@ -61,18 +59,16 @@ type RecoveryActionRecord struct {
 
 // RecoveryReport 恢复报告
 type RecoveryReport struct {
-	Timestamp    time.Time              `json:"timestamp"`
-	Problems     []*system.Problem      `json:"problems"`
-	Actions      []RecoveryActionRecord `json:"actions"`
-	Success      bool                   `json:"success"`
-	ErrorMessage string                 `json:"error_message,omitempty"`
-	Duration     time.Duration          `json:"duration"`
+	Timestamp       time.Time              `json:"timestamp"`
+	Problems        []*system.Problem      `json:"problems"`
+	Actions         []RecoveryActionRecord `json:"actions"`
+	SkippedProblems []*system.Problem      `json:"skipped_problems,omitempty"` // 跳过的问题（需要确认但未强制执行）
+	Success         bool                   `json:"success"`
+	ErrorMessage    string                 `json:"error_message,omitempty"`
+	Duration        time.Duration          `json:"duration"`
 }
 
 // RecoveryStatus 恢复状态
 type RecoveryStatus struct {
-	LastCheckTime time.Time       `json:"last_check_time"`
-	ProblemsFound int             `json:"problems_found"`
-	LastRecovery  *RecoveryReport `json:"last_recovery,omitempty"`
-	Enabled       bool            `json:"enabled"`
+	Enabled bool `json:"enabled"`
 }

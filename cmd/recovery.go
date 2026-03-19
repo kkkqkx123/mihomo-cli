@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -17,7 +16,8 @@ import (
 var (
 	recoveryAuto      bool
 	recoveryComponent string
-	recoveryInterval  int
+	recoveryForce     bool
+	recoveryProblem   string
 )
 
 var recoveryCmd = &cobra.Command{
@@ -36,8 +36,17 @@ var recoveryDetectCmd = &cobra.Command{
 var recoveryExecuteCmd = &cobra.Command{
 	Use:   "execute",
 	Short: "执行恢复",
-	Long:  "执行系统配置恢复。",
-	RunE:  runRecoveryExecute,
+	Long: `执行系统配置恢复。
+
+高风险操作（如进程重启、配置回滚）默认跳过，需要使用 -F/--force 参数强制执行。
+
+可使用 -p/--problem 指定要修复的问题类型，支持以下类型：
+  - config-residual     : 配置残留
+  - process-abnormal    : 进程异常
+  - config-inconsistent : 配置不一致
+  - port-conflict       : 端口冲突
+  - permission-denied   : 权限不足`,
+	RunE: runRecoveryExecute,
 }
 
 var recoveryStatusCmd = &cobra.Command{
@@ -47,20 +56,6 @@ var recoveryStatusCmd = &cobra.Command{
 	RunE:  runRecoveryStatus,
 }
 
-var recoveryEnableCmd = &cobra.Command{
-	Use:   "enable",
-	Short: "启用自动恢复",
-	Long:  "启用自动恢复功能。",
-	RunE:  runRecoveryEnable,
-}
-
-var recoveryDisableCmd = &cobra.Command{
-	Use:   "disable",
-	Short: "禁用自动恢复",
-	Long:  "禁用自动恢复功能。",
-	RunE:  runRecoveryDisable,
-}
-
 func init() {
 	rootCmd.AddCommand(recoveryCmd)
 
@@ -68,15 +63,12 @@ func init() {
 	recoveryCmd.AddCommand(recoveryDetectCmd)
 	recoveryCmd.AddCommand(recoveryExecuteCmd)
 	recoveryCmd.AddCommand(recoveryStatusCmd)
-	recoveryCmd.AddCommand(recoveryEnableCmd)
-	recoveryCmd.AddCommand(recoveryDisableCmd)
 
 	// execute 命令标志
 	recoveryExecuteCmd.Flags().BoolVarP(&recoveryAuto, "auto", "a", false, "仅自动恢复可自动处理的问题")
 	recoveryExecuteCmd.Flags().StringVarP(&recoveryComponent, "component", "c", "", "指定组件 (sysproxy, tun, route)")
-
-	// enable 命令标志
-	recoveryEnableCmd.Flags().IntVarP(&recoveryInterval, "interval", "i", 300, "检查间隔（秒）")
+	recoveryExecuteCmd.Flags().BoolVarP(&recoveryForce, "force", "F", false, "强制执行高风险操作（跳过确认）")
+	recoveryExecuteCmd.Flags().StringVarP(&recoveryProblem, "problem", "p", "", "指定要修复的问题类型")
 }
 
 func createRecoveryManager() (*recovery.RecoveryManager, error) {
@@ -148,16 +140,19 @@ func runRecoveryExecute(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := context.Background()
+	// 使用配置中的超时时间
+	config := mgr.GetConfig()
+	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+	defer cancel()
 
 	var report *recovery.RecoveryReport
 
 	if recoveryAuto {
-		// 自动恢复
+		// 自动恢复（不强制执行高风险操作）
 		report, err = mgr.AutoRecover(ctx)
 	} else {
 		// 手动恢复
-		report, err = mgr.CheckAndRecover(ctx)
+		report, err = mgr.CheckAndRecoverWithFilter(ctx, recoveryForce, recoveryProblem)
 	}
 
 	if err != nil {
@@ -169,6 +164,7 @@ func runRecoveryExecute(cmd *cobra.Command, args []string) error {
 	output.PrintKeyValue("时间", report.Timestamp.Format("2006-01-02 15:04:05"))
 	output.PrintKeyValue("问题数量", len(report.Problems))
 	output.PrintKeyValue("执行动作", len(report.Actions))
+	output.PrintKeyValue("跳过问题", len(report.SkippedProblems))
 	fmt.Fprint(output.GetGlobalStdout(), "  结果: ")
 	if report.Success {
 		output.Println("成功")
@@ -179,6 +175,16 @@ func runRecoveryExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 	output.PrintKeyValue("耗时", report.Duration)
+
+	// 显示跳过的问题
+	if len(report.SkippedProblems) > 0 {
+		output.PrintEmptyLine()
+		output.Warning("以下问题需要确认，已跳过（使用 -F/--force 强制执行）:")
+		for i, problem := range report.SkippedProblems {
+			output.Printf("%d. [%s] %s\n", i+1, problem.Severity, problem.Description)
+			output.Printf("   类型: %s\n", problem.Type)
+		}
+	}
 
 	if len(report.Actions) > 0 {
 		output.PrintEmptyLine()
@@ -207,81 +213,15 @@ func runRecoveryStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// 获取状态
-	status := mgr.GetStatus()
-
-	output.Println("自动恢复状态:")
-	output.PrintKeyValue("启用", status.Enabled)
-	if !status.LastCheckTime.IsZero() {
-		output.PrintKeyValue("上次检查", status.LastCheckTime.Format("2006-01-02 15:04:05"))
-	}
-	if status.LastRecovery != nil {
-		output.PrintEmptyLine()
-		output.Println("上次恢复:")
-		output.PrintKeyValue("时间", status.LastRecovery.Timestamp.Format("2006-01-02 15:04:05"))
-		output.PrintKeyValue("问题数量", len(status.LastRecovery.Problems))
-		fmt.Fprint(output.GetGlobalStdout(), "  结果: ")
-		if status.LastRecovery.Success {
-			output.Println("成功")
-		} else {
-			output.Println("失败")
-		}
-		output.PrintKeyValue("耗时", status.LastRecovery.Duration)
-	}
-
 	// 显示配置
 	config := mgr.GetConfig()
-	output.PrintEmptyLine()
+
 	output.Println("恢复配置:")
+	output.PrintKeyValue("启用", config.Enabled)
 	output.PrintKeyValue("自动恢复", config.AutoRecover)
 	output.PrintKeyValue("备份后恢复", config.BackupBeforeRecover)
-	output.PrintKeyValue("最大重试次数", config.MaxRetryCount)
-	output.PrintKeyValue("重试间隔", config.RetryInterval)
+	output.PrintKeyValue("超时时间", config.Timeout)
 	output.PrintKeyValue("检查组件", config.Components)
-
-	return nil
-}
-
-func runRecoveryEnable(cmd *cobra.Command, args []string) error {
-	// 创建恢复管理器
-	mgr, err := createRecoveryManager()
-	if err != nil {
-		return err
-	}
-
-	// 更新配置
-	config := mgr.GetConfig()
-	config.Enabled = true
-	config.AutoRecover = true
-	mgr.SetConfig(config)
-
-	// 启动定期检查
-	ctx := context.Background()
-	interval := time.Duration(recoveryInterval) * time.Second
-	if err := mgr.StartPeriodicCheck(ctx, interval); err != nil {
-		return pkgerrors.ErrService("failed to start periodic check", err)
-	}
-
-	output.Success("自动恢复已启用")
-	output.PrintKeyValue("检查间隔", interval)
-
-	return nil
-}
-
-func runRecoveryDisable(cmd *cobra.Command, args []string) error {
-	// 创建恢复管理器
-	mgr, err := createRecoveryManager()
-	if err != nil {
-		return err
-	}
-
-	// 更新配置
-	config := mgr.GetConfig()
-	config.Enabled = false
-	config.AutoRecover = false
-	mgr.SetConfig(config)
-
-	output.Success("自动恢复已禁用")
 
 	return nil
 }

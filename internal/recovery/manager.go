@@ -3,23 +3,19 @@ package recovery
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/system"
 )
 
-// RecoveryManager 恢复管理器
+// RecoveryManager 恢复管理器（无状态设计）
 type RecoveryManager struct {
-	detector  *ProblemDetector
-	executor  *RecoveryExecutor
-	strategy  *RecoveryStrategy
-	manager   *system.SystemConfigManager
-	config    *RecoveryConfig
-	mu        sync.RWMutex
-	lastCheck time.Time
-	lastReport *RecoveryReport
+	detector *ProblemDetector
+	executor *RecoveryExecutor
+	strategy *RecoveryStrategy
+	manager  *system.SystemConfigManager
+	config   *RecoveryConfig
 }
 
 // NewRecoveryManager 创建恢复管理器
@@ -57,15 +53,12 @@ func NewRecoveryManager(manager *system.SystemConfigManager, config *RecoveryCon
 
 // Detect 检测问题
 func (rm *RecoveryManager) Detect() ([]*system.Problem, error) {
-	rm.mu.Lock()
-	rm.lastCheck = time.Now()
-	rm.mu.Unlock()
-
 	return rm.detector.CheckAll()
 }
 
-// Recover 执行恢复
-func (rm *RecoveryManager) Recover(ctx context.Context, problems []*system.Problem) (*RecoveryReport, error) {
+// Recover 执行恢复（无状态，每次独立执行）
+// force 为 true 时跳过需要确认的问题检查
+func (rm *RecoveryManager) Recover(ctx context.Context, problems []*system.Problem, force bool) (*RecoveryReport, error) {
 	startTime := time.Now()
 
 	report := &RecoveryReport{
@@ -82,23 +75,29 @@ func (rm *RecoveryManager) Recover(ctx context.Context, problems []*system.Probl
 		}
 	}
 
-	// 处理每个问题
+	// 处理每个问题（非阻塞，单次执行）
 	var errors []error
+	var skippedProblems []*system.Problem
+
 	for _, problem := range problems {
 		// 检查是否需要确认
-		if rm.strategy.RequireConfirm(problem) {
-			// TODO: 实现用户确认
-			// 这里暂时跳过需要确认的问题
+		if rm.strategy.RequireConfirm(problem) && !force {
+			// 记录跳过的问题
+			skippedProblems = append(skippedProblems, problem)
 			continue
 		}
 
 		// 获取恢复动作
 		action := rm.strategy.GetAction(problem)
-		maxRetry := rm.strategy.GetMaxRetry(problem)
 
-		// 执行恢复
+		// 高风险操作警告
+		if rm.strategy.RequireConfirm(problem) && force {
+			output.Warningf("Executing high-risk action: %s for problem: %s", action, problem.Type)
+		}
+
+		// 单次执行，使用 context 超时控制
 		actionStart := time.Now()
-		err := rm.executor.ExecuteWithRetry(ctx, problem, maxRetry, rm.config.RetryInterval)
+		err := rm.executor.Execute(ctx, problem)
 		actionDuration := time.Since(actionStart)
 
 		// 记录动作
@@ -117,6 +116,9 @@ func (rm *RecoveryManager) Recover(ctx context.Context, problems []*system.Probl
 		report.Actions = append(report.Actions, actionRecord)
 	}
 
+	// 记录跳过的问题
+	report.SkippedProblems = skippedProblems
+
 	// 设置报告结果
 	report.Duration = time.Since(startTime)
 	report.Success = len(errors) == 0
@@ -124,11 +126,7 @@ func (rm *RecoveryManager) Recover(ctx context.Context, problems []*system.Probl
 		report.ErrorMessage = fmt.Sprintf("%d errors occurred: %v", len(errors), errors)
 	}
 
-	// 保存报告
-	rm.mu.Lock()
-	rm.lastReport = report
-	rm.mu.Unlock()
-
+	// 不保存状态，直接返回
 	return report, nil
 }
 
@@ -168,40 +166,12 @@ func (rm *RecoveryManager) AutoRecover(ctx context.Context) (*RecoveryReport, er
 		}, nil
 	}
 
-	// 执行恢复
-	return rm.Recover(ctx, autoProblems)
-}
-
-// GetRecoveryReport 获取恢复报告
-func (rm *RecoveryManager) GetRecoveryReport() *RecoveryReport {
-	rm.mu.RLock()
-	defer rm.mu.RUnlock()
-	return rm.lastReport
-}
-
-// GetStatus 获取恢复状态
-func (rm *RecoveryManager) GetStatus() *RecoveryStatus {
-	rm.mu.RLock()
-	defer rm.mu.RUnlock()
-
-	return &RecoveryStatus{
-		LastCheckTime: rm.lastCheck,
-		LastRecovery:  rm.lastReport,
-		Enabled:       rm.config.Enabled,
-	}
-}
-
-// SetConfig 设置配置
-func (rm *RecoveryManager) SetConfig(config *RecoveryConfig) {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-	rm.config = config
+	// 执行恢复（自动恢复不强制执行高风险操作）
+	return rm.Recover(ctx, autoProblems, false)
 }
 
 // GetConfig 获取配置
 func (rm *RecoveryManager) GetConfig() *RecoveryConfig {
-	rm.mu.RLock()
-	defer rm.mu.RUnlock()
 	return rm.config
 }
 
@@ -220,35 +190,9 @@ func (rm *RecoveryManager) AddRule(rule RecoveryRule) {
 	rm.strategy.AddRule(rule)
 }
 
-// StartPeriodicCheck 启动定期检查
-func (rm *RecoveryManager) StartPeriodicCheck(ctx context.Context, interval time.Duration) error {
-	if interval <= 0 {
-		interval = 5 * time.Minute
-	}
-
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				// 执行自动恢复
-				_, err := rm.AutoRecover(ctx)
-				if err != nil {
-					output.Error("Auto recovery failed: " + err.Error())
-				}
-			}
-		}
-	}()
-
-	return nil
-}
-
 // CheckAndRecover 检查并恢复（手动触发）
-func (rm *RecoveryManager) CheckAndRecover(ctx context.Context) (*RecoveryReport, error) {
+// force 为 true 时强制执行高风险操作
+func (rm *RecoveryManager) CheckAndRecover(ctx context.Context, force bool) (*RecoveryReport, error) {
 	// 检测问题
 	problems, err := rm.Detect()
 	if err != nil {
@@ -264,5 +208,48 @@ func (rm *RecoveryManager) CheckAndRecover(ctx context.Context) (*RecoveryReport
 	}
 
 	// 执行恢复
-	return rm.Recover(ctx, problems)
+	return rm.Recover(ctx, problems, force)
+}
+
+// CheckAndRecoverWithFilter 检查并恢复（手动触发，支持过滤问题类型）
+// force 为 true 时强制执行高风险操作
+// problemType 为空时处理所有问题，否则只处理指定类型的问题
+func (rm *RecoveryManager) CheckAndRecoverWithFilter(ctx context.Context, force bool, problemType string) (*RecoveryReport, error) {
+	// 检测问题
+	problems, err := rm.Detect()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect problems: %w", err)
+	}
+
+	if len(problems) == 0 {
+		return &RecoveryReport{
+			Timestamp: time.Now(),
+			Problems:  problems,
+			Success:   true,
+		}, nil
+	}
+
+	// 过滤问题类型
+	var filteredProblems []*system.Problem
+	if problemType != "" {
+		targetType := system.ProblemType(problemType)
+		for _, problem := range problems {
+			if problem.Type == targetType {
+				filteredProblems = append(filteredProblems, problem)
+			}
+		}
+		if len(filteredProblems) == 0 {
+			return &RecoveryReport{
+				Timestamp:       time.Now(),
+				Problems:        problems,
+				SkippedProblems: problems,
+				Success:         true,
+			}, nil
+		}
+	} else {
+		filteredProblems = problems
+	}
+
+	// 执行恢复
+	return rm.Recover(ctx, filteredProblems, force)
 }

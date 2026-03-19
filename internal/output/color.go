@@ -83,6 +83,11 @@ func Warning(format string, a ...interface{}) {
 	fmt.Fprintf(GetGlobalStdout(), "%s\n", globalColor.warning.Sprintf("⚠ "+format, a...))
 }
 
+// Warningf 打印警告信息（别名，与 Warning 相同）
+func Warningf(format string, a ...interface{}) {
+	Warning(format, a...)
+}
+
 // Info 打印信息（使用默认 stdout）
 func Info(format string, a ...interface{}) {
 	fmt.Fprintf(GetGlobalStdout(), "%s\n", globalColor.info.Sprintf("ℹ "+format, a...))
