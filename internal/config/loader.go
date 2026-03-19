@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/pkg/errors"
 	"github.com/spf13/viper"
 )
@@ -22,6 +23,8 @@ func NewLoader() *Loader {
 
 // Load 从指定路径加载配置
 func (l *Loader) Load(configPath string) (*CLIConfig, error) {
+	output.Info("加载配置文件: %s", configPath)
+
 	// 设置配置文件路径
 	l.v.SetConfigFile(configPath)
 
@@ -40,10 +43,12 @@ func (l *Loader) Load(configPath string) (*CLIConfig, error) {
 	}
 
 	// 验证配置
+	output.Info("验证配置...")
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
+	output.Success("配置加载成功")
 	return cfg, nil
 }
 
@@ -72,6 +77,8 @@ func LoadFromViper() (*CLIConfig, error) {
 
 // Save 保存配置到指定路径
 func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
+	output.Info("保存配置到: %s", configPath)
+
 	// 验证配置
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -101,6 +108,7 @@ func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
 		return errors.ErrConfig("failed to write config file", err)
 	}
 
+	output.Success("配置保存成功")
 	return nil
 }
 

@@ -63,8 +63,8 @@ func (cv *ConfigValidator) ValidateConfigSyntax() error {
 
 	for _, field := range requiredFields {
 		if _, exists := configMap[field]; !exists {
-			// 这不是致命错误，只是警告
-			output.Warning("missing recommended field: " + field)
+			// 这不是致命错误，只是信息提示
+			output.Info("可选配置项未设置: " + field)
 		}
 	}
 

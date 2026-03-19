@@ -29,7 +29,7 @@ func runPs(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(processes) == 0 {
-		output.Warning("没有找到正在运行的 Mihomo 进程")
+		output.Info("没有找到正在运行的 Mihomo 进程")
 		return nil
 	}
 
