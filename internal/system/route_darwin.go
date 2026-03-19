@@ -48,27 +48,42 @@ func (rm *RouteManager) deleteRoute(route RouteEntry) error {
 // 192.168.1          link#1             UCS            en0
 // 192.168.1.1        0:1a:2b:3c:4d:5e   UHLWIir        en0   1197
 // 192.168.1.100      127.0.0.1          UHS            lo0
+//
+// Internet6:
+// Destination                             Gateway                         Flags        Netif Expire
+// default                                 fe80::1%en0                     UGSc          en0
+// ::1                                     ::1                             UH            lo0
+// fe80::/10                               fe80::1%en0                     UGc           en0
 func parseDarwinRouteOutput(output []byte) ([]RouteEntry, error) {
 	var routes []RouteEntry
 	lines := strings.Split(string(output), "\n")
 
-	inInternet := false
+	var inInternet, inInternet6 bool
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 
-		// 检测 Internet 段落开始
+		// 检测 Internet (IPv4) 段落开始
 		if line == "Internet:" {
 			inInternet = true
+			inInternet6 = false
 			continue
 		}
 
-		// 检测其他段落（Internet6 等）
-		if strings.HasSuffix(line, ":") && line != "Internet:" {
+		// 检测 Internet6 (IPv6) 段落开始
+		if line == "Internet6:" {
+			inInternet6 = true
 			inInternet = false
 			continue
 		}
 
-		if !inInternet {
+		// 检测其他段落
+		if strings.HasSuffix(line, ":") && line != "Internet:" && line != "Internet6:" {
+			inInternet = false
+			inInternet6 = false
+			continue
+		}
+
+		if !inInternet && !inInternet6 {
 			continue
 		}
 
@@ -106,27 +121,44 @@ func parseDarwinRouteLine(line string) (RouteEntry, error) {
 	// 处理目的地址
 	if destination == "default" {
 		route.Destination = "0.0.0.0/0"
+		route.IPVersion = IPVersion4
 	} else {
 		route.Destination = destination
-		// 如果没有 CIDR 后缀，检查是否是网络地址
-		if !strings.Contains(destination, "/") && !strings.Contains(destination, ".") {
-			// 可能是网络前缀如 "192.168.1"，需要添加 CIDR
-			// macOS 通常省略 .0 后缀
-			if strings.Count(destination, ".") == 2 {
-				route.Destination = destination + ".0/24"
-			} else if strings.Count(destination, ".") == 1 {
-				route.Destination = destination + ".0.0/16"
-			} else if strings.Count(destination, ".") == 0 && destination != "127" {
-				// 单个数字，可能是 A 类网络
-				route.Destination = destination + ".0.0.0/8"
-			} else if destination == "127" {
-				route.Destination = "127.0.0.0/8"
-			} else {
-				route.Destination = destination + "/32"
+		// 检查是否是 IPv6 地址
+		if strings.Contains(destination, ":") {
+			route.IPVersion = IPVersion6
+			// IPv6 地址通常已经有 CIDR 后缀，如果没有则添加 /128
+			if !strings.Contains(destination, "/") {
+				route.Destination = destination + "/128"
 			}
-		} else if !strings.Contains(destination, "/") {
-			// 有完整 IP 但没有 CIDR，默认是主机路由
-			route.Destination = destination + "/32"
+		} else {
+			route.IPVersion = IPVersion4
+			// IPv4 地址处理
+			if !strings.Contains(destination, "/") {
+				// 没有 CIDR 后缀，检查是否是网络前缀
+				if strings.Contains(destination, ".") {
+					// 包含点，可能是网络前缀如 "192.168.1"
+					dotCount := strings.Count(destination, ".")
+					if dotCount == 2 {
+						// 格式如 192.168.1，推断为 /24
+						route.Destination = destination + ".0/24"
+					} else if dotCount == 1 {
+						// 格式如 192.168，推断为 /16
+						route.Destination = destination + ".0.0/16"
+					} else if dotCount == 0 && destination != "127" {
+						// 单个数字，可能是 A 类网络
+						route.Destination = destination + ".0.0.0/8"
+					} else if destination == "127" {
+						route.Destination = "127.0.0.0/8"
+					} else {
+						// 完整 IP 地址，默认是主机路由
+						route.Destination = destination + "/32"
+					}
+				} else {
+					// 不包含点，可能是特殊格式，默认是主机路由
+					route.Destination = destination + "/32"
+				}
+			}
 		}
 	}
 
@@ -139,6 +171,7 @@ func parseDarwinRouteLine(line string) (RouteEntry, error) {
 	}
 
 	route.Interface = iface
+	route.Flags = flags
 
 	// 从 flags 中提取度量值（如果有）
 	// macOS 的 flags 不直接包含 metric，这里设为 0
