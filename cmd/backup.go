@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 )
 
 var backupCmd = &cobra.Command{
@@ -60,12 +60,12 @@ func runBackupCreate(mihomoConfigPath, note string) error {
 		return err
 	}
 
-	color.Green("✓ 备份创建成功")
-	fmt.Printf("  配置文件: %s\n", mihomoConfigPath)
-	fmt.Printf("  备份文件: %s\n", info.Path)
-	fmt.Printf("  文件大小: %s\n", config.FormatSize(info.Size))
+	output.Success("备份创建成功")
+	fmt.Fprintf(output.GetGlobalStdout(), "  配置文件: %s\n", mihomoConfigPath)
+	fmt.Fprintf(output.GetGlobalStdout(), "  备份文件: %s\n", info.Path)
+	fmt.Fprintf(output.GetGlobalStdout(), "  文件大小: %s\n", config.FormatSize(info.Size))
 	if note != "" {
-		fmt.Printf("  备注: %s\n", note)
+		fmt.Fprintf(output.GetGlobalStdout(), "  备注: %s\n", note)
 	}
 
 	return nil
@@ -102,13 +102,13 @@ func runBackupList(mihomoConfigPath string) error {
 	}
 
 	if len(backups) == 0 {
-		color.Yellow("没有找到备份文件")
+		output.Warning("没有找到备份文件")
 		return nil
 	}
 
 	// 显示备份列表
-	fmt.Printf("备份列表:\n")
-	fmt.Println("  序号  时间                  大小      备注")
+	fmt.Fprintf(output.GetGlobalStdout(), "备份列表:\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  序号  时间                  大小      备注\n")
 
 	for i, backup := range backups {
 		timeStr := backup.CreatedAt.Format("2006-01-02 15:04:05")
@@ -117,7 +117,7 @@ func runBackupList(mihomoConfigPath string) error {
 		if note == "" {
 			note = "-"
 		}
-		fmt.Printf("  %-4d  %-19s  %-8s  %s\n", i+1, timeStr, sizeStr, note)
+		fmt.Fprintf(output.GetGlobalStdout(), "  %-4d  %-19s  %-8s  %s\n", i+1, timeStr, sizeStr, note)
 	}
 
 	return nil
@@ -167,16 +167,16 @@ func runBackupRestore(ctx context.Context, mihomoConfigPath, backupRef string, n
 		return err
 	}
 
-	color.Cyan("已备份当前配置: %s", result.CurrentBackup.Path)
-	color.Green("✓ 配置已恢复")
-	fmt.Printf("  恢复源: %s\n", result.BackupPath)
-	fmt.Printf("  配置文件: %s\n", result.ConfigPath)
+	output.Cyan("已备份当前配置: %s", result.CurrentBackup.Path)
+	output.Success("配置已恢复")
+	fmt.Fprintf(output.GetGlobalStdout(), "  恢复源: %s\n", result.BackupPath)
+	fmt.Fprintf(output.GetGlobalStdout(), "  配置文件: %s\n", result.ConfigPath)
 
 	if result.ReloadError != nil {
-		color.Yellow("警告: 重载配置失败: %v", result.ReloadError)
-		color.Yellow("配置文件已恢复，但未生效，请手动重启服务")
+		output.Warning("重载配置失败: %v", result.ReloadError)
+		output.Warning("配置文件已恢复，但未生效，请手动重启服务")
 	} else if result.Reloaded {
-		color.Green("✓ 配置已重载生效")
+		output.Success("配置已重载生效")
 	}
 
 	return nil
@@ -224,26 +224,26 @@ func runBackupDelete(mihomoConfigPath string, args []string, deleteAll bool, kee
 
 	if deleteAll {
 		for _, path := range result.Deleted {
-			fmt.Printf("已删除: %s\n", path)
+			fmt.Fprintf(output.GetGlobalStdout(), "已删除: %s\n", path)
 		}
 		for path, err := range result.Failed {
-			color.Yellow("删除失败: %s - %v", path, err)
+			output.Warning("删除失败: %s - %v", path, err)
 		}
-		color.Green("✓ 已删除所有备份")
+		output.Success("已删除所有备份")
 		return nil
 	}
 
 	if keep > 0 || olderThan > 0 {
 		for _, path := range result.Deleted {
-			fmt.Printf("已删除: %s\n", path)
+			fmt.Fprintf(output.GetGlobalStdout(), "已删除: %s\n", path)
 		}
-		color.Green("✓ 已删除 %d 个备份", len(result.Deleted))
+		output.Success("已删除 %d 个备份", len(result.Deleted))
 		return nil
 	}
 
 	// 单个备份删除
 	for _, path := range result.Deleted {
-		color.Green("✓ 备份已删除: %s", path)
+		output.Success("备份已删除: %s", path)
 	}
 
 	return nil
@@ -288,26 +288,26 @@ func runBackupPrune(mihomoConfigPath string, keep, olderThan int, dryRun bool) e
 	}
 
 	if len(result.ToDelete) == 0 {
-		color.Green("没有需要清理的备份")
+		output.Success("没有需要清理的备份")
 		return nil
 	}
 
 	if dryRun {
-		color.Cyan("将删除以下 %d 个备份:", len(result.ToDelete))
+		output.Cyan("将删除以下 %d 个备份:", len(result.ToDelete))
 		for _, path := range result.ToDelete {
-			fmt.Printf("  %s\n", path)
+			fmt.Fprintf(output.GetGlobalStdout(), "  %s\n", path)
 		}
 		return nil
 	}
 
 	// 执行删除
 	for _, path := range result.Deleted {
-		fmt.Printf("已删除: %s\n", path)
+		fmt.Fprintf(output.GetGlobalStdout(), "已删除: %s\n", path)
 	}
 	for path, err := range result.Failed {
-		color.Yellow("删除失败: %s - %v", path, err)
+		output.Warning("删除失败: %s - %v", path, err)
 	}
 
-	color.Green("✓ 已清理 %d 个备份", len(result.Deleted))
+	output.Success("已清理 %d 个备份", len(result.Deleted))
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 )
 
 var (
@@ -60,15 +61,15 @@ func runVersionKernel(cmd *cobra.Command, args []string) error {
 	}
 
 	// 格式化输出
-	fmt.Printf("Mihomo Kernel Version: %s\n", versionInfo.Version)
+	fmt.Fprintf(output.GetGlobalStdout(), "Mihomo Kernel Version: %s\n", versionInfo.Version)
 	if versionInfo.PreRelease {
-		fmt.Println("Premium: Yes")
+		fmt.Fprintf(output.GetGlobalStdout(), "Premium: Yes\n")
 	}
 	if versionInfo.HomeDir != "" {
-		fmt.Printf("Home Directory: %s\n", versionInfo.HomeDir)
+		fmt.Fprintf(output.GetGlobalStdout(), "Home Directory: %s\n", versionInfo.HomeDir)
 	}
 	if versionInfo.ConfigPath != "" {
-		fmt.Printf("Config Path: %s\n", versionInfo.ConfigPath)
+		fmt.Fprintf(output.GetGlobalStdout(), "Config Path: %s\n", versionInfo.ConfigPath)
 	}
 
 	return nil
@@ -76,13 +77,13 @@ func runVersionKernel(cmd *cobra.Command, args []string) error {
 
 // printVersion 打印版本信息
 func printVersion() {
-	fmt.Printf("mihomo-cli version %s\n", version)
-	fmt.Println("Build Information:")
-	fmt.Printf("  Git Commit:  %s\n", commit)
-	fmt.Printf("  Build Date:  %s\n", date)
-	fmt.Printf("  Go Version:  %s\n", runtime.Version())
-	fmt.Printf("  GOOS:        %s\n", runtime.GOOS)
-	fmt.Printf("  GOARCH:      %s\n", runtime.GOARCH)
+	fmt.Fprintf(output.GetGlobalStdout(), "mihomo-cli version %s\n", version)
+	fmt.Fprintf(output.GetGlobalStdout(), "Build Information:\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  Git Commit:  %s\n", commit)
+	fmt.Fprintf(output.GetGlobalStdout(), "  Build Date:  %s\n", date)
+	fmt.Fprintf(output.GetGlobalStdout(), "  Go Version:  %s\n", runtime.Version())
+	fmt.Fprintf(output.GetGlobalStdout(), "  GOOS:        %s\n", runtime.GOOS)
+	fmt.Fprintf(output.GetGlobalStdout(), "  GOARCH:      %s\n", runtime.GOARCH)
 }
 
 // GetVersion 获取版本号

@@ -137,6 +137,15 @@ mihomo-go/
 - System proxy modification requires Administrator privileges.
 - Provides clear permission error messages.
 
+### 6. Unified Output Formatting
+
+- All output must use `internal/output` module, never use `fmt.Print*` or `github.com/fatih/color` directly.
+- **Status messages**: Use `output.Success()`, `output.Error()`, `output.Warning()`, `output.Info()`.
+- **Plain output**: Use `fmt.Fprintf(output.GetGlobalStdout(), ...)` for stdout, `fmt.Fprintf(output.GetGlobalStderr(), ...)` for stderr.
+- **JSON output**: Use `output.PrintJSON(data)` when `-o json` flag is set.
+- **Table output**: Use `output.NewTable()` for table formatting.
+- This ensures consistent output style, proper stdout/stderr separation, and easy global output redirection.
+
 ## Documentation Resources
 
 ### Mihomo References

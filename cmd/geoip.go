@@ -71,7 +71,7 @@ func runGeoIPUpdate(cmd *cobra.Command, args []string) error {
 			"action":  "update",
 		})
 	} else {
-		fmt.Println("✓ GeoIP 数据库更新成功")
+		output.Success("✓ GeoIP 数据库更新成功")
 	}
 
 	return nil
@@ -105,23 +105,23 @@ func runGeoIPStatus(cmd *cobra.Command, args []string) error {
 
 	// 表格输出
 	if info.Exists {
-		fmt.Printf("GeoIP 数据库状态: ✓ 已安装\n\n")
-		fmt.Printf("文件路径: %s\n", info.FilePath)
-		fmt.Printf("文件名: %s\n", info.FileName)
-		fmt.Printf("文件大小: %.2f MB\n", float64(info.FileSize)/1024/1024)
-		fmt.Printf("最后更新: %s\n", info.ModTime.Format("2006-01-02 15:04:05"))
-		fmt.Printf("存储目录: %s\n", info.Directory)
+		fmt.Fprintf(output.GetGlobalStdout(), "GeoIP 数据库状态: ✓ 已安装\n\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "文件路径: %s\n", info.FilePath)
+		fmt.Fprintf(output.GetGlobalStdout(), "文件名: %s\n", info.FileName)
+		fmt.Fprintf(output.GetGlobalStdout(), "文件大小: %.2f MB\n", float64(info.FileSize)/1024/1024)
+		fmt.Fprintf(output.GetGlobalStdout(), "最后更新: %s\n", info.ModTime.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(output.GetGlobalStdout(), "存储目录: %s\n", info.Directory)
 	} else {
-		fmt.Printf("GeoIP 数据库状态: ✗ 未安装\n\n")
-		fmt.Printf("预期存储目录: %s\n", info.Directory)
-		fmt.Println()
-		fmt.Println("支持的文件名（按优先级）:")
-		fmt.Println("  - Country.mmdb")
-		fmt.Println("  - geoip.db")
-		fmt.Println("  - geoip.metadb")
-		fmt.Println("  - GeoIP.dat")
-		fmt.Println()
-		fmt.Println("提示: 使用 'mihomo-cli geoip update' 命令下载 GeoIP 数据库")
+		fmt.Fprintf(output.GetGlobalStdout(), "GeoIP 数据库状态: ✗ 未安装\n\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "预期存储目录: %s\n", info.Directory)
+		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "支持的文件名（按优先级）:\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "  - Country.mmdb\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "  - geoip.db\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "  - geoip.metadb\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "  - GeoIP.dat\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "提示: 使用 'mihomo-cli geoip update' 命令下载 GeoIP 数据库\n")
 	}
 
 	return nil

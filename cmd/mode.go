@@ -5,6 +5,7 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 	"github.com/spf13/cobra"
@@ -59,12 +60,12 @@ func runModeGet(cmd *cobra.Command, args []string) error {
 	}
 
 	// 表格输出
-	fmt.Printf("当前模式: %s\n", modeInfo.Mode)
-	fmt.Println()
-	fmt.Println("可用模式:")
-	fmt.Println("  - rule    规则模式：根据规则文件决定流量走向")
-	fmt.Println("  - global  全局模式：所有流量通过代理")
-	fmt.Println("  - direct  直连模式：所有流量不经过代理")
+	fmt.Fprintf(output.GetGlobalStdout(), "当前模式: %s\n", modeInfo.Mode)
+	fmt.Fprintf(output.GetGlobalStdout(), "\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "可用模式:\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  - rule    规则模式：根据规则文件决定流量走向\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  - global  全局模式：所有流量通过代理\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  - direct  直连模式：所有流量不经过代理\n")
 
 	return nil
 }
@@ -106,7 +107,7 @@ func runModeSet(cmd *cobra.Command, args []string) error {
 	}
 
 	// 显示成功信息
-	fmt.Printf("✓ 已切换到 %s 模式\n", modeStr)
+	output.Success("已切换到 %s 模式", modeStr)
 
 	return nil
 }

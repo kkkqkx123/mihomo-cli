@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -54,11 +54,11 @@ func runConfigInit(force bool) error {
 	// 检查配置文件是否存在
 	if _, err := os.Stat(configPath); err == nil {
 		if !force {
-			color.Yellow("配置文件已存在: %s", configPath)
-			color.Yellow("如需覆盖，请使用 --force 参数")
+			output.Warning("配置文件已存在: %s", configPath)
+			output.Warning("如需覆盖，请使用 --force 参数")
 			return nil
 		}
-		color.Yellow("配置文件已存在，将被覆盖: %s", configPath)
+		output.Warning("配置文件已存在，将被覆盖: %s", configPath)
 	}
 
 	// 创建默认配置
@@ -70,9 +70,9 @@ func runConfigInit(force bool) error {
 		return pkgerrors.ErrConfig("failed to save config", err)
 	}
 
-	color.Green("配置文件创建成功: %s", configPath)
-	fmt.Printf("API 地址: %s\n", cfg.API.Address)
-	fmt.Printf("超时时间: %d 秒\n", cfg.API.Timeout)
+	output.Success("配置文件创建成功: %s", configPath)
+	fmt.Fprintf(output.GetGlobalStdout(), "API 地址: %s\n", cfg.API.Address)
+	fmt.Fprintf(output.GetGlobalStdout(), "超时时间: %d 秒\n", cfg.API.Timeout)
 
 	return nil
 }
@@ -106,15 +106,15 @@ func runConfigShow() error {
 		return pkgerrors.ErrConfig("failed to load config", err)
 	}
 
-	fmt.Println(color.CyanString("当前配置："))
-	fmt.Printf("  API 地址: %s\n", cfg.API.Address)
-	fmt.Printf("  超时时间: %d 秒\n", cfg.API.Timeout)
+	fmt.Fprintf(output.GetGlobalStdout(), "%s\n", output.CyanString("当前配置："))
+	fmt.Fprintf(output.GetGlobalStdout(), "  API 地址: %s\n", cfg.API.Address)
+	fmt.Fprintf(output.GetGlobalStdout(), "  超时时间: %d 秒\n", cfg.API.Timeout)
 
 	// Secret 脱敏显示
 	if cfg.API.Secret != "" {
-		fmt.Printf("  API 密钥: ****\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "  API 密钥: ****\n")
 	} else {
-		fmt.Printf("  API 密钥: (未设置)\n")
+		fmt.Fprintf(output.GetGlobalStdout(), "  API 密钥: (未设置)\n")
 	}
 
 	return nil
@@ -157,11 +157,11 @@ func runConfigSet(key, value string) error {
 		}
 		cfg.API.Timeout = timeout
 	default:
-		color.Yellow("invalid config key: %s", key)
-		color.Yellow("supported keys:")
-		color.Yellow("  api.address  - API address")
-		color.Yellow("  api.secret   - API secret")
-		color.Yellow("  api.timeout  - timeout (seconds)")
+		output.Warning("invalid config key: %s", key)
+		output.Warning("supported keys:")
+		output.Warning("  api.address  - API address")
+		output.Warning("  api.secret   - API secret")
+		output.Warning("  api.timeout  - timeout (seconds)")
 		return pkgerrors.ErrInvalidArg("invalid config key: "+key, nil)
 	}
 
@@ -182,7 +182,7 @@ func runConfigSet(key, value string) error {
 		displayValue = "****"
 	}
 
-	color.Green("配置已更新: %s = %s", key, displayValue)
+	output.Success("配置已更新: %s = %s", key, displayValue)
 
 	return nil
 }

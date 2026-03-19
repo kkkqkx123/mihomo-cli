@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/sysproxy"
 	"github.com/kkkqkx123/mihomo-cli/internal/util"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -72,15 +73,15 @@ func runSysproxyGet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Println("系统代理状态:")
+	fmt.Fprintf(output.GetGlobalStdout(), "系统代理状态:\n")
 	if settings.Enabled {
-		fmt.Println("  状态: 已启用")
-		fmt.Printf("  代理服务器: %s\n", settings.Server)
+		output.Success("  状态: 已启用")
+		fmt.Fprintf(output.GetGlobalStdout(), "  代理服务器: %s\n", settings.Server)
 		if settings.BypassList != "" {
-			fmt.Printf("  绕过列表: %s\n", settings.BypassList)
+			fmt.Fprintf(output.GetGlobalStdout(), "  绕过列表: %s\n", settings.BypassList)
 		}
 	} else {
-		fmt.Println("  状态: 已禁用")
+		output.Info("  状态: 已禁用")
 	}
 
 	return nil
@@ -106,10 +107,10 @@ func runSysproxySet(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("系统代理已启用")
-		fmt.Printf("代理服务器: %s\n", proxyServer)
+		output.Success("系统代理已启用")
+		fmt.Fprintf(output.GetGlobalStdout(), "代理服务器: %s\n", proxyServer)
 		if bypassList != "" {
-			fmt.Printf("绕过列表: %s\n", bypassList)
+			fmt.Fprintf(output.GetGlobalStdout(), "绕过列表: %s\n", bypassList)
 		}
 
 	case "off":
@@ -117,7 +118,7 @@ func runSysproxySet(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("系统代理已禁用")
+		output.Success("系统代理已禁用")
 
 	default:
 		return pkgerrors.ErrInvalidArg("invalid parameter: "+action+", please use 'on' or 'off'", nil)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 )
 
 // NewSubCmd 创建订阅管理命令
@@ -50,32 +51,32 @@ func runSubUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(providers) == 0 {
-		fmt.Println("未找到任何代理提供者")
+		output.Warning("未找到任何代理提供者")
 		return nil
 	}
 
-	fmt.Printf("找到 %d 个代理提供者，开始更新...\n", len(providers))
-	fmt.Println()
+	fmt.Fprintf(output.GetGlobalStdout(), "找到 %d 个代理提供者，开始更新...\n", len(providers))
+	fmt.Fprintf(output.GetGlobalStdout(), "\n")
 
 	// 更新每个提供者
 	successCount := 0
 	failCount := 0
 	for name, provider := range providers {
-		fmt.Printf("正在更新 %s (%s)...\n", name, provider.VehicleType)
+		fmt.Fprintf(output.GetGlobalStdout(), "正在更新 %s (%s)...\n", name, provider.VehicleType)
 		
 		err := client.UpdateProvider(cmd.Context(), name)
 		if err != nil {
-			fmt.Printf("  ✗ 更新失败: %v\n", err)
+			output.Error("  更新失败: %v", err)
 			failCount++
 		} else {
-			fmt.Printf("  ✓ 更新成功\n")
+			output.Success("  更新成功")
 			successCount++
 		}
 	}
 
 	// 显示汇总信息
-	fmt.Println()
-	fmt.Printf("更新完成: 成功 %d 个，失败 %d 个\n", successCount, failCount)
+	fmt.Fprintf(output.GetGlobalStdout(), "\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "更新完成: 成功 %d 个，失败 %d 个\n", successCount, failCount)
 
 	return nil
 }

@@ -20,6 +20,7 @@
 
 **修复方案：**
 新增 `addToEtcEnvironment()` 函数，该函数会：
+
 1. 读取 `/etc/environment` 原有内容
 2. 过滤掉旧的代理环境变量
 3. 将新的代理变量追加到文件末尾
@@ -41,12 +42,14 @@ Windows 下的代理设置通过注册表配置。对于现代应用程序（如
 为了兼容某些长期运行的旧版应用或特定系统组件（如旧版 IE 插件、后台服务），添加了 `InternetSetOption` 通知机制。
 
 **实现细节：**
+
 - 调用 `wininet.dll` 的 `InternetSetOptionW` 函数
 - 使用 `INTERNET_OPTION_SETTINGS_CHANGED` 和 `INTERNET_OPTION_REFRESH` 标志
 - 在 `Enable` 和 `Disable` 成功后自动调用
 - 该功能作为兼容性增强，即使失败也不会影响主要功能
 
 **重要说明：**
+
 - 对于大多数现代应用（Chrome、Firefox、终端等），注册表修改本身已足够
 - `InternetSetOption` 主要用于通知依赖 WinINet 缓存旧设置的旧版应用
 - 该机制不是必需的，但作为兼容性增强提供了更好的体验
@@ -64,6 +67,7 @@ CLI 工具无法直接修改当前 Shell 会话的环境变量。修改配置文
 
 **用户提示：**
 在 Linux 环境下成功启用代理后，会显示以下提示：
+
 ```
 Warning: Proxy settings have been saved to configuration file.
 Note: The current terminal session will not reflect these changes immediately.
@@ -96,10 +100,10 @@ Or start a new terminal session.
 
 ## 总结
 
-| 问题 | 严重程度 | 状态 |
-|------|----------|------|
-| Linux 覆盖 `/etc/environment` Bug | 🔴 严重 | ✅ 已修复 |
-| Windows InternetSetOption 通知机制 | 🟡 兼容性增强 | ✅ 已实现 |
-| Linux 环境变量生效提示 | 🟢 用户体验改进 | ✅ 已添加 |
+| 问题                               | 严重程度        | 状态      |
+| ---------------------------------- | --------------- | --------- |
+| Linux 覆盖 `/etc/environment` Bug  | 🔴 严重         | ✅ 已修复 |
+| Windows InternetSetOption 通知机制 | 🟡 兼容性增强   | ✅ 已实现 |
+| Linux 环境变量生效提示             | 🟢 用户体验改进 | ✅ 已添加 |
 
 所有发现的问题均已修复，模块现在可以安全使用。

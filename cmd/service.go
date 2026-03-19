@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/service"
 )
 
@@ -104,10 +105,10 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 	}
 
 	if asyncMode {
-		fmt.Printf("服务 %s 已启动（异步模式）\n", sm.GetServiceName())
-		fmt.Println("使用 'mihomo-cli service status' 查询运行状态")
+		fmt.Fprintf(output.GetGlobalStdout(), "服务 %s 已启动（异步模式）\n", sm.GetServiceName())
+		fmt.Fprintf(output.GetGlobalStdout(), "使用 'mihomo-cli service status' 查询运行状态\n")
 	} else {
-		fmt.Printf("服务 %s 已成功启动\n", sm.GetServiceName())
+		output.Success("服务 %s 已成功启动", sm.GetServiceName())
 	}
 	return nil
 }
@@ -128,10 +129,10 @@ func runServiceStop(cmd *cobra.Command, args []string) error {
 	}
 
 	if asyncMode {
-		fmt.Printf("服务 %s 已停止（异步模式）\n", sm.GetServiceName())
-		fmt.Println("使用 'mihomo-cli service status' 查询运行状态")
+		fmt.Fprintf(output.GetGlobalStdout(), "服务 %s 已停止（异步模式）\n", sm.GetServiceName())
+		fmt.Fprintf(output.GetGlobalStdout(), "使用 'mihomo-cli service status' 查询运行状态\n")
 	} else {
-		fmt.Printf("服务 %s 已成功停止\n", sm.GetServiceName())
+		output.Success("服务 %s 已成功停止", sm.GetServiceName())
 	}
 	return nil
 }
@@ -151,9 +152,9 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("服务 %s 已成功安装\n", sm.GetServiceName())
-	fmt.Printf("显示名称: %s\n", sm.GetDisplayName())
-	fmt.Printf("可执行文件: %s\n", sm.GetExePath())
+	output.Success("服务 %s 已成功安装", sm.GetServiceName())
+	fmt.Fprintf(output.GetGlobalStdout(), "显示名称: %s\n", sm.GetDisplayName())
+	fmt.Fprintf(output.GetGlobalStdout(), "可执行文件: %s\n", sm.GetExePath())
 	return nil
 }
 
@@ -172,7 +173,7 @@ func runServiceUninstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("服务 %s 已成功卸载\n", sm.GetServiceName())
+	output.Success("服务 %s 已成功卸载", sm.GetServiceName())
 	return nil
 }
 
@@ -191,18 +192,18 @@ func runServiceStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("服务名称: %s\n", sm.GetServiceName())
-	fmt.Printf("显示名称: %s\n", sm.GetDisplayName())
+	fmt.Fprintf(output.GetGlobalStdout(), "服务名称: %s\n", sm.GetServiceName())
+	fmt.Fprintf(output.GetGlobalStdout(), "显示名称: %s\n", sm.GetDisplayName())
 
 	switch status {
 	case service.StatusRunning:
-		fmt.Println("状态: 运行中")
+		output.Success("状态: 运行中")
 	case service.StatusStopped:
-		fmt.Println("状态: 已停止")
+		output.Info("状态: 已停止")
 	case service.StatusNotInstalled:
-		fmt.Println("状态: 未安装")
+		output.Warning("状态: 未安装")
 	default:
-		fmt.Println("状态: 未知")
+		fmt.Fprintf(output.GetGlobalStdout(), "状态: 未知\n")
 	}
 
 	return nil

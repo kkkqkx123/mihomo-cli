@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/mihomo"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -30,13 +30,13 @@ func runPs(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(processes) == 0 {
-		color.Yellow("没有找到正在运行的 Mihomo 进程")
+		output.Warning("没有找到正在运行的 Mihomo 进程")
 		return nil
 	}
 
 	// 输出表头
-	fmt.Printf("%-8s %-6s %-50s %-15s\n", "PID", "状态", "可执行文件", "API 端口")
-	fmt.Println(strings.Repeat("-", 80))
+	fmt.Fprintf(output.GetGlobalStdout(), "%-8s %-6s %-50s %-15s\n", "PID", "状态", "可执行文件", "API 端口")
+	fmt.Fprintf(output.GetGlobalStdout(), "%s\n", strings.Repeat("-", 80))
 
 	// 输出进程信息
 	for _, proc := range processes {
@@ -58,12 +58,12 @@ func runPs(cmd *cobra.Command, args []string) error {
 			execPath = "..." + execPath[len(execPath)-47:]
 		}
 
-		fmt.Printf("%-8d %-6s %-50s %-15s\n", proc.PID, statusIcon, execPath, apiPort)
+		fmt.Fprintf(output.GetGlobalStdout(), "%-8d %-6s %-50s %-15s\n", proc.PID, statusIcon, execPath, apiPort)
 	}
 
 	// 输出汇总信息
-	fmt.Println(strings.Repeat("-", 80))
-	fmt.Printf("总计: %d 个进程\n", len(processes))
+	fmt.Fprintf(output.GetGlobalStdout(), "%s\n", strings.Repeat("-", 80))
+	fmt.Fprintf(output.GetGlobalStdout(), "总计: %d 个进程\n", len(processes))
 	if len(processes) > 0 {
 		verifiedCount := 0
 		for _, proc := range processes {
@@ -71,15 +71,15 @@ func runPs(cmd *cobra.Command, args []string) error {
 				verifiedCount++
 			}
 		}
-		fmt.Printf("已验证: %d 个\n", verifiedCount)
+		fmt.Fprintf(output.GetGlobalStdout(), "已验证: %d 个\n", verifiedCount)
 	}
 
 	// 输出提示
-	fmt.Println()
-	fmt.Println("提示:")
-	fmt.Println("  mihomo-cli stop <pid>  - 停止指定进程")
-	fmt.Println("  mihomo-cli stop --all  - 停止所有进程")
-	fmt.Println("  mihomo-cli cleanup     - 清理残留的 PID 文件")
+	fmt.Fprintf(output.GetGlobalStdout(), "\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "提示:\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  mihomo-cli stop <pid>  - 停止指定进程\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  mihomo-cli stop --all  - 停止所有进程\n")
+	fmt.Fprintf(output.GetGlobalStdout(), "  mihomo-cli cleanup     - 清理残留的 PID 文件\n")
 
 	return nil
 }

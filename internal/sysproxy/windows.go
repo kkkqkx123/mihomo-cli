@@ -215,7 +215,7 @@ func (sp *windowsSysProxy) Disable() error {
 
 	if err := wr.SetSettings(settings); err != nil {
 		return pkgerrors.ErrService(
-			fmt.Sprintf("failed to disable system proxy: %v\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer"), err)
+			fmt.Sprintf("failed to disable system proxy: %v\n\nRecovery suggestions:\n  1. Check registry permissions\n  2. Close processes that may lock the registry\n  3. Manually disable proxy through Windows Settings\n  4. Restart computer", err), err)
 	}
 
 	// 通知系统刷新代理设置（兼容性增强，用于通知旧版应用）
