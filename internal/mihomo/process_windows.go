@@ -3,10 +3,13 @@
 package mihomo
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
@@ -20,10 +23,10 @@ const (
 
 // Windows API 函数
 var (
-	modkernel32                    = syscall.NewLazyDLL("kernel32.dll")
-	procOpenProcess                = modkernel32.NewProc("OpenProcess")
-	procQueryFullProcessImageName  = modkernel32.NewProc("QueryFullProcessImageNameW")
-	procCloseHandle                = modkernel32.NewProc("CloseHandle")
+	modkernel32                   = syscall.NewLazyDLL("kernel32.dll")
+	procOpenProcess               = modkernel32.NewProc("OpenProcess")
+	procQueryFullProcessImageName = modkernel32.NewProc("QueryFullProcessImageNameW")
+	procCloseHandle               = modkernel32.NewProc("CloseHandle")
 )
 
 // windowsProcessChecker Windows 平台进程检查器
@@ -81,21 +84,44 @@ func (w *windowsProcessChecker) GetProcessExecutable(pid int) (string, error) {
 	return syscall.UTF16ToString(path[:]), nil
 }
 
-// SetSysProcAttr 设置进程的系统属性（隐藏窗口）
+// SetSysProcAttr 设置进程的系统属性
+// 使用 CREATE_NEW_PROCESS_GROUP 创建新进程组
 func (w *windowsProcessChecker) SetSysProcAttr(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow: true,
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 }
 
-// SendGracefulSignal 发送优雅关闭信号（Windows 使用 SIGINT）
-// Windows 上不支持 SIGTERM，使用 SIGINT 代替
-// Mihomo 内核同时监听 SIGINT 和 SIGTERM，所以可以正常处理
+// SendGracefulSignal 发送优雅关闭信号
+// Windows 没有像 POSIX 那样的跨进程信号机制
+//
+// 重要说明：
+// Windows 上的"优雅关闭"概念与 Unix 完全不同：
+// 1. GenerateConsoleCtrlEvent 只对有控制台的进程有效
+// 2. 当进程的 stdout/stderr 被重定向时，进程没有控制台
+// 3. Windows 没有其他跨进程的"优雅关闭"机制
+//
+// 因此，这个函数会尝试发送控制台事件，但很可能失败
+// 调用方应该准备好在失败时使用 proc.Kill() 强制终止
 func (w *windowsProcessChecker) SendGracefulSignal(proc *os.Process) error {
-	// Windows 上使用 SIGINT (Ctrl+C 信号)
-	// 这会给进程机会执行清理操作
-	if err := proc.Signal(syscall.SIGINT); err != nil {
-		return pkgerrors.ErrService("failed to send SIGINT signal", err)
+	pid := proc.Pid
+
+	// 尝试发送 CTRL_BREAK_EVENT
+	// 对于使用 CREATE_NEW_PROCESS_GROUP 创建的进程，这可能有效
+	err := windows.GenerateConsoleCtrlEvent(windows.CTRL_BREAK_EVENT, uint32(pid))
+	if err == nil {
+		return nil
 	}
-	return nil
+
+	// 尝试发送 CTRL_C_EVENT
+	err = windows.GenerateConsoleCtrlEvent(windows.CTRL_C_EVENT, uint32(pid))
+	if err == nil {
+		return nil
+	}
+
+	// 返回错误，调用方会使用 proc.Kill() 强制终止
+	return pkgerrors.ErrService(
+		fmt.Sprintf("cannot send graceful signal to process %d on Windows (no console attached)", pid),
+		err,
+	)
 }

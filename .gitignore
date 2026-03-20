@@ -1,7 +1,6 @@
 **/*.exe
 **/*.zip
 go.sum
-mihomo-1.19.21
 
 scripts/config.toml
 test-mihomo-config.yaml
