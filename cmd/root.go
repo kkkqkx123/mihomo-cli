@@ -141,6 +141,11 @@ func init() {
 
 // initConfig 初始化配置
 func initConfig() {
+	// 设置默认值
+	viper.SetDefault("api.address", "http://127.0.0.1:9090")
+	viper.SetDefault("api.secret", "")
+	viper.SetDefault("api.timeout", 10)
+
 	if cfgFile != "" {
 		// 使用指定的配置文件
 		viper.SetConfigFile(cfgFile)

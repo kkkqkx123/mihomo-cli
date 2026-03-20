@@ -3,6 +3,7 @@
 package mihomo
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 	"unsafe"
@@ -85,4 +86,16 @@ func (w *windowsProcessChecker) SetSysProcAttr(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true,
 	}
+}
+
+// SendGracefulSignal 发送优雅关闭信号（Windows 使用 SIGINT）
+// Windows 上不支持 SIGTERM，使用 SIGINT 代替
+// Mihomo 内核同时监听 SIGINT 和 SIGTERM，所以可以正常处理
+func (w *windowsProcessChecker) SendGracefulSignal(proc *os.Process) error {
+	// Windows 上使用 SIGINT (Ctrl+C 信号)
+	// 这会给进程机会执行清理操作
+	if err := proc.Signal(syscall.SIGINT); err != nil {
+		return pkgerrors.ErrService("failed to send SIGINT signal", err)
+	}
+	return nil
 }

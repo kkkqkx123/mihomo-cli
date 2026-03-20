@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
@@ -288,13 +287,13 @@ func StopProcessByPID(pid int) error {
 		return pkgerrors.ErrService("failed to find process "+fmt.Sprintf("%d", pid), err)
 	}
 
-	// 第一步：尝试优雅关闭（发送 SIGTERM 信号）
+	// 第一步：尝试优雅关闭
+	// 使用跨平台的 SendGracefulSignal 方法
+	// Windows: 发送 SIGINT (Ctrl+C)
+	// Unix: 发送 SIGTERM
 	output.Printf("Attempting graceful shutdown of process %d...\n", pid)
 
-	// 在 Windows 上，使用 SIGTERM 信号
-	// 在 Unix 系统上，也使用 SIGTERM 信号
-	// 这给 Mihomo 内核机会执行清理操作（如删除 TUN 网卡、清理路由表等）
-	if err := proc.Signal(syscall.SIGTERM); err != nil {
+	if err := SendGracefulSignal(proc); err != nil {
 		// 如果发送信号失败，直接使用 Kill
 		output.Warning("Failed to send signal, will force kill process: " + err.Error())
 		return forceKillProcess(proc, pid)

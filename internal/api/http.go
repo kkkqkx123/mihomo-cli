@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -38,10 +39,25 @@ func (c *HTTPClient) SetTimeout(timeout time.Duration) {
 
 // buildURL 构建完整的 API URL
 func (c *HTTPClient) buildURL(baseURL, endpoint string, queryParams map[string]string) (string, error) {
+	// 检查 baseURL 是否为空
+	if baseURL == "" {
+		return "", NewConnectionError(fmt.Errorf("API base URL is empty, please configure api.address or use --api flag"))
+	}
+
 	// 解析基础 URL
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return "", NewConnectionError(err)
+	}
+
+	// 检查协议是否有效
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", NewConnectionError(fmt.Errorf("unsupported protocol scheme %q, only http and https are supported", u.Scheme))
+	}
+
+	// 检查主机是否为空
+	if u.Host == "" {
+		return "", NewConnectionError(fmt.Errorf("API address must contain a host (e.g., http://127.0.0.1:9090)"))
 	}
 
 	// 拼接路径

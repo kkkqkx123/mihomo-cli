@@ -1,6 +1,7 @@
 package mihomo
 
 import (
+	"os"
 	"os/exec"
 )
 
@@ -14,6 +15,11 @@ type ProcessChecker interface {
 
 	// SetSysProcAttr 设置进程的系统属性（如 Windows 下隐藏窗口）
 	SetSysProcAttr(cmd *exec.Cmd)
+
+	// SendGracefulSignal 发送优雅关闭信号给进程
+	// Windows: 使用 SIGINT (Ctrl+C)
+	// Unix: 使用 SIGTERM
+	SendGracefulSignal(proc *os.Process) error
 }
 
 // processChecker 全局进程检查器实例
@@ -37,4 +43,9 @@ func GetProcessExecutable(pid int) (string, error) {
 // SetSysProcAttr 设置进程的系统属性（跨平台入口）
 func SetSysProcAttr(cmd *exec.Cmd) {
 	processChecker.SetSysProcAttr(cmd)
+}
+
+// SendGracefulSignal 发送优雅关闭信号（跨平台入口）
+func SendGracefulSignal(proc *os.Process) error {
+	return processChecker.SendGracefulSignal(proc)
 }
