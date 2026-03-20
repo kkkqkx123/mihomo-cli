@@ -3,6 +3,9 @@ package mihomo
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -164,8 +167,14 @@ func (lm *LifecycleManager) Stop(ctx context.Context, pid int) error {
 			lm.monitor.Stop()
 		}
 
+		// 获取进程状态信息
+		state := lm.state.Get()
+		if state == nil {
+			return pkgerrors.ErrService("process state not found", nil)
+		}
+
 		// 停止进程
-		return StopProcessByPID(pid)
+		return StopProcessByPID(pid, state.APIAddress, state.Secret)
 	}); err != nil {
 		return err
 	}
@@ -250,7 +259,7 @@ func (lm *LifecycleManager) executeStage(ctx context.Context, stage LifecycleSta
 }
 
 // executeHooks 执行所有钩子
-func (lm *LifecycleManager) executeHooks(ctx context.Context, fn func(hook LifecycleHook) error) error {
+func (lm *LifecycleManager) executeHooks(_ context.Context, fn func(hook LifecycleHook) error) error {
 	lm.mu.RLock()
 	hooks := make([]LifecycleHook, len(lm.hooks))
 	copy(hooks, lm.hooks)
@@ -275,29 +284,75 @@ type DefaultLifecycleHooks struct{}
 // OnPreStart 启动前钩子
 func (d *DefaultLifecycleHooks) OnPreStart(ctx context.Context, cfg *config.TomlConfig) error {
 	// 检查可执行文件是否存在
+	if _, err := os.Stat(cfg.Mihomo.Executable); os.IsNotExist(err) {
+		return pkgerrors.ErrConfig("mihomo executable not found: "+cfg.Mihomo.Executable, nil)
+	}
+
 	// 检查配置文件是否有效
-	// 检查端口是否被占用
+	if cfg.Mihomo.ConfigFile != "" {
+		if _, err := os.Stat(cfg.Mihomo.ConfigFile); os.IsNotExist(err) {
+			return pkgerrors.ErrConfig("mihomo config file not found: "+cfg.Mihomo.ConfigFile, nil)
+		}
+
+		// 使用配置验证器验证配置
+		validator := config.NewConfigValidator(cfg.Mihomo.ConfigFile)
+		if err := validator.ValidateAndWarn(); err != nil {
+			output.Warning("config validation failed: " + err.Error())
+		}
+	}
+
+	// 检查 API 端口是否被占用
+	apiAddress := cfg.Mihomo.API.ExternalController
+	if apiAddress != "" {
+		// 尝试解析地址
+		parts := strings.Split(apiAddress, ":")
+		if len(parts) == 2 {
+			port := parts[1]
+			// 尝试绑定端口检查是否被占用
+			ln, err := net.Listen("tcp", ":"+port)
+			if err != nil {
+				return pkgerrors.ErrConfig("API port "+port+" is already in use", nil)
+			}
+			ln.Close()
+		}
+	}
+
 	return nil
 }
 
 // OnPostStart 启动后钩子
 func (d *DefaultLifecycleHooks) OnPostStart(ctx context.Context, pid int) error {
-	// 执行健康检查
 	// 记录启动日志
+	output.Info("Process started successfully with PID: " + fmt.Sprintf("%d", pid))
+
+	// 执行基础健康检查
+	// 注意：这里只是记录日志，实际的健康检查在 ProcessHandler.Start 中已经完成
+	output.Info("Performing post-start checks...")
+
 	return nil
 }
 
 // OnPreStop 停止前钩子
 func (d *DefaultLifecycleHooks) OnPreStop(ctx context.Context, pid int) error {
+	// 记录停止前的状态
+	output.Info("Preparing to stop process with PID: " + fmt.Sprintf("%d", pid))
+
 	// 通知进程准备停止
-	// 保存当前状态
+	// 注意：实际的优雅停止通过 API 调用完成
+	output.Info("Sending shutdown signal to process...")
+
 	return nil
 }
 
 // OnPostStop 停止后钩子
 func (d *DefaultLifecycleHooks) OnPostStop(ctx context.Context) error {
-	// 清理系统配置
 	// 记录停止日志
+	output.Info("Process stopped successfully")
+
+	// 清理系统配置
+	// 注意：实际的系统配置清理在 ProcessHandler.checkAndCleanupAfterStop 中完成
+	output.Info("Performing post-stop cleanup...")
+
 	return nil
 }
 

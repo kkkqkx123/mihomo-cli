@@ -1,15 +1,54 @@
 package mihomo
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
+
+// configHashMapping 配置文件 hash 到路径的映射表
+var configHashMapping = make(map[string]string)
+var configHashMutex sync.RWMutex
+
+// RegisterConfigHash 注册配置文件的 hash 映射
+func RegisterConfigHash(configPath string) error {
+	if configPath == "" {
+		return nil
+	}
+
+	// 计算配置文件路径的 hash
+	hash := computeConfigHash(configPath)
+
+	configHashMutex.Lock()
+	configHashMapping[hash] = configPath
+	configHashMutex.Unlock()
+
+	return nil
+}
+
+// computeConfigHash 计算配置文件的 hash
+func computeConfigHash(configPath string) string {
+	// 使用文件路径的绝对路径作为 hash
+	absPath, err := filepath.Abs(configPath)
+	if err != nil {
+		absPath = configPath
+	}
+
+	// 使用 SHA256 计算路径的 hash
+	h := sha256.New()
+	h.Write([]byte(absPath))
+	return hex.EncodeToString(h.Sum(nil))[:8] // 取前8位作为短hash
+}
 
 // ScanMihomoProcesses 扫描所有 Mihomo 进程
 func ScanMihomoProcesses() ([]ProcessInfo, error) {
@@ -116,18 +155,82 @@ func VerifyMihomoProcess(pid int) (bool, error) {
 	return strings.Contains(basename, "mihomo"), nil
 }
 
-// getConfigPathFromHash 从 hash 反推配置文件路径（简化版）
+// getConfigPathFromHash 从 hash 反推配置文件路径
 func getConfigPathFromHash(hash string) string {
-	// 这是一个简化的实现，实际上需要维护一个映射表
-	// 在实际应用中，可以在 PID 文件中存储配置文件的完整路径
+	configHashMutex.RLock()
+	configPath, exists := configHashMapping[hash]
+	configHashMutex.RUnlock()
+
+	if exists {
+		return configPath
+	}
+
+	// 如果映射表中没有，尝试搜索基础目录
+	baseDir, err := config.GetBaseDir()
+	if err != nil {
+		return ""
+	}
+
+	// 遍历基础目录，查找匹配的配置文件
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		configFile := filepath.Join(baseDir, entry.Name())
+		computedHash := computeConfigHash(configFile)
+
+		if computedHash == hash {
+			// 找到匹配的配置文件，添加到映射表
+			configHashMutex.Lock()
+			configHashMapping[hash] = configFile
+			configHashMutex.Unlock()
+			return configFile
+		}
+	}
+
 	return ""
 }
 
-// extractAPIPortFromConfig 从配置文件提取 API 端口（简化版）
+// extractAPIPortFromConfig 从配置文件提取 API 端口
 func extractAPIPortFromConfig(configFile string) (string, error) {
-	// 这是一个简化的实现，实际需要解析配置文件
-	// 可以使用 yaml 或 toml 解析器
-	return "", pkgerrors.ErrService("not implemented", nil)
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return "", pkgerrors.ErrConfig("failed to read config file", err)
+	}
+
+	// 解析 YAML 配置
+	var cfg struct {
+		ExternalController    string `yaml:"external-controller"`
+		ExternalControllerTLS string `yaml:"external-controller-tls"`
+	}
+
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return "", pkgerrors.ErrConfig("failed to parse config file", err)
+	}
+
+	// 优先使用 TLS 端口
+	apiAddress := cfg.ExternalControllerTLS
+	if apiAddress == "" {
+		apiAddress = cfg.ExternalController
+	}
+
+	if apiAddress == "" {
+		return "", pkgerrors.ErrConfig("no external-controller found in config", nil)
+	}
+
+	// 提取端口号，格式如 "127.0.0.1:9090" 或 ":9090"
+	parts := strings.Split(apiAddress, ":")
+	if len(parts) < 2 {
+		return "", pkgerrors.ErrConfig("invalid external-controller format: "+apiAddress, nil)
+	}
+
+	return parts[len(parts)-1], nil
 }
 
 // CleanupPIDFiles 清理所有残留的 PID 文件

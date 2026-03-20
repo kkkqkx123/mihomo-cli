@@ -2,6 +2,7 @@ package mihomo
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -81,9 +83,6 @@ func (pm *ProcessManager) Start() error {
 	pm.stderr = &bytes.Buffer{}
 	pm.cmd.Stdout = pm.stdout
 	pm.cmd.Stderr = pm.stderr
-
-	// 设置进程属性（跨平台）
-	SetSysProcAttr(pm.cmd)
 
 	// 设置工作目录
 	workDir := filepath.Dir(pm.config.Mihomo.Executable)
@@ -279,51 +278,71 @@ func ValidateProcess(pid int, force bool) error {
 	return nil
 }
 
-// StopProcessByPID 通过 PID 停止进程并等待完全退出
-// 优先尝试优雅关闭，超时后使用强制终止
-func StopProcessByPID(pid int) error {
+// StopProcessByPID 通过 PID 停止进程（使用 API 关闭）
+// 优先尝试通过 API 关闭，失败后提示用户使用 -F 强制关闭
+func StopProcessByPID(pid int, apiAddress, secret string) error {
+	// 检查进程是否存在
+	if !IsProcessRunning(pid) {
+		return pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
+	}
+
+	// 尝试通过 API 关闭
+	if apiAddress != "" && secret != "" {
+		output.Printf("Attempting to shutdown process %d via API...\n", pid)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		client := api.NewClient("http://"+apiAddress, secret, api.WithTimeout(10*time.Second))
+		if err := client.Shutdown(ctx); err != nil {
+			// API 错误已经包含了详细信息，直接返回并添加提示
+			output.Println("")
+			output.Println("请使用 -F 参数强制关闭进程：")
+			output.Printf("  mihomo-cli stop -F %d\n", pid)
+			return err
+		}
+
+		// 等待进程退出（最多 10 秒）
+		output.Printf("Waiting for process to exit (max 10 seconds)...\n")
+
+		timeout := 10 * time.Second
+		checkInterval := 500 * time.Millisecond
+		checkTicker := time.NewTicker(checkInterval)
+		defer checkTicker.Stop()
+
+		deadline := time.Now().Add(timeout)
+
+		for range checkTicker.C {
+			if !IsProcessRunning(pid) {
+				output.Success("Process %d has gracefully exited", pid)
+				return nil
+			}
+
+			if time.Now().After(deadline) {
+				output.Warning("Process did not exit within timeout")
+				output.Println("")
+				output.Println("进程未在超时时间内退出，请使用 -F 参数强制关闭：")
+				output.Printf("  mihomo-cli stop -F %d\n", pid)
+				return pkgerrors.ErrService("shutdown timeout, use -F to force kill", nil)
+			}
+		}
+	}
+
+	return nil
+}
+
+// ForceKillProcessByPID 强制终止进程
+func ForceKillProcessByPID(pid int) error {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return pkgerrors.ErrService("failed to find process "+fmt.Sprintf("%d", pid), err)
 	}
 
-	// 第一步：尝试优雅关闭
-	// 使用跨平台的 SendGracefulSignal 方法
-	// Windows: 发送 SIGINT (Ctrl+C)
-	// Unix: 发送 SIGTERM
-	output.Printf("Attempting graceful shutdown of process %d...\n", pid)
-
-	if err := SendGracefulSignal(proc); err != nil {
-		// 如果发送信号失败，直接使用 Kill
-		output.Warning("Failed to send signal, will force kill process: " + err.Error())
-		return forceKillProcess(proc, pid)
+	if !IsProcessRunning(pid) {
+		return pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
 	}
 
-	// 第二步：等待进程优雅退出（最多 10 秒）
-	output.Printf("Waiting for graceful shutdown (max 10 seconds)...\n")
-	
-	timeout := 10 * time.Second
-	checkInterval := 500 * time.Millisecond
-	checkTicker := time.NewTicker(checkInterval)
-	defer checkTicker.Stop()
-
-	deadline := time.Now().Add(timeout)
-
-	for range checkTicker.C {
-		// 检查进程是否还在运行
-		if !IsProcessRunning(pid) {
-			output.Success("Process %d has gracefully exited", pid)
-			return nil
-		}
-
-		// 检查是否超时
-		if time.Now().After(deadline) {
-			output.Warning("Graceful shutdown timeout, will force kill")
-			return forceKillProcess(proc, pid)
-		}
-	}
-
-	return nil
+	return forceKillProcess(proc, pid)
 }
 
 // forceKillProcess 强制终止进程

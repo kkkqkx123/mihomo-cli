@@ -123,7 +123,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		case <-checkCtx.Done():
 			// 健康检查超时，通过 PID 停止进程
 			if pid, err := pm.GetPIDFromPIDFile(); err == nil {
-				_ = StopProcessByPID(pid)
+				_ = StopProcessByPID(pid, pm.GetAPIAddress(), pm.GetSecret())
 			}
 			return nil, pkgerrors.ErrService("mihomo health check timeout: process may have failed to start", nil)
 
@@ -191,7 +191,7 @@ type StopResult struct {
 }
 
 // Stop 停止 Mihomo 内核
-func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig string, args []string) (*StopResult, error) {
+func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig string, force bool, args []string) (*StopResult, error) {
 	// 如果指定了 --all，停止所有进程
 	if stopAll {
 		return nil, StopAllMihomoProcesses()
@@ -199,6 +199,7 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 
 	var pid int
 	var err error
+	var apiAddress, secret string
 
 	// 如果指定了 PID 参数
 	if len(args) == 1 {
@@ -211,6 +212,10 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		if !IsProcessRunning(pid) {
 			return nil, pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
 		}
+
+		// 对于指定 PID 的情况，需要从配置获取 API 信息
+		apiAddress = cfg.Mihomo.API.ExternalController
+		secret = cfg.API.Secret
 	} else {
 		// 默认：停止当前配置的实例
 		pm := NewProcessManager(cfg)
@@ -220,11 +225,23 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		if err != nil {
 			return nil, pkgerrors.ErrService("mihomo is not running", err)
 		}
+
+		// 获取 API 地址和密钥
+		apiAddress = pm.GetAPIAddress()
+		secret = pm.GetSecret()
 	}
 
 	// 停止进程
-	if err := StopProcessByPID(pid); err != nil {
-		return nil, pkgerrors.ErrService("failed to stop process", err)
+	if force {
+		// 强制关闭
+		if err := ForceKillProcessByPID(pid); err != nil {
+			return nil, pkgerrors.ErrService("failed to force kill process", err)
+		}
+	} else {
+		// 通过 API 关闭
+		if err := StopProcessByPID(pid, apiAddress, secret); err != nil {
+			return nil, err
+		}
 	}
 
 	// 删除 PID 文件
@@ -269,7 +286,7 @@ func (ph *ProcessHandler) Status(cfg *config.TomlConfig) (*StatusResult, error) 
 }
 
 // backupSystemConfig 备份系统配置
-func (ph *ProcessHandler) backupSystemConfig(cfg *config.TomlConfig, hasTUN, hasTProxy bool) error {
+func (ph *ProcessHandler) backupSystemConfig(_ *config.TomlConfig, hasTUN, hasTProxy bool) error {
 	dataDir, err := config.GetDataDir()
 	if err != nil {
 		return err
@@ -329,7 +346,7 @@ func (ph *ProcessHandler) backupSystemConfig(cfg *config.TomlConfig, hasTUN, has
 }
 
 // checkAndCleanupAfterStop 停止后检查并清理系统配置
-func (ph *ProcessHandler) checkAndCleanupAfterStop(cfg *config.TomlConfig) error {
+func (ph *ProcessHandler) checkAndCleanupAfterStop(_ *config.TomlConfig) error {
 	scm, err := system.NewSystemConfigManager()
 	if err != nil {
 		return err

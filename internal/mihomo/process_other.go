@@ -5,7 +5,6 @@ package mihomo
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -26,7 +25,7 @@ func (o *otherProcessChecker) IsProcessRunning(pid int) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	// 尝试发送信号 0 检查进程是否存在
 	// 这在某些平台上可能有效
 	err = proc.Signal(nil)
@@ -39,14 +38,8 @@ func (o *otherProcessChecker) GetProcessExecutable(pid int) (string, error) {
 		fmt.Sprintf("getting process executable not supported on %s", runtime.GOOS), nil)
 }
 
-// SetSysProcAttr 设置进程的系统属性（不支持的平台）
-func (o *otherProcessChecker) SetSysProcAttr(cmd *exec.Cmd) {
-	// 其他平台不需要设置特殊的系统属性
-	// 保持 cmd.SysProcAttr 为 nil
-}
-
-// SendGracefulSignal 发送优雅关闭信号（不支持的平台）
-func (o *otherProcessChecker) SendGracefulSignal(proc *os.Process) error {
-	return pkgerrors.ErrService(
-		fmt.Sprintf("graceful shutdown not supported on %s, use Kill instead", runtime.GOOS), nil)
+// getProcessResourceUsage 获取进程资源使用情况 (不支持的平台)
+func getProcessResourceUsage(pid int) (cpu, memory float64, err error) {
+	return 0, 0, pkgerrors.ErrService(
+		fmt.Sprintf("getting process resource usage not supported on %s", runtime.GOOS), nil)
 }

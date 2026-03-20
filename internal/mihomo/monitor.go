@@ -161,15 +161,6 @@ func (pm *ProcessMonitor) notifyFuncs(pid int, event string, data interface{}) {
 	}
 }
 
-// getProcessResourceUsage 获取进程资源使用情况
-func getProcessResourceUsage(pid int) (cpu, memory float64, err error) {
-	// TODO: 实现跨平台的资源使用情况获取
-	// Windows: 可以使用 Windows API
-	// Linux: 可以读取 /proc/[pid]/stat
-	// macOS: 可以使用 ps 命令
-	return 0, 0, fmt.Errorf("not implemented")
-}
-
 // HealthCheckMonitor 健康检查监控器
 type HealthCheckMonitor struct {
 	pm         *ProcessMonitor

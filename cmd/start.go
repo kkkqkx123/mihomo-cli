@@ -16,6 +16,7 @@ import (
 
 var stopAll bool
 var stopConfig string
+var stopForce bool
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -39,9 +40,13 @@ var stopCmd = &cobra.Command{
 	Long:  `停止正在运行的 Mihomo 内核进程。
 
 可以指定 PID 或使用 --all 停止所有进程。
-停止操作会等待进程完全退出后才返回。`,
-	Example: `  mihomo-cli stop           # 停止默认配置的实例
-  mihomo-cli stop 12345      # 停止指定 PID 的实例
+停止操作会等待进程完全退出后才返回。
+
+默认通过 API 优雅关闭，如果 API 不可用，需要使用 -F 强制关闭。`,
+	Example: `  mihomo-cli stop           # 停止默认配置的实例（通过 API）
+  mihomo-cli stop 12345      # 停止指定 PID 的实例（通过 API）
+  mihomo-cli stop -F         # 强制关闭默认配置的实例
+  mihomo-cli stop -F 12345   # 强制关闭指定 PID 的实例
   mihomo-cli stop --all      # 停止所有 Mihomo 进程`,
 	Args:  cobra.MaximumNArgs(1),
 	RunE: runStop,
@@ -62,6 +67,7 @@ func init() {
 	// stop 命令的标志
 	stopCmd.Flags().BoolVarP(&stopAll, "all", "a", false, "停止所有 Mihomo 进程")
 	stopCmd.Flags().StringVarP(&stopConfig, "config", "c", "", "指定配置文件路径")
+	stopCmd.Flags().BoolVarP(&stopForce, "force", "F", false, "强制关闭进程（不通过 API）")
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
@@ -131,13 +137,17 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 		output.Printf("Stopping Mihomo kernel (PID: %d)...\n", pid)
 
-		if err := mihomo.StopProcessByPID(pid); err != nil {
+		// 获取 API 地址和密钥
+		apiAddress := pm.GetAPIAddress()
+		secret := pm.GetSecret()
+
+		if err := mihomo.StopProcessByPID(pid, apiAddress, secret); err != nil {
 			_ = output.PrintError(fmt.Sprintf("Failed to stop kernel: %v", err))
 			output.PrintEmptyLine()
 			output.Println("Recovery suggestions:")
 			output.Println("  1. Check if the process is still running: mihomo-cli status")
 			output.Println("  2. If process is running, try stopping again: mihomo-cli stop")
-			output.Println("  3. If process is unresponsive, force kill: mihomo-cli stop --force")
+			output.Println("  3. If process is unresponsive, force kill: mihomo-cli stop -F")
 			output.Println("  4. If system configuration is not cleaned up, restart the system")
 			return err
 		}
@@ -181,7 +191,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 	// 停止内核
 	output.Info("停止 Mihomo 进程...")
-	result, err := handler.Stop(cfg, stopAll, stopConfig, args)
+	result, err := handler.Stop(cfg, stopAll, stopConfig, stopForce, args)
 	if err != nil {
 		return err
 	}

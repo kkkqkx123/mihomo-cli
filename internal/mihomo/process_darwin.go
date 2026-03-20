@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -29,7 +30,7 @@ func (d *darwinProcessChecker) IsProcessRunning(pid int) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	// 发送信号 0 检查进程是否存在
 	err = proc.Signal(syscall.Signal(0))
 	return err == nil
@@ -45,32 +46,51 @@ func (d *darwinProcessChecker) GetProcessExecutable(pid int) (string, error) {
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		return "", pkgerrors.ErrService("failed to get process executable: "+stderr.String(), err)
 	}
-	
+
 	execPath := strings.TrimSpace(stdout.String())
 	if execPath == "" {
 		return "", pkgerrors.ErrService("empty process executable path", nil)
 	}
-	
+
 	return execPath, nil
 }
 
-// SetSysProcAttr 设置进程的系统属性（macOS 平台无需特殊设置）
-func (d *darwinProcessChecker) SetSysProcAttr(cmd *exec.Cmd) {
-	// macOS 平台不需要设置特殊的系统属性
-	// 保持 cmd.SysProcAttr 为 nil
-}
+// getProcessResourceUsage 获取进程资源使用情况 (macOS 实现)
+func getProcessResourceUsage(pid int) (cpu, memory float64, err error) {
+	// 使用 ps 命令获取 CPU 和内存使用情况
+	cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", pid), "-o", "%cpu,%mem,rss=")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-// SendGracefulSignal 发送优雅关闭信号（macOS 使用 SIGTERM）
-// SIGTERM 是 macOS 系统上标准的优雅终止信号
-func (d *darwinProcessChecker) SendGracefulSignal(proc *os.Process) error {
-	// macOS 系统使用 SIGTERM 信号
-	// 这会给进程机会执行清理操作
-	if err := proc.Signal(syscall.SIGTERM); err != nil {
-		return pkgerrors.ErrService("failed to send SIGTERM signal", err)
+	if err := cmd.Run(); err != nil {
+		return 0, 0, pkgerrors.ErrService("failed to get process resource usage: "+stderr.String(), err)
 	}
-	return nil
+
+	// 解析输出
+	// 格式: %CPU %MEM RSS
+	// 示例:  0.0  0.1 1234
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) < 1 {
+		return 0, 0, pkgerrors.ErrService("invalid ps output", nil)
+	}
+
+	fields := strings.Fields(lines[len(lines)-1])
+	if len(fields) < 3 {
+		return 0, 0, pkgerrors.ErrService("invalid ps output format", nil)
+	}
+
+	// 解析 CPU 使用率
+	cpu, _ = strconv.ParseFloat(fields[0], 64)
+
+	// 解析内存使用 (RSS, 单位: KB)
+	rssKB, _ := strconv.ParseFloat(fields[2], 64)
+	memory = rssKB / 1024.0 // 转换为 MB
+
+	return cpu, memory, nil
 }
