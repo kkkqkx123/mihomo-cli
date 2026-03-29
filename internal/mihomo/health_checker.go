@@ -7,24 +7,25 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
+	"github.com/kkkqkx123/mihomo-cli/internal/system"
 )
 
 // HealthChecker 健康检查器
 type HealthChecker struct {
-	client      *api.Client
-	timeout     time.Duration
-	configPath  string
+	client     *api.Client
+	timeout    time.Duration
+	configPath string
 }
 
 // HealthStatus 健康状态
 type HealthStatus struct {
-	APIHealthy     bool   // API是否健康
-	TunnelHealthy  bool   // 隧道是否健康
-	TunEnabled     bool   // TUN是否启用
-	TunHealthy     bool   // TUN是否健康
-	ProxyHealthy   bool   // 代理是否健康
-	Errors         []string // 错误信息
-	Warnings       []string // 警告信息
+	APIHealthy    bool     // API是否健康
+	TunnelHealthy bool     // 隧道是否健康
+	TunEnabled    bool     // TUN是否启用
+	TunHealthy    bool     // TUN是否健康
+	ProxyHealthy  bool     // 代理是否健康
+	Errors        []string // 错误信息
+	Warnings      []string // 警告信息
 }
 
 // NewHealthChecker 创建健康检查器
@@ -60,7 +61,7 @@ func (hc *HealthChecker) CheckHealth(ctx context.Context) (*HealthStatus, error)
 	if configInfo.Tun != nil && configInfo.Tun.Enable {
 		status.TunEnabled = true
 		if err := hc.checkTunStatus(status); err != nil {
-			status.Warnings = append(status.Warnings, 
+			status.Warnings = append(status.Warnings,
 				fmt.Sprintf("TUN mode is enabled but cannot verify status: %v", err),
 				"This may affect network connectivity if the process crashes")
 		}
@@ -68,7 +69,7 @@ func (hc *HealthChecker) CheckHealth(ctx context.Context) (*HealthStatus, error)
 
 	// 4. 检查代理状态
 	if err := hc.checkProxyStatus(ctx, status); err != nil {
-		status.Warnings = append(status.Warnings, 
+		status.Warnings = append(status.Warnings,
 			fmt.Sprintf("Proxy status check failed: %v", err))
 	}
 
@@ -97,15 +98,47 @@ func (hc *HealthChecker) checkAPI(ctx context.Context, status *HealthStatus) err
 
 // checkTunStatus 检查TUN状态
 func (hc *HealthChecker) checkTunStatus(status *HealthStatus) error {
-	// TODO: 实现实际的TUN状态检查
-	// 目前只能通过配置信息判断是否启用
-	// 实际实现可能需要调用系统API检查TUN网卡状态
-	
-	status.TunHealthy = true // 假设启用就是健康的
-	status.Warnings = append(status.Warnings, 
+	// 尝试通过系统配置管理器检查 TUN 设备状态
+	scm, err := system.NewSystemConfigManager()
+	if err != nil {
+		status.Warnings = append(status.Warnings,
+			fmt.Sprintf("Failed to create system config manager: %v", err),
+			"Cannot verify TUN device status")
+		status.TunHealthy = true // 假设健康，避免误报
+		return nil
+	}
+
+	// 获取 TUN 管理器
+	tunManager := scm.GetTUNManager()
+
+	// 获取 TUN 设备状态
+	tunState, err := tunManager.GetState()
+	if err != nil {
+		status.Warnings = append(status.Warnings,
+			fmt.Sprintf("Failed to get TUN state: %v", err),
+			"Cannot verify TUN device status")
+		status.TunHealthy = true // 假设健康，避免误报
+		return nil
+	}
+
+	// 检查 TUN 设备是否存在
+	if tunState == nil || !tunState.Enabled {
+		status.Warnings = append(status.Warnings,
+			"TUN mode is enabled in config but TUN device is not found or not enabled",
+			"This may indicate TUN device creation failed")
+		status.TunHealthy = false
+		return nil
+	}
+
+	// TUN 设备存在且已启用
+	status.TunHealthy = true
+	output.Printf("  TUN device: %s (IP: %s, MTU: %d)\n",
+		tunState.Name, tunState.IPAddress, tunState.MTU)
+
+	status.Warnings = append(status.Warnings,
 		"TUN mode is enabled. If the process crashes or is forcefully terminated,",
 		"you may need to manually clean up the TUN network adapter and routing table.")
-	
+
 	return nil
 }
 
@@ -125,7 +158,7 @@ func (hc *HealthChecker) checkProxyStatus(ctx context.Context, status *HealthSta
 		if proxy.Type == "Selector" || proxy.Type == "URLTest" || proxy.Type == "LoadBalance" {
 			// 这是一个代理组
 			if proxy.Now == "" {
-				status.Warnings = append(status.Warnings, 
+				status.Warnings = append(status.Warnings,
 					fmt.Sprintf("Proxy group '%s' has no selected proxy", name))
 			}
 		}

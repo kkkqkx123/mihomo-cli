@@ -14,6 +14,7 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
+	"github.com/kkkqkx123/mihomo-cli/internal/system"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -25,7 +26,7 @@ type ProcessManager struct {
 	mu        sync.RWMutex
 	isRunning bool
 	cmd       *exec.Cmd
-	pidFile   string // PID 文件路径
+	pidFile   string        // PID 文件路径
 	stderr    *bytes.Buffer // 捕获 stderr 输出
 	stdout    *bytes.Buffer // 捕获 stdout 输出
 }
@@ -109,7 +110,7 @@ func (pm *ProcessManager) Start() error {
 		pm.isRunning = false
 		// 进程退出时删除 PID 文件
 		os.Remove(pm.pidFile)
-		
+
 		// 如果进程异常退出，输出错误信息
 		if err != nil {
 			output.Error("\n[Mihomo 进程异常退出] 错误: " + err.Error())
@@ -338,10 +339,6 @@ func ForceKillProcessByPID(pid int) error {
 		return pkgerrors.ErrService("failed to find process "+fmt.Sprintf("%d", pid), err)
 	}
 
-	if !IsProcessRunning(pid) {
-		return pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
-	}
-
 	return forceKillProcess(proc, pid)
 }
 
@@ -365,7 +362,69 @@ func forceKillProcess(proc *os.Process, pid int) error {
 	}
 
 	output.Success("Process %d has been force killed", pid)
-	output.Warning("Process was forcefully terminated. If Mihomo configuration enabled TUN/TProxy mode,\nyou may need to manually clean up system configuration (TUN network adapter, routing table, registry proxy settings, etc.)\nOr restart the system to ensure complete cleanup")
+
+	// 尝试自动清理系统配置
+	output.Info("Attempting to clean up system configuration...")
+	if err := cleanupAfterForceKill(); err != nil {
+		output.Warning("Automatic cleanup failed: " + err.Error())
+		output.Warning("You may need to manually clean up system configuration:")
+		output.Println("  - TUN network adapter (Windows: Network Adapter Settings)")
+		output.Println("  - Routing table modifications")
+		output.Println("  - Registry proxy settings")
+		output.Println("  - iptables rules (Linux)")
+		output.Println("Or restart the system to ensure complete cleanup")
+	} else {
+		output.Success("System configuration cleanup completed")
+	}
 
 	return nil
+}
+
+// cleanupAfterForceKill 强制终止后清理系统配置
+func cleanupAfterForceKill() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	output.Printf("Checking for residual system configurations...\n")
+
+	// 创建系统配置管理器
+	scm, err := system.NewSystemConfigManager()
+	if err != nil {
+		return fmt.Errorf("failed to create system config manager: %w", err)
+	}
+
+	// 检查残留配置
+	problems, err := scm.ValidateState()
+	if err != nil {
+		return fmt.Errorf("failed to validate system state: %w", err)
+	}
+
+	if len(problems) == 0 {
+		output.Success("No residual configurations found")
+		return nil
+	}
+
+	output.Warning("Found %d residual configuration issues", len(problems))
+	for _, problem := range problems {
+		output.Printf("  - %s (severity: %s)\n", problem.Description, problem.Severity)
+	}
+
+	// 尝试自动清理
+	output.Info("Attempting automatic cleanup...")
+	if err := scm.CleanupAll(); err != nil {
+		return fmt.Errorf("automatic cleanup failed: %w", err)
+	}
+
+	// 验证清理结果
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("cleanup timeout")
+	default:
+		// 再次检查是否还有残留
+		remainingProblems, _ := scm.ValidateState()
+		if len(remainingProblems) > 0 {
+			output.Warning("%d issues could not be automatically cleaned up", len(remainingProblems))
+		}
+		return nil
+	}
 }
