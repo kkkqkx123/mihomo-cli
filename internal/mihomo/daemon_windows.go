@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 
@@ -20,7 +19,6 @@ import (
 // WindowsDaemonManager Windows 平台守护进程管理器
 type WindowsDaemonManager struct {
 	*DaemonManagerCommon
-	jobObject *JobObjectManager
 }
 
 // NewWindowsDaemonManager 创建 Windows 平台守护进程管理器
@@ -31,7 +29,6 @@ func NewWindowsDaemonManager(
 	base := NewDaemonManagerBase(config, pidFile, secret, apiAddr, execPath, configFile)
 	return &WindowsDaemonManager{
 		DaemonManagerCommon: NewDaemonManagerCommon(base),
-		jobObject:           NewJobObjectManager(),
 	}
 }
 
@@ -66,11 +63,9 @@ func (wdm *WindowsDaemonManager) StartAsDaemon(ctx context.Context, cfg interfac
 
 	pid := cmd.Process.Pid
 
-	// 将进程添加到 Job Object（确保子进程随父进程退出）
-	if err := wdm.jobObject.CreateAndAssign(pid); err != nil {
-		output.Warning("failed to assign process to job object: " + err.Error())
-		// 不影响启动流程，只是失去额外的保护
-	}
+	// 注意: 不再使用 Job Object
+	// Job Object 的 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE 标志会导致父进程退出时子进程被终止
+	// 这与守护进程的目标相反。我们使用 DETACHED_PROCESS 标志来确保进程独立运行。
 
 	// 保存 PID
 	if err := wdm.SavePID(pid); err != nil {
@@ -137,8 +132,11 @@ func (wdm *WindowsDaemonManager) GetDaemonPID() (int, error) {
 
 // CreateProcessGroup 创建进程组
 func (wdm *WindowsDaemonManager) CreateProcessGroup(cmd *exec.Cmd) error {
+	// 使用 CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS 标志
+	// CREATE_NEW_PROCESS_GROUP: 创建新的进程组，防止接收 Ctrl+C 信号
+	// DETACHED_PROCESS: 创建独立的控制台进程，不继承父进程的控制台
 	cmd.SysProcAttr = &windows.SysProcAttr{
-		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP,
+		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS,
 	}
 	return nil
 }
@@ -160,7 +158,9 @@ func (wdm *WindowsDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error
 
 		cmd.Stdout = logFH
 		cmd.Stderr = logFH
-		// 不关闭文件句柄，子进程需要使用
+		// 注意: 不关闭文件句柄，因为子进程需要继承这个句柄
+		// 当子进程启动后，这个句柄会自动被子进程继承
+		// 父进程退出时，子进程仍然持有这个句柄的引用
 	} else {
 		// 重定向到 NUL
 		nullFile, err := os.OpenFile("NUL", os.O_RDWR, 0)
@@ -181,68 +181,6 @@ func (wdm *WindowsDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error
 	defer nullFile.Close()
 	cmd.Stdin = nullFile
 
-	return nil
-}
-
-// JobObjectManager Windows Job Object 管理器
-type JobObjectManager struct {
-	handle windows.Handle
-}
-
-// NewJobObjectManager 创建 Job Object 管理器
-func NewJobObjectManager() *JobObjectManager {
-	return &JobObjectManager{}
-}
-
-// CreateAndAssign 创建 Job Object 并将进程分配到其中
-func (jom *JobObjectManager) CreateAndAssign(pid int) error {
-	// 创建 Job Object
-	handle, err := windows.CreateJobObject(nil, nil)
-	if err != nil {
-		return err
-	}
-	jom.handle = handle
-
-	// 设置 Job Object 信息：当 Job 句柄关闭时终止所有进程
-	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{
-		BasicLimitInformation: windows.JOBOBJECT_BASIC_LIMIT_INFORMATION{
-			LimitFlags: windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-		},
-	}
-
-	_, err = windows.SetInformationJobObject(
-		handle,
-		windows.JobObjectExtendedLimitInformation,
-		uintptr(unsafe.Pointer(&info)),
-		uint32(unsafe.Sizeof(info)),
-	)
-	if err != nil {
-		windows.CloseHandle(handle)
-		return err
-	}
-
-	// 打开目标进程
-	processHandle, err := windows.OpenProcess(windows.PROCESS_ALL_ACCESS, false, uint32(pid))
-	if err != nil {
-		windows.CloseHandle(handle)
-		return err
-	}
-	defer windows.CloseHandle(processHandle)
-
-	// 将进程分配到 Job Object
-	if err := windows.AssignProcessToJobObject(handle, processHandle); err != nil {
-		windows.CloseHandle(handle)
-		return err
-	}
-
-	return nil
-}
-
-// Close 关闭 Job Object
-func (jom *JobObjectManager) Close() error {
-	if jom.handle != 0 {
-		return windows.CloseHandle(jom.handle)
-	}
 	return nil
 }
 

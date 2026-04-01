@@ -104,7 +104,10 @@ func (ddm *DarwinDaemonManager) GetDaemonPID() (int, error) {
 
 // CreateProcessGroup 创建进程组
 func (ddm *DarwinDaemonManager) CreateProcessGroup(cmd *exec.Cmd) error {
-	// macOS 与 Linux 类似，使用 Setsid 和 Setpgid
+	// macOS 使用 Setsid 和 Setpgid 创建独立进程组和会话
+	// Setsid: 创建新会话，使进程脱离控制终端
+	// Setpgid: 创建新进程组，使进程成为进程组组长
+	// 这确保了进程完全独立于父进程，不会受到终端关闭的影响
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true, // 创建新会话
 		Setpgid: true, // 创建新进程组
@@ -129,7 +132,9 @@ func (ddm *DarwinDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error 
 
 		cmd.Stdout = logFH
 		cmd.Stderr = logFH
-		// 不关闭文件句柄，子进程需要使用
+		// 注意: 不关闭文件句柄，因为子进程需要继承这个句柄
+		// 当子进程启动后，这个句柄会自动被子进程继承
+		// 父进程退出时，子进程仍然持有这个句柄的引用
 	} else {
 		// 重定向到 /dev/null
 		devNull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
