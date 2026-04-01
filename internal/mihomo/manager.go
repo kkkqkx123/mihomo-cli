@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -47,6 +48,12 @@ func (pm *ProcessManager) Start() error {
 		return pkgerrors.ErrService("failed to prepare config file", err)
 	}
 
+	// 获取可执行文件的绝对路径
+	execPath := pm.config.Mihomo.Executable
+	if absExec, err := filepath.Abs(execPath); err == nil {
+		execPath = absExec
+	}
+
 	// 创建守护进程管理器（只创建一次）
 	daemonConfig := pm.buildDaemonConfig()
 	pm.daemonManager = GetDaemonManager(
@@ -54,7 +61,7 @@ func (pm *ProcessManager) Start() error {
 		pm.pidFile,
 		secret,
 		pm.config.Mihomo.API.ExternalController,
-		pm.config.Mihomo.Executable,
+		execPath,
 		configFile,
 	)
 
@@ -77,9 +84,15 @@ func (pm *ProcessManager) prepareSecret() (string, error) {
 
 // buildDaemonConfig 构建守护进程配置
 func (pm *ProcessManager) buildDaemonConfig() *DaemonConfig {
+	// 默认工作目录为可执行文件所在目录（转换为绝对路径）
+	defaultWorkDir := filepath.Dir(pm.config.Mihomo.Executable)
+	if absDir, err := filepath.Abs(defaultWorkDir); err == nil {
+		defaultWorkDir = absDir
+	}
+
 	daemonConfig := &DaemonConfig{
 		Enabled:       true,
-		WorkDir:       "",
+		WorkDir:       defaultWorkDir,
 		LogFile:       "",
 		LogLevel:      "info",
 		LogMaxSize:    "100M",
@@ -89,7 +102,15 @@ func (pm *ProcessManager) buildDaemonConfig() *DaemonConfig {
 
 	// 如果配置文件中有守护进程配置，使用配置文件的值
 	if pm.config.Daemon != nil {
-		daemonConfig.WorkDir = pm.config.Daemon.WorkDir
+		// 只有当配置文件明确指定了 WorkDir 时才覆盖
+		if pm.config.Daemon.WorkDir != "" {
+			// 同样转换为绝对路径
+			if absDir, err := filepath.Abs(pm.config.Daemon.WorkDir); err == nil {
+				daemonConfig.WorkDir = absDir
+			} else {
+				daemonConfig.WorkDir = pm.config.Daemon.WorkDir
+			}
+		}
 		daemonConfig.LogFile = pm.config.Daemon.LogFile
 		daemonConfig.LogLevel = pm.config.Daemon.LogLevel
 		daemonConfig.LogMaxSize = pm.config.Daemon.LogMaxSize
@@ -112,7 +133,7 @@ func (pm *ProcessManager) GetAPIAddress() string {
 
 // GetPIDFromPIDFile 从 PID 文件读取并检查进程是否运行
 func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
-	// 从守护进程管理器获取 PID
+	// 如果有 daemonManager，优先使用它
 	if pm.daemonManager != nil {
 		pid, err := pm.daemonManager.GetDaemonPID()
 		if err != nil {
@@ -127,14 +148,38 @@ func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
 		return pid, nil
 	}
 
-	return 0, pkgerrors.ErrService("daemon manager not initialized", nil)
+	// 否则直接从 PID 文件读取（用于 status 命令等场景）
+	if pm.pidFile == "" {
+		return 0, pkgerrors.ErrService("PID file not configured", nil)
+	}
+
+	data, err := os.ReadFile(pm.pidFile)
+	if err != nil {
+		return 0, pkgerrors.ErrConfig("failed to read PID file", err)
+	}
+
+	pid, err := strconv.Atoi(string(data))
+	if err != nil {
+		return 0, pkgerrors.ErrConfig("invalid PID format", err)
+	}
+
+	// 检查进程是否真的在运行
+	if !IsProcessRunning(pid) {
+		return 0, pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
+	}
+
+	return pid, nil
 }
 
 // prepareConfigFile 准备配置文件
 func (pm *ProcessManager) prepareConfigFile(secret string) (string, error) {
-	// 如果指定了配置文件，直接使用
+	// 如果指定了配置文件，转换为绝对路径后使用
 	if pm.config.Mihomo.ConfigFile != "" {
-		return pm.config.Mihomo.ConfigFile, nil
+		absPath, err := filepath.Abs(pm.config.Mihomo.ConfigFile)
+		if err != nil {
+			return "", pkgerrors.ErrConfig("failed to get absolute path of config file", err)
+		}
+		return absPath, nil
 	}
 
 	// 否则生成临时配置文件

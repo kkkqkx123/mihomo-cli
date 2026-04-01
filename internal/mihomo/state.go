@@ -140,7 +140,34 @@ func (sm *StateManager) Update(updateFunc func(*ProcessState)) error {
 
 	updateFunc(sm.state)
 
-	return sm.Save()
+	// 直接调用 save（不获取锁，因为已经持有锁）
+	return sm.save()
+}
+
+// save 内部保存方法（调用者必须持有锁）
+func (sm *StateManager) save() error {
+	if sm.state == nil {
+		return nil
+	}
+
+	// 序列化状态
+	data, err := json.MarshalIndent(sm.state, "", "  ")
+	if err != nil {
+		return pkgerrors.ErrService("failed to marshal process state", err)
+	}
+
+	// 确保目录存在
+	stateDir := filepath.Dir(sm.stateFile)
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
+		return pkgerrors.ErrService("failed to create state directory", err)
+	}
+
+	// 写入文件
+	if err := os.WriteFile(sm.stateFile, data, 0644); err != nil {
+		return pkgerrors.ErrService("failed to write state file", err)
+	}
+
+	return nil
 }
 
 // Get 获取当前状态

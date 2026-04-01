@@ -43,14 +43,20 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	}
 
 	// 检查可执行文件是否存在
-	if _, err := os.Stat(cfg.Mihomo.Executable); os.IsNotExist(err) {
-		return nil, pkgerrors.ErrConfig("mihomo executable not found: "+cfg.Mihomo.Executable, nil)
+	execPath := cfg.Mihomo.Executable
+	if _, err := os.Stat(execPath); os.IsNotExist(err) {
+		return nil, pkgerrors.ErrConfig("mihomo executable not found: "+execPath, nil)
+	}
+
+	// 创建守护进程启动器
+	launcher, err := NewDaemonLauncher(cfg)
+	if err != nil {
+		return nil, pkgerrors.ErrService("failed to create daemon launcher", err)
 	}
 
 	// 检查是否已经在运行
-	pm := NewProcessManager(cfg)
-	if pid, err := pm.GetPIDFromPIDFile(); err == nil {
-		return nil, pkgerrors.ErrService("mihomo is already running (PID: "+fmt.Sprintf("%d", pid)+"), use 'mihomo-cli stop' to stop it first", nil)
+	if pid, err := launcher.GetRunningPID(); err == nil && pid > 0 {
+		return nil, pkgerrors.ErrService(fmt.Sprintf("mihomo is already running (PID: %d), use 'mihomo-cli stop' to stop it first", pid), nil)
 	}
 
 	// 启动前配置检查 - 检查是否启用了高风险配置（TUN/TProxy）
@@ -87,23 +93,21 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	}
 
 	// 启动内核（守护进程模式）
-	if err := pm.Start(); err != nil {
+	if err := launcher.Start(); err != nil {
 		return nil, pkgerrors.ErrService("failed to start mihomo daemon", err)
 	}
 
-	result := &StartResult{
-		APIAddress: pm.GetAPIAddress(),
-		Secret:     pm.GetSecret(),
+	// 获取状态
+	isRunning, pid, apiAddr, secret := launcher.GetStatus()
+	if !isRunning {
+		return nil, pkgerrors.ErrService("daemon started but status check failed", nil)
 	}
 
-	// 获取 PID
-	pid, err := pm.GetPIDFromPIDFile()
-	if err != nil {
-		// 如果获取 PID 失败，但启动成功，继续健康检查
-		output.Warning("Failed to get PID, but daemon started successfully")
-		pid = 0
+	result := &StartResult{
+		APIAddress: apiAddr,
+		Secret:     secret,
+		PID:        pid,
 	}
-	result.PID = pid
 
 	// 获取健康检查超时时间
 	healthCheckTimeout := cfg.Mihomo.HealthCheckTimeout
@@ -113,8 +117,8 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 
 	// 创建 API 客户端进行健康检查
 	apiClient := api.NewClient(
-		"http://"+pm.GetAPIAddress(),
-		pm.GetSecret(),
+		"http://"+apiAddr,
+		secret,
 		api.WithTimeout(3*time.Second),
 	)
 
@@ -132,9 +136,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		case <-checkCtx.Done():
 			// 健康检查超时，尝试停止守护进程
 			if pid > 0 {
-				if pm.daemonManager != nil {
-					_ = pm.daemonManager.StopDaemon(pid)
-				}
+				_ = launcher.Stop(true)
 			}
 			return nil, pkgerrors.ErrService("mihomo health check timeout: daemon may have failed to start", nil)
 
@@ -197,8 +199,13 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		return nil, StopAllMihomoProcesses()
 	}
 
+	// 创建守护进程启动器
+	launcher, err := NewDaemonLauncher(cfg)
+	if err != nil {
+		return nil, pkgerrors.ErrService("failed to create daemon launcher", err)
+	}
+
 	var pid int
-	var err error
 
 	// 如果指定了 PID 参数
 	if len(args) == 1 {
@@ -213,23 +220,16 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		}
 	} else {
 		// 默认：停止当前配置的实例
-		pm := NewProcessManager(cfg)
-
-		// 从 PID 文件读取进程 ID
-		pid, err = pm.GetPIDFromPIDFile()
+		var err error
+		pid, err = launcher.GetRunningPID()
 		if err != nil {
 			return nil, pkgerrors.ErrService("mihomo is not running", err)
 		}
 	}
 
-	// 使用守护进程管理器停止
-	pm := NewProcessManager(cfg)
-	if pm.daemonManager != nil {
-		if err := pm.daemonManager.StopDaemon(pid); err != nil {
-			return nil, pkgerrors.ErrService("failed to stop daemon", err)
-		}
-	} else {
-		return nil, pkgerrors.ErrService("daemon manager not initialized", nil)
+	// 停止进程
+	if err := launcher.Stop(force); err != nil {
+		return nil, err
 	}
 
 	// 检查系统配置状态并尝试清理
@@ -250,20 +250,19 @@ type StatusResult struct {
 
 // Status 查询 Mihomo 内核状态
 func (ph *ProcessHandler) Status(cfg *config.TomlConfig) (*StatusResult, error) {
-	pm := NewProcessManager(cfg)
-
-	// 从 PID 文件读取进程 ID
-	pid, err := pm.GetPIDFromPIDFile()
+	// 创建守护进程启动器
+	launcher, err := NewDaemonLauncher(cfg)
 	if err != nil {
-		return &StatusResult{
-			IsRunning: false,
-		}, nil
+		return nil, pkgerrors.ErrService("failed to create daemon launcher", err)
 	}
 
+	// 获取状态
+	isRunning, pid, apiAddr, _ := launcher.GetStatus()
+
 	return &StatusResult{
-		IsRunning:  true,
+		IsRunning:  isRunning,
 		PID:        pid,
-		APIAddress: pm.GetAPIAddress(),
+		APIAddress: apiAddr,
 	}, nil
 }
 
