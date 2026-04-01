@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"syscall"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
@@ -17,7 +16,7 @@ import (
 
 // DarwinDaemonManager macOS 平台守护进程管理器
 type DarwinDaemonManager struct {
-	*DaemonManagerBase
+	*DaemonManagerCommon
 }
 
 // NewDarwinDaemonManager 创建 macOS 平台守护进程管理器
@@ -25,18 +24,19 @@ func NewDarwinDaemonManager(
 	config *DaemonConfig,
 	pidFile, secret, apiAddr, execPath, configFile string,
 ) *DarwinDaemonManager {
+	base := NewDaemonManagerBase(config, pidFile, secret, apiAddr, execPath, configFile)
 	return &DarwinDaemonManager{
-		DaemonManagerBase: NewDaemonManagerBase(config, pidFile, secret, apiAddr, execPath, configFile),
+		DaemonManagerCommon: NewDaemonManagerCommon(base),
 	}
 }
 
 // StartAsDaemon 以守护进程方式启动
 func (ddm *DarwinDaemonManager) StartAsDaemon(ctx context.Context, cfg interface{}) error {
 	// 构建命令
-	cmd := exec.Command(ddm.GetExecutablePath(), "-f", ddm.GetConfigFile())
+	cmd := exec.Command(ddm.Base().GetExecutablePath(), "-f", ddm.Base().GetConfigFile())
 
 	// 设置工作目录
-	if workDir := ddm.GetWorkDir(); workDir != "" {
+	if workDir := ddm.Base().GetWorkDir(); workDir != "" {
 		cmd.Dir = workDir
 	}
 
@@ -47,8 +47,8 @@ func (ddm *DarwinDaemonManager) StartAsDaemon(ctx context.Context, cfg interface
 
 	// 重定向 I/O
 	logFile := ""
-	if ddm.GetConfig() != nil {
-		logFile = ddm.GetConfig().LogFile
+	if ddm.Base().GetConfig() != nil {
+		logFile = ddm.Base().GetConfig().LogFile
 	}
 	if err := ddm.RedirectIO(cmd, logFile); err != nil {
 		return err
@@ -60,12 +60,11 @@ func (ddm *DarwinDaemonManager) StartAsDaemon(ctx context.Context, cfg interface
 	}
 
 	// 保存 PID
-	pid := cmd.Process.Pid
-	if err := ddm.savePID(pid); err != nil {
+	if err := ddm.SavePID(cmd.Process.Pid); err != nil {
 		output.Warning("failed to save PID file: " + err.Error())
 	}
 
-	output.Success("Mihomo daemon started successfully (PID: %d)", pid)
+	output.Success("Mihomo daemon started successfully (PID: %d)", cmd.Process.Pid)
 	return nil
 }
 
@@ -77,45 +76,35 @@ func (ddm *DarwinDaemonManager) StopDaemon(pid int) error {
 	}
 
 	// 优先使用 API 优雅关闭
-	apiAddr := ddm.GetAPIAddress()
-	secret := ddm.GetSecret()
+	apiAddr := ddm.Base().GetAPIAddress()
+	secret := ddm.Base().GetSecret()
 
 	if apiAddr != "" && secret != "" {
 		output.Printf("Attempting to shutdown daemon via API...\n")
 		if err := StopProcessByPID(pid, apiAddr, secret); err == nil {
-			// API 关闭成功，删除 PID 文件
-			ddm.cleanupPID()
+			ddm.CleanupPID()
 			return nil
 		}
 		output.Warning("API shutdown failed, using force kill")
 	}
 
 	// 强制关闭
-	return ddm.forceKill(pid)
+	return ddm.ForceKillDaemon(pid)
 }
 
 // IsDaemonRunning 检查守护进程是否运行
 func (ddm *DarwinDaemonManager) IsDaemonRunning(pid int) bool {
-	if pid == 0 {
-		// 从 PID 文件读取
-		var err error
-		pid, err = ddm.readPID()
-		if err != nil {
-			return false
-		}
-	}
-	return IsProcessRunning(pid)
+	return ddm.DaemonManagerCommon.IsDaemonRunning(pid)
 }
 
 // GetDaemonPID 获取守护进程 PID
 func (ddm *DarwinDaemonManager) GetDaemonPID() (int, error) {
-	return ddm.readPID()
+	return ddm.DaemonManagerCommon.GetDaemonPID()
 }
 
 // CreateProcessGroup 创建进程组
 func (ddm *DarwinDaemonManager) CreateProcessGroup(cmd *exec.Cmd) error {
 	// macOS 与 Linux 类似，使用 Setsid 和 Setpgid
-	// 创建独立进程组和会话，脱离控制终端
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true, // 创建新会话
 		Setpgid: true, // 创建新进程组
@@ -137,10 +126,10 @@ func (ddm *DarwinDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error 
 		if err != nil {
 			return pkgerrors.ErrConfig("failed to open log file", err)
 		}
-		// 注意：不关闭文件句柄，因为子进程需要使用它
 
 		cmd.Stdout = logFH
 		cmd.Stderr = logFH
+		// 不关闭文件句柄，子进程需要使用
 	} else {
 		// 重定向到 /dev/null
 		devNull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
@@ -159,92 +148,12 @@ func (ddm *DarwinDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error 
 		return pkgerrors.ErrConfig("failed to open /dev/null for stdin", err)
 	}
 	defer devNull.Close()
-
 	cmd.Stdin = devNull
 
 	return nil
 }
 
-// savePID 保存 PID 到文件
-func (ddm *DarwinDaemonManager) savePID(pid int) error {
-	pidFile := ddm.GetPIDFile()
-	if pidFile == "" {
-		return nil
-	}
-
-	// 确保目录存在
-	pidDir := filepath.Dir(pidFile)
-	if err := os.MkdirAll(pidDir, 0755); err != nil {
-		return pkgerrors.ErrConfig("failed to create PID directory", err)
-	}
-
-	data := []byte(strconv.Itoa(pid))
-	if err := os.WriteFile(pidFile, data, 0644); err != nil {
-		return pkgerrors.ErrConfig("failed to write PID file", err)
-	}
-
-	return nil
-}
-
-// readPID 从文件读取 PID
-func (ddm *DarwinDaemonManager) readPID() (int, error) {
-	pidFile := ddm.GetPIDFile()
-	if pidFile == "" {
-		return 0, pkgerrors.ErrConfig("PID file not configured", nil)
-	}
-
-	data, err := os.ReadFile(pidFile)
-	if err != nil {
-		return 0, pkgerrors.ErrConfig("failed to read PID file", err)
-	}
-
-	pid, err := strconv.Atoi(string(data))
-	if err != nil {
-		return 0, pkgerrors.ErrConfig("invalid PID format", err)
-	}
-
-	return pid, nil
-}
-
-// cleanupPID 清理 PID 文件
-func (ddm *DarwinDaemonManager) cleanupPID() {
-	pidFile := ddm.GetPIDFile()
-	if pidFile != "" {
-		os.Remove(pidFile)
-	}
-}
-
-// forceKill 强制终止进程
-func (ddm *DarwinDaemonManager) forceKill(pid int) error {
-	output.Printf("Force killing daemon process %d...\n", pid)
-
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return pkgerrors.ErrService("failed to find process", err)
-	}
-
-	if err := proc.Kill(); err != nil {
-		return pkgerrors.ErrService("failed to kill process", err)
-	}
-
-	// 等待进程退出
-	state, err := proc.Wait()
-	if err != nil {
-		return pkgerrors.ErrService("failed to wait for process exit", err)
-	}
-
-	if !state.Exited() {
-		return pkgerrors.ErrService("process did not exit as expected", nil)
-	}
-
-	output.Success("Daemon process %d has been killed", pid)
-	ddm.cleanupPID()
-
-	return nil
-}
-
-// LaunchdManager launchd 守护进程管理器（可选的高级功能）
-// 用于与 macOS 原生的 launchd 系统集成
+// LaunchdManager launchd 守护进程管理器
 type LaunchdManager struct {
 	plistPath string
 	label     string

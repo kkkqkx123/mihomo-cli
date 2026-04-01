@@ -7,9 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"syscall"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
@@ -18,7 +19,8 @@ import (
 
 // WindowsDaemonManager Windows 平台守护进程管理器
 type WindowsDaemonManager struct {
-	*DaemonManagerBase
+	*DaemonManagerCommon
+	jobObject *JobObjectManager
 }
 
 // NewWindowsDaemonManager 创建 Windows 平台守护进程管理器
@@ -26,18 +28,20 @@ func NewWindowsDaemonManager(
 	config *DaemonConfig,
 	pidFile, secret, apiAddr, execPath, configFile string,
 ) *WindowsDaemonManager {
+	base := NewDaemonManagerBase(config, pidFile, secret, apiAddr, execPath, configFile)
 	return &WindowsDaemonManager{
-		DaemonManagerBase: NewDaemonManagerBase(config, pidFile, secret, apiAddr, execPath, configFile),
+		DaemonManagerCommon: NewDaemonManagerCommon(base),
+		jobObject:           NewJobObjectManager(),
 	}
 }
 
 // StartAsDaemon 以守护进程方式启动
 func (wdm *WindowsDaemonManager) StartAsDaemon(ctx context.Context, cfg interface{}) error {
 	// 构建命令
-	cmd := exec.Command(wdm.GetExecutablePath(), "-f", wdm.GetConfigFile())
+	cmd := exec.Command(wdm.Base().GetExecutablePath(), "-f", wdm.Base().GetConfigFile())
 
 	// 设置工作目录
-	if workDir := wdm.GetWorkDir(); workDir != "" {
+	if workDir := wdm.Base().GetWorkDir(); workDir != "" {
 		cmd.Dir = workDir
 	}
 
@@ -48,8 +52,8 @@ func (wdm *WindowsDaemonManager) StartAsDaemon(ctx context.Context, cfg interfac
 
 	// 重定向 I/O
 	logFile := ""
-	if wdm.GetConfig() != nil {
-		logFile = wdm.GetConfig().LogFile
+	if wdm.Base().GetConfig() != nil {
+		logFile = wdm.Base().GetConfig().LogFile
 	}
 	if err := wdm.RedirectIO(cmd, logFile); err != nil {
 		return err
@@ -60,9 +64,16 @@ func (wdm *WindowsDaemonManager) StartAsDaemon(ctx context.Context, cfg interfac
 		return pkgerrors.ErrService("failed to start mihomo daemon", err)
 	}
 
-	// 保存 PID
 	pid := cmd.Process.Pid
-	if err := wdm.savePID(pid); err != nil {
+
+	// 将进程添加到 Job Object（确保子进程随父进程退出）
+	if err := wdm.jobObject.CreateAndAssign(pid); err != nil {
+		output.Warning("failed to assign process to job object: " + err.Error())
+		// 不影响启动流程，只是失去额外的保护
+	}
+
+	// 保存 PID
+	if err := wdm.SavePID(pid); err != nil {
 		output.Warning("failed to save PID file: " + err.Error())
 	}
 
@@ -78,40 +89,32 @@ func (wdm *WindowsDaemonManager) StopDaemon(pid int) error {
 	}
 
 	// 优先使用 API 优雅关闭
-	apiAddr := wdm.GetAPIAddress()
-	secret := wdm.GetSecret()
+	apiAddr := wdm.Base().GetAPIAddress()
+	secret := wdm.Base().GetSecret()
 
 	if apiAddr != "" && secret != "" {
 		output.Printf("Attempting to shutdown daemon via API...\n")
 
-		// 使用 API 客户端关闭
 		client := api.NewClient("http://"+apiAddr, secret, api.WithTimeout(10*time.Second))
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		if err := client.Shutdown(ctx); err == nil {
-			// API 关闭成功，等待进程退出
 			output.Printf("Waiting for process to exit (max 10 seconds)...\n")
 
 			timeout := 10 * time.Second
 			checkInterval := 500 * time.Millisecond
-			checkTicker := time.NewTicker(checkInterval)
-			defer checkTicker.Stop()
-
 			deadline := time.Now().Add(timeout)
 
-			for range checkTicker.C {
+			for time.Now().Before(deadline) {
 				if !IsProcessRunning(pid) {
 					output.Success("Process %d has gracefully exited", pid)
-					wdm.cleanupPID()
+					wdm.CleanupPID()
 					return nil
 				}
-
-				if time.Now().After(deadline) {
-					output.Warning("Process did not exit within timeout")
-					break
-				}
+				time.Sleep(checkInterval)
 			}
+			output.Warning("Process did not exit within timeout")
 		} else {
 			output.Warning("API shutdown failed: " + err.Error())
 		}
@@ -119,34 +122,23 @@ func (wdm *WindowsDaemonManager) StopDaemon(pid int) error {
 	}
 
 	// 强制关闭
-	return wdm.forceKill(pid)
+	return wdm.ForceKillDaemon(pid)
 }
 
 // IsDaemonRunning 检查守护进程是否运行
 func (wdm *WindowsDaemonManager) IsDaemonRunning(pid int) bool {
-	if pid == 0 {
-		// 从 PID 文件读取
-		var err error
-		pid, err = wdm.readPID()
-		if err != nil {
-			return false
-		}
-	}
-	return IsProcessRunning(pid)
+	return wdm.DaemonManagerCommon.IsDaemonRunning(pid)
 }
 
 // GetDaemonPID 获取守护进程 PID
 func (wdm *WindowsDaemonManager) GetDaemonPID() (int, error) {
-	return wdm.readPID()
+	return wdm.DaemonManagerCommon.GetDaemonPID()
 }
 
 // CreateProcessGroup 创建进程组
 func (wdm *WindowsDaemonManager) CreateProcessGroup(cmd *exec.Cmd) error {
-	// Windows 使用 CREATE_NEW_PROCESS_GROUP 标志
-	// 这样创建的进程不会收到父进程的 Ctrl+C 信号
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-		HideWindow:    true, // 隐藏窗口
+	cmd.SysProcAttr = &windows.SysProcAttr{
+		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP,
 	}
 	return nil
 }
@@ -165,152 +157,91 @@ func (wdm *WindowsDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error
 		if err != nil {
 			return pkgerrors.ErrConfig("failed to open log file", err)
 		}
-		// 注意：不关闭文件句柄，因为子进程需要使用它
 
 		cmd.Stdout = logFH
 		cmd.Stderr = logFH
+		// 不关闭文件句柄，子进程需要使用
 	} else {
-		// 重定向到 NUL（Windows 的 /dev/null）
-		nul, err := os.OpenFile("NUL", os.O_RDWR, 0)
+		// 重定向到 NUL
+		nullFile, err := os.OpenFile("NUL", os.O_RDWR, 0)
 		if err != nil {
 			return pkgerrors.ErrConfig("failed to open NUL", err)
 		}
-		defer nul.Close()
+		defer nullFile.Close()
 
-		cmd.Stdout = nul
-		cmd.Stderr = nul
+		cmd.Stdout = nullFile
+		cmd.Stderr = nullFile
 	}
 
 	// 重定向 stdin 到 NUL
-	nul, err := os.OpenFile("NUL", os.O_RDONLY, 0)
+	nullFile, err := os.OpenFile("NUL", os.O_RDONLY, 0)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to open NUL for stdin", err)
 	}
-	defer nul.Close()
-
-	cmd.Stdin = nul
-
-	return nil
-}
-
-// savePID 保存 PID 到文件
-func (wdm *WindowsDaemonManager) savePID(pid int) error {
-	pidFile := wdm.GetPIDFile()
-	if pidFile == "" {
-		return nil
-	}
-
-	// 确保目录存在
-	pidDir := filepath.Dir(pidFile)
-	if err := os.MkdirAll(pidDir, 0755); err != nil {
-		return pkgerrors.ErrConfig("failed to create PID directory", err)
-	}
-
-	data := []byte(strconv.Itoa(pid))
-	if err := os.WriteFile(pidFile, data, 0644); err != nil {
-		return pkgerrors.ErrConfig("failed to write PID file", err)
-	}
+	defer nullFile.Close()
+	cmd.Stdin = nullFile
 
 	return nil
 }
 
-// readPID 从文件读取 PID
-func (wdm *WindowsDaemonManager) readPID() (int, error) {
-	pidFile := wdm.GetPIDFile()
-	if pidFile == "" {
-		return 0, pkgerrors.ErrConfig("PID file not configured", nil)
-	}
+// JobObjectManager Windows Job Object 管理器
+type JobObjectManager struct {
+	handle windows.Handle
+}
 
-	data, err := os.ReadFile(pidFile)
+// NewJobObjectManager 创建 Job Object 管理器
+func NewJobObjectManager() *JobObjectManager {
+	return &JobObjectManager{}
+}
+
+// CreateAndAssign 创建 Job Object 并将进程分配到其中
+func (jom *JobObjectManager) CreateAndAssign(pid int) error {
+	// 创建 Job Object
+	handle, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
-		return 0, pkgerrors.ErrConfig("failed to read PID file", err)
+		return err
+	}
+	jom.handle = handle
+
+	// 设置 Job Object 信息：当 Job 句柄关闭时终止所有进程
+	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{
+		BasicLimitInformation: windows.JOBOBJECT_BASIC_LIMIT_INFORMATION{
+			LimitFlags: windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+		},
 	}
 
-	pid, err := strconv.Atoi(string(data))
+	_, err = windows.SetInformationJobObject(
+		handle,
+		windows.JobObjectExtendedLimitInformation,
+		uintptr(unsafe.Pointer(&info)),
+		uint32(unsafe.Sizeof(info)),
+	)
 	if err != nil {
-		return 0, pkgerrors.ErrConfig("invalid PID format", err)
+		windows.CloseHandle(handle)
+		return err
 	}
 
-	return pid, nil
-}
-
-// cleanupPID 清理 PID 文件
-func (wdm *WindowsDaemonManager) cleanupPID() {
-	pidFile := wdm.GetPIDFile()
-	if pidFile != "" {
-		os.Remove(pidFile)
-	}
-}
-
-// forceKill 强制终止进程
-func (wdm *WindowsDaemonManager) forceKill(pid int) error {
-	output.Printf("Force killing daemon process %d...\n", pid)
-
-	proc, err := os.FindProcess(pid)
+	// 打开目标进程
+	processHandle, err := windows.OpenProcess(windows.PROCESS_ALL_ACCESS, false, uint32(pid))
 	if err != nil {
-		return pkgerrors.ErrService("failed to find process", err)
+		windows.CloseHandle(handle)
+		return err
+	}
+	defer windows.CloseHandle(processHandle)
+
+	// 将进程分配到 Job Object
+	if err := windows.AssignProcessToJobObject(handle, processHandle); err != nil {
+		windows.CloseHandle(handle)
+		return err
 	}
 
-	if err := proc.Kill(); err != nil {
-		return pkgerrors.ErrService("failed to kill process", err)
-	}
-
-	// 等待进程退出
-	state, err := proc.Wait()
-	if err != nil {
-		return pkgerrors.ErrService("failed to wait for process exit", err)
-	}
-
-	if !state.Exited() {
-		return pkgerrors.ErrService("process did not exit as expected", nil)
-	}
-
-	output.Success("Daemon process %d has been killed", pid)
-	wdm.cleanupPID()
-
-	return nil
-}
-
-// WindowsJobObjectManager Windows Job Object 管理器（可选的高级功能）
-// 用于更严格的进程组管理和资源控制
-type WindowsJobObjectManager struct {
-	jobHandle syscall.Handle
-}
-
-// NewWindowsJobObjectManager 创建 Job Object 管理器
-func NewWindowsJobObjectManager() *WindowsJobObjectManager {
-	return &WindowsJobObjectManager{}
-}
-
-// CreateJobObject 创建 Job Object
-func (wjom *WindowsJobObjectManager) CreateJobObject() error {
-	// 注意：这里需要调用 Windows API 创建 Job Object
-	// 为了简化，这里只是占位符
-	// 实际实现需要使用 syscall 调用 CreateJobObject
-	return nil
-}
-
-// AssignProcessToJobObject 将进程分配到 Job Object
-func (wjom *WindowsJobObjectManager) AssignProcessToJobObject(pid int) error {
-	// 注意：这里需要调用 Windows API 分配进程
-	// 为了简化，这里只是占位符
-	// 实际实现需要使用 syscall 调用 AssignProcessToJobObject
-	return nil
-}
-
-// SetJobObjectLimit 设置 Job Object 限制
-func (wjom *WindowsJobObjectManager) SetJobObjectLimit(limitType uint32, limitData uintptr) error {
-	// 注意：这里需要调用 Windows API 设置限制
-	// 为了简化，这里只是占位符
-	// 实际实现需要使用 syscall 调用 SetInformationJobObject
 	return nil
 }
 
 // Close 关闭 Job Object
-func (wjom *WindowsJobObjectManager) Close() error {
-	if wjom.jobHandle != 0 {
-		_ = syscall.CloseHandle(wjom.jobHandle)
-		wjom.jobHandle = 0
+func (jom *JobObjectManager) Close() error {
+	if jom.handle != 0 {
+		return windows.CloseHandle(jom.handle)
 	}
 	return nil
 }

@@ -4,17 +4,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
-// ProcessLock 进程锁
+// ProcessLock 进程锁（使用系统级文件锁）
 type ProcessLock struct {
 	lockFile string
-	lock     *os.File
+	lock     FileLock
+}
+
+// FileLock 文件锁接口（跨平台抽象）
+type FileLock interface {
+	Lock() error
+	Unlock() error
 }
 
 // NewProcessLock 创建进程锁
@@ -42,7 +47,7 @@ func getLockFilePath(configFile string) (string, error) {
 	return filepath.Join(baseDir, fmt.Sprintf("lock-%s", hash)), nil
 }
 
-// Acquire 获取锁
+// Acquire 获取锁（使用系统级文件锁）
 func (pl *ProcessLock) Acquire() error {
 	// 确保目录存在
 	lockDir := filepath.Dir(pl.lockFile)
@@ -50,39 +55,71 @@ func (pl *ProcessLock) Acquire() error {
 		return pkgerrors.ErrService("failed to create lock directory", err)
 	}
 
-	// 尝试创建锁文件
-	f, err := os.OpenFile(pl.lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	// 创建或打开锁文件
+	file, err := os.OpenFile(pl.lockFile, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		if os.IsExist(err) {
-			// 锁文件已存在，检查是否是陈旧的锁
-			if err := pl.checkStaleLock(); err != nil {
-				return err
-			}
-			// 陈旧的锁已清理，重试
-			return pl.Acquire()
-		}
-		return pkgerrors.ErrService("failed to create lock file", err)
+		return pkgerrors.ErrService("failed to open lock file", err)
+	}
+
+	// 创建平台特定的文件锁
+	lock := newSystemFileLock(file)
+
+	// 尝试获取锁
+	if err := lock.Lock(); err != nil {
+		file.Close()
+		return pl.handleLockError(err)
 	}
 
 	// 写入当前进程 PID
 	pid := os.Getpid()
-	if _, err := f.WriteString(strconv.Itoa(pid)); err != nil {
-		f.Close()
-		os.Remove(pl.lockFile)
+	if _, err := fmt.Fprintf(file, "%d", pid); err != nil {
+		lock.Unlock()
+		file.Close()
 		return pkgerrors.ErrService("failed to write pid to lock file", err)
 	}
 
-	pl.lock = f
+	pl.lock = lock
 	return nil
+}
+
+// handleLockError 处理锁获取失败的情况
+func (pl *ProcessLock) handleLockError(err error) error {
+	// 检查是否是陈旧的锁
+	pid, readErr := pl.readLockFilePID()
+	if readErr == nil && pid > 0 {
+		if !IsProcessRunning(pid) {
+			// 进程已退出，清理陈旧的锁文件
+			os.Remove(pl.lockFile)
+			// 重试获取锁
+			return pl.Acquire()
+		}
+		return pkgerrors.ErrService(fmt.Sprintf("process is already running (PID: %d)", pid), nil)
+	}
+	return pkgerrors.ErrService("failed to acquire lock", err)
+}
+
+// readLockFilePID 从锁文件读取 PID
+func (pl *ProcessLock) readLockFilePID() (int, error) {
+	data, err := os.ReadFile(pl.lockFile)
+	if err != nil {
+		return 0, err
+	}
+
+	var pid int
+	_, err = fmt.Sscanf(string(data), "%d", &pid)
+	return pid, err
 }
 
 // Release 释放锁
 func (pl *ProcessLock) Release() error {
 	if pl.lock != nil {
-		pl.lock.Close()
+		if err := pl.lock.Unlock(); err != nil {
+			// 记录错误但继续清理
+		}
 		pl.lock = nil
 	}
 
+	// 删除锁文件
 	if err := os.Remove(pl.lockFile); err != nil && !os.IsNotExist(err) {
 		return pkgerrors.ErrService("failed to remove lock file", err)
 	}
@@ -92,51 +129,26 @@ func (pl *ProcessLock) Release() error {
 
 // IsLocked 检查是否已锁定
 func (pl *ProcessLock) IsLocked() bool {
-	if _, err := os.Stat(pl.lockFile); err == nil {
-		return true
+	// 尝试获取非阻塞锁来检查
+	file, err := os.OpenFile(pl.lockFile, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return false
 	}
+	defer file.Close()
+
+	lock := newSystemFileLock(file)
+	if err := lock.Lock(); err != nil {
+		return true // 已被锁定
+	}
+
+	// 获取成功，立即释放
+	lock.Unlock()
 	return false
 }
 
 // GetLockInfo 获取锁信息
 func (pl *ProcessLock) GetLockInfo() (int, error) {
-	// 读取锁文件
-	data, err := os.ReadFile(pl.lockFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, pkgerrors.ErrService("failed to read lock file", err)
-	}
-
-	// 解析 PID
-	pid, err := strconv.Atoi(string(data))
-	if err != nil {
-		return 0, pkgerrors.ErrService("invalid pid in lock file", err)
-	}
-
-	return pid, nil
-}
-
-// checkStaleLock 检查是否是陈旧的锁
-func (pl *ProcessLock) checkStaleLock() error {
-	// 读取锁文件中的 PID
-	pid, err := pl.GetLockInfo()
-	if err != nil {
-		return err
-	}
-
-	// 检查进程是否还在运行
-	if !IsProcessRunning(pid) {
-		// 进程已退出，清理陈旧的锁
-		if err := os.Remove(pl.lockFile); err != nil {
-			return pkgerrors.ErrService("failed to remove stale lock file", err)
-		}
-		return nil
-	}
-
-	// 进程还在运行，返回错误
-	return pkgerrors.ErrService(fmt.Sprintf("process is already running (PID: %d)", pid), nil)
+	return pl.readLockFilePID()
 }
 
 // TryAcquire 尝试获取锁（带超时）
@@ -149,7 +161,7 @@ func (pl *ProcessLock) TryAcquire(timeout time.Duration) error {
 			return nil
 		}
 
-		// 如果不是"已锁定"错误，直接返回
+		// 检查是否是"已锁定"错误
 		if !isAlreadyLockedError(err) {
 			return err
 		}

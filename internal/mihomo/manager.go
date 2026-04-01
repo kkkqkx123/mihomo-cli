@@ -21,44 +21,10 @@ type ProcessManager struct {
 // NewProcessManager 创建进程管理器
 func NewProcessManager(cfg *config.TomlConfig) *ProcessManager {
 	pidFile, _ := getPIDFilePath(cfg.Mihomo.ConfigFile)
-	pm := &ProcessManager{
+	return &ProcessManager{
 		config:  cfg,
 		pidFile: pidFile,
 	}
-
-	// 创建守护进程配置
-	daemonConfig := &DaemonConfig{
-		Enabled:       true, // 默认启用守护进程模式
-		WorkDir:       "",
-		LogFile:       "",
-		LogLevel:      "info",
-		LogMaxSize:    "100M",
-		LogMaxBackups: 10,
-		LogMaxAge:     30,
-	}
-
-	// 如果配置文件中有守护进程配置，使用配置文件的值
-	if cfg.Daemon != nil {
-		daemonConfig.Enabled = true
-		daemonConfig.WorkDir = cfg.Daemon.WorkDir
-		daemonConfig.LogFile = cfg.Daemon.LogFile
-		daemonConfig.LogLevel = cfg.Daemon.LogLevel
-		daemonConfig.LogMaxSize = cfg.Daemon.LogMaxSize
-		daemonConfig.LogMaxBackups = cfg.Daemon.LogMaxBackups
-		daemonConfig.LogMaxAge = cfg.Daemon.LogMaxAge
-	}
-
-	// 创建守护进程管理器
-	pm.daemonManager = GetDaemonManager(
-		daemonConfig,
-		pidFile,
-		"", // secret 将在启动时设置
-		cfg.Mihomo.API.ExternalController,
-		cfg.Mihomo.Executable,
-		cfg.Mihomo.ConfigFile,
-	)
-
-	return pm
 }
 
 // getPIDFilePath 获取 PID 文件路径（基于配置文件路径）
@@ -69,18 +35,10 @@ func getPIDFilePath(configFile string) (string, error) {
 // Start 启动 Mihomo 内核
 func (pm *ProcessManager) Start() error {
 	// 生成随机密钥
-	var secret string
-	var err error
-
-	if pm.config.Mihomo.AutoGenerateSecret {
-		secret, err = config.GenerateRandomSecret()
-		if err != nil {
-			return pkgerrors.ErrService("failed to generate secret", err)
-		}
-	} else {
-		secret = pm.config.API.Secret
+	secret, err := pm.prepareSecret()
+	if err != nil {
+		return err
 	}
-
 	pm.secret = secret
 
 	// 准备配置文件
@@ -89,16 +47,36 @@ func (pm *ProcessManager) Start() error {
 		return pkgerrors.ErrService("failed to prepare config file", err)
 	}
 
+	// 创建守护进程管理器（只创建一次）
+	daemonConfig := pm.buildDaemonConfig()
+	pm.daemonManager = GetDaemonManager(
+		daemonConfig,
+		pm.pidFile,
+		secret,
+		pm.config.Mihomo.API.ExternalController,
+		pm.config.Mihomo.Executable,
+		configFile,
+	)
+
 	// 使用守护进程管理器启动
-	return pm.startAsDaemon(configFile, secret)
+	ctx := context.Background()
+	if err := pm.daemonManager.StartAsDaemon(ctx, nil); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// startAsDaemon 以守护进程方式启动
-func (pm *ProcessManager) startAsDaemon(configFile, secret string) error {
-	// 更新配置文件路径
-	pm.config.Mihomo.ConfigFile = configFile
+// prepareSecret 准备 API 密钥
+func (pm *ProcessManager) prepareSecret() (string, error) {
+	if pm.config.Mihomo.AutoGenerateSecret {
+		return config.GenerateRandomSecret()
+	}
+	return pm.config.API.Secret, nil
+}
 
-	// 创建新的守护进程管理器（包含 secret）
+// buildDaemonConfig 构建守护进程配置
+func (pm *ProcessManager) buildDaemonConfig() *DaemonConfig {
 	daemonConfig := &DaemonConfig{
 		Enabled:       true,
 		WorkDir:       "",
@@ -119,22 +97,7 @@ func (pm *ProcessManager) startAsDaemon(configFile, secret string) error {
 		daemonConfig.LogMaxAge = pm.config.Daemon.LogMaxAge
 	}
 
-	pm.daemonManager = GetDaemonManager(
-		daemonConfig,
-		pm.pidFile,
-		secret,
-		pm.config.Mihomo.API.ExternalController,
-		pm.config.Mihomo.Executable,
-		configFile,
-	)
-
-	// 使用守护进程管理器启动
-	ctx := context.Background()
-	if err := pm.daemonManager.StartAsDaemon(ctx, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return daemonConfig
 }
 
 // GetSecret 获取当前密钥
@@ -218,5 +181,3 @@ rules:
   - MATCH,Proxy
 `, pm.config.Mihomo.Log.Level, pm.config.Mihomo.API.ExternalController, secret)
 }
-
-

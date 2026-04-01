@@ -1,6 +1,8 @@
 package mihomo
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -244,24 +246,23 @@ func (sm *StateManager) UpdateHealthCheck() error {
 	})
 }
 
-// generateConfigHash 根据配置文件路径生成短 hash
+// generateConfigHash 根据配置文件路径生成唯一 hash
 func generateConfigHash(configFile string) string {
 	if configFile == "" {
 		return "default"
 	}
 
-	// 使用文件名作为简单的 hash
-	filename := filepath.Base(configFile)
-	nameWithoutExt := filename[:len(filename)-len(filepath.Ext(filename))]
-
-	// 如果名称太长，截取前 8 个字符
-	if len(nameWithoutExt) > 8 {
-		nameWithoutExt = nameWithoutExt[:8]
+	// 使用文件路径的绝对路径作为 hash
+	absPath, err := filepath.Abs(configFile)
+	if err != nil {
+		absPath = configFile
 	}
 
-	if nameWithoutExt == "" {
-		nameWithoutExt = "default"
-	}
+	// 使用 SHA256 计算路径的 hash
+	h := sha256.New()
+	h.Write([]byte(absPath))
 
-	return nameWithoutExt
+	// 取前16个字符，提供足够的唯一性同时保持可读性
+	hash := hex.EncodeToString(h.Sum(nil))[:16]
+	return hash
 }
