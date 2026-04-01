@@ -41,21 +41,31 @@ type ProcessState struct {
 
 // StateManager 状态管理器
 type StateManager struct {
-	stateFile string
-	mu        sync.RWMutex
-	state     *ProcessState
+	stateFile    string
+	mu           sync.RWMutex
+	state        *ProcessState
+	pathResolver *config.PathResolver
 }
 
 // NewStateManager 创建状态管理器
 func NewStateManager(configFile string) (*StateManager, error) {
-	// 获取状态文件路径
-	stateFile, err := getStateFilePath(configFile)
+	// 创建路径解析器
+	pathResolver, err := config.NewPathResolver()
 	if err != nil {
 		return nil, err
 	}
 
+	return NewStateManagerWithResolver(configFile, pathResolver)
+}
+
+// NewStateManagerWithResolver 使用指定的路径解析器创建状态管理器
+func NewStateManagerWithResolver(configFile string, pathResolver *config.PathResolver) (*StateManager, error) {
+	// 获取状态文件路径
+	stateFile := pathResolver.GetStateFilePath(configFile)
+
 	sm := &StateManager{
-		stateFile: stateFile,
+		stateFile:    stateFile,
+		pathResolver: pathResolver,
 	}
 
 	// 尝试加载现有状态

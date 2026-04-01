@@ -45,11 +45,14 @@ func newConfigInitCmd() *cobra.Command {
 
 // runConfigInit 执行配置初始化
 func runConfigInit(force bool) error {
-	// 获取默认配置路径
-	configPath, err := config.GetDefaultConfigPath()
+	// 创建配置管理器
+	cfgManager, err := config.NewConfigManager()
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to get default config path", err)
+		return pkgerrors.ErrConfig("failed to create config manager", err)
 	}
+
+	// 获取默认配置路径
+	configPath := cfgManager.GetDefaultCLIConfigPath()
 
 	// 检查配置文件是否存在
 	if _, err := os.Stat(configPath); err == nil {
@@ -65,8 +68,7 @@ func runConfigInit(force bool) error {
 	cfg := config.GetDefaultConfig()
 
 	// 保存配置
-	loader := config.NewLoader()
-	if err := loader.Save(cfg, configPath); err != nil {
+	if err := cfgManager.SaveCLIConfig(cfg, configPath); err != nil {
 		return pkgerrors.ErrConfig("failed to save config", err)
 	}
 
@@ -93,15 +95,17 @@ func newConfigShowCmd() *cobra.Command {
 
 // runConfigShow 执行配置显示
 func runConfigShow() error {
-	// 获取默认配置路径
-	configPath, err := config.GetDefaultConfigPath()
+	// 创建配置管理器
+	cfgManager, err := config.NewConfigManager()
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to get default config path", err)
+		return pkgerrors.ErrConfig("failed to create config manager", err)
 	}
 
-	// 使用 Loader 直接加载配置文件
-	loader := config.NewLoader()
-	cfg, err := loader.Load(configPath)
+	// 获取默认配置路径
+	configPath := cfgManager.GetDefaultCLIConfigPath()
+
+	// 加载配置文件
+	cfg, err := cfgManager.LoadCLIConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)
 	}
@@ -137,8 +141,14 @@ func newConfigSetCmd() *cobra.Command {
 
 // runConfigSet 执行配置设置
 func runConfigSet(key, value string) error {
+	// 创建配置管理器
+	cfgManager, err := config.NewConfigManager()
+	if err != nil {
+		return pkgerrors.ErrConfig("failed to create config manager", err)
+	}
+
 	// 获取当前配置
-	cfg, err := config.LoadFromViper()
+	cfg, err := cfgManager.LoadCLIConfigFromViper()
 	if err != nil {
 		// 如果加载失败，使用默认配置
 		cfg = config.GetDefaultConfig()
@@ -166,13 +176,8 @@ func runConfigSet(key, value string) error {
 	}
 
 	// 保存配置
-	configPath, err := config.GetDefaultConfigPath()
-	if err != nil {
-		return pkgerrors.ErrConfig("failed to get default config path", err)
-	}
-
-	loader := config.NewLoader()
-	if err := loader.Save(cfg, configPath); err != nil {
+	configPath := cfgManager.GetDefaultCLIConfigPath()
+	if err := cfgManager.SaveCLIConfig(cfg, configPath); err != nil {
 		return pkgerrors.ErrConfig("failed to save config", err)
 	}
 

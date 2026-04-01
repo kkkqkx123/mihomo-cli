@@ -266,10 +266,11 @@ func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, 
 	editor := config.NewEditor(configPath)
 
 	// 设置备份目录为统一的备份目录
-	backupDir, err := config.GetBackupDir()
+	pathResolver, err := config.NewPathResolver()
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to get backup directory", err)
+		return pkgerrors.ErrConfig("failed to create path resolver", err)
 	}
+	backupDir := pathResolver.GetBackupDir()
 	editor.SetBackupDir(backupDir)
 
 	// 生成备份备注：记录修改的键值对

@@ -15,36 +15,37 @@ import (
 
 // DaemonLauncher 守护进程启动器（统一管理路径解析和状态持久化）
 type DaemonLauncher struct {
-	cfg        *config.TomlConfig
-	stateMgr   *StateManager
-	secret     string
-	apiAddress string
+	cfg          *config.TomlConfig
+	stateMgr     *StateManager
+	pathResolver *config.PathResolver
+	secret       string
+	apiAddress   string
 }
 
 // NewDaemonLauncher 创建守护进程启动器
 func NewDaemonLauncher(cfg *config.TomlConfig) (*DaemonLauncher, error) {
+	// 创建路径解析器
+	pathResolver, err := config.NewPathResolver()
+	if err != nil {
+		return nil, err
+	}
+
 	// 创建状态管理器
-	stateMgr, err := NewStateManager(cfg.Mihomo.ConfigFile)
+	stateMgr, err := NewStateManagerWithResolver(cfg.Mihomo.ConfigFile, pathResolver)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DaemonLauncher{
-		cfg:      cfg,
-		stateMgr: stateMgr,
+		cfg:          cfg,
+		stateMgr:     stateMgr,
+		pathResolver: pathResolver,
 	}, nil
 }
 
 // GetAbsolutePath 将路径转换为绝对路径
 func (dl *DaemonLauncher) GetAbsolutePath(path string) string {
-	if path == "" {
-		return ""
-	}
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	return absPath
+	return dl.pathResolver.GetAbsolutePath(path)
 }
 
 // GetExecutablePath 获取可执行文件的绝对路径
@@ -108,7 +109,7 @@ func (dl *DaemonLauncher) Start() error {
 	}
 
 	// 获取 PID 文件路径
-	pidFile, _ := getPIDFilePath(dl.cfg.Mihomo.ConfigFile)
+	pidFile := dl.pathResolver.GetPIDFilePath(dl.cfg.Mihomo.ConfigFile)
 
 	// 创建守护进程管理器
 	daemonMgr := GetDaemonManager(
@@ -195,7 +196,7 @@ func (dl *DaemonLauncher) Stop(force bool) error {
 	dl.stateMgr.Clear()
 
 	// 清理 PID 文件
-	pidFile, _ := getPIDFilePath(dl.cfg.Mihomo.ConfigFile)
+	pidFile := dl.pathResolver.GetPIDFilePath(dl.cfg.Mihomo.ConfigFile)
 	if pidFile != "" {
 		os.Remove(pidFile)
 	}
@@ -214,7 +215,7 @@ func (dl *DaemonLauncher) GetRunningPID() (int, error) {
 	}
 
 	// 再从 PID 文件读取
-	pidFile, _ := getPIDFilePath(dl.cfg.Mihomo.ConfigFile)
+	pidFile := dl.pathResolver.GetPIDFilePath(dl.cfg.Mihomo.ConfigFile)
 	if pidFile == "" {
 		return 0, pkgerrors.ErrService("PID file not configured", nil)
 	}

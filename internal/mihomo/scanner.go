@@ -54,11 +54,14 @@ func computeConfigHash(configPath string) string {
 func ScanMihomoProcesses() ([]ProcessInfo, error) {
 	processes := []ProcessInfo{}
 
-	// 获取 PID 文件目录
-	pidDir, err := config.GetPIDDir()
+	// 创建路径解析器
+	pathResolver, err := config.NewPathResolver()
 	if err != nil {
-		return nil, pkgerrors.ErrConfig("failed to get pid directory", err)
+		return nil, pkgerrors.ErrConfig("failed to create path resolver", err)
 	}
+
+	// 获取 PID 文件目录
+	pidDir := pathResolver.GetPIDDir()
 
 	// 读取所有 PID 文件
 	entries, err := os.ReadDir(pidDir)
@@ -166,10 +169,11 @@ func getConfigPathFromHash(hash string) string {
 	}
 
 	// 如果映射表中没有，尝试搜索基础目录
-	baseDir, err := config.GetBaseDir()
+	pathResolver, err := config.NewPathResolver()
 	if err != nil {
 		return ""
 	}
+	baseDir := pathResolver.GetBaseDir()
 
 	// 遍历基础目录，查找匹配的配置文件
 	entries, err := os.ReadDir(baseDir)
@@ -235,10 +239,13 @@ func extractAPIPortFromConfig(configFile string) (string, error) {
 
 // CleanupPIDFiles 清理所有残留的 PID 文件
 func CleanupPIDFiles() error {
-	pidDir, err := config.GetPIDDir()
+	// 创建路径解析器
+	pathResolver, err := config.NewPathResolver()
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to get pid directory", err)
+		return pkgerrors.ErrConfig("failed to create path resolver", err)
 	}
+
+	pidDir := pathResolver.GetPIDDir()
 
 	// 读取所有 PID 文件
 	entries, err := os.ReadDir(pidDir)
@@ -335,7 +342,8 @@ func StopAllMihomoProcesses() error {
 	}
 
 	// 清理所有 PID 文件
-	pidDir, _ := config.GetPIDDir()
+	pathResolver, _ := config.NewPathResolver()
+	pidDir := pathResolver.GetPIDDir()
 	entries, _ := os.ReadDir(pidDir)
 	for _, entry := range entries {
 		if strings.HasSuffix(entry.Name(), ".pid") {

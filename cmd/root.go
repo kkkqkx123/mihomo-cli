@@ -53,8 +53,14 @@ func preRun(cmd *cobra.Command, args []string) error {
 	// 设置输出格式
 	output.SetGlobalFormat(outputFmt)
 
+	// 创建配置管理器
+	cfgManager, err := config.NewConfigManager()
+	if err != nil {
+		return pkgerrors.ErrService("初始化配置管理器失败", err)
+	}
+
 	// 初始化输出流（从配置文件读取）
-	cfg, err := config.LoadFromViper()
+	cfg, err := cfgManager.LoadCLIConfigFromViper()
 	if err == nil && cfg.Output.Mode != "console" && cfg.Output.Mode != "" {
 		streamOutput, err = output.InitStreamOutput(cfg.Output.File, cfg.Output.Mode, cfg.Output.Append)
 		if err != nil {
@@ -67,11 +73,10 @@ func preRun(cmd *cobra.Command, args []string) error {
 	}
 
 	// 初始化历史记录管理器
-	historyDir, err := config.GetHistoryDir()
-	if err == nil {
-		historyFile := historyDir + "/commands.jsonl"
-		historyManager = history.NewManager(historyFile)
-	}
+	pathResolver := cfgManager.GetPathResolver()
+	historyDir := pathResolver.GetHistoryDir()
+	historyFile := historyDir + "/commands.jsonl"
+	historyManager = history.NewManager(historyFile)
 
 	return nil
 }
@@ -141,30 +146,15 @@ func init() {
 
 // initConfig 初始化配置
 func initConfig() {
-	// 设置默认值
-	viper.SetDefault("api.address", "http://127.0.0.1:9090")
-	viper.SetDefault("api.secret", "")
-	viper.SetDefault("api.timeout", 10)
-
-	if cfgFile != "" {
-		// 使用指定的配置文件
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// 使用默认配置文件路径
-		paths, err := config.GetPaths()
+	// 创建配置管理器
+	cfgManager, err := config.NewConfigManager()
+	if err != nil {
 		cobra.CheckErr(err)
-
-		viper.AddConfigPath(paths.BaseDir)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName("config")
+		return
 	}
 
-	// 支持环境变量
-	viper.SetEnvPrefix("MIHOMO")
-	viper.AutomaticEnv()
-
-	// 读取配置文件（如果存在）
-	_ = viper.ReadInConfig()
+	// 初始化 Viper 配置
+	cfgManager.InitViperConfig(cfgFile)
 
 	// 命令行参数优先级高于配置文件
 	if apiURL != "" {

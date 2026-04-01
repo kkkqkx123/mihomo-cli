@@ -106,10 +106,11 @@ func runDiagnoseNetwork() error {
 
 // createOperationManager 创建操作记录管理器（使用统一的数据目录）
 func createOperationManager() (*operation.Manager, error) {
-	dataDir, err := config.GetDataDir()
+	pathResolver, err := config.NewPathResolver()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get data directory: %w", err)
+		return nil, fmt.Errorf("failed to create path resolver: %w", err)
 	}
+	dataDir := pathResolver.GetDataDir()
 	operationFile := filepath.Join(dataDir, "operation.log")
 	return operation.NewManager(operationFile)
 }
