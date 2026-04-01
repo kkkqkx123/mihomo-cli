@@ -103,7 +103,10 @@ func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) e
 	}
 
 	// 获取进程信息
-	pid := lm.pm.process.Pid
+	pid, err := lm.pm.GetPIDFromPIDFile()
+	if err != nil {
+		return pkgerrors.ErrService("failed to get PID", err)
+	}
 	apiAddress := lm.pm.GetAPIAddress()
 	secret := lm.pm.GetSecret()
 
@@ -173,8 +176,16 @@ func (lm *LifecycleManager) Stop(ctx context.Context, pid int) error {
 			return pkgerrors.ErrService("process state not found", nil)
 		}
 
-		// 停止进程
-		return StopProcessByPID(pid, state.APIAddress, state.Secret)
+		// 停止进程（使用守护进程管理器）
+		if lm.pm.daemonManager != nil {
+			if err := lm.pm.daemonManager.StopDaemon(pid); err != nil {
+				return pkgerrors.ErrService("failed to stop daemon", err)
+			}
+		} else {
+			return pkgerrors.ErrService("daemon manager not initialized", nil)
+		}
+
+		return nil
 	}); err != nil {
 		return err
 	}

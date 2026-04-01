@@ -1,0 +1,81 @@
+# Mihomo CLI 配置文件示例
+# 展示如何启用守护进程模式
+
+[api]
+# API 地址（用于与 Mihomo 内核通信）
+address = "http://127.0.0.1:9090"
+secret = ""  # 如果 Mihomo 内核设置了密钥，在这里填写
+
+[mihomo]
+# Mihomo 内核配置
+enabled = true
+
+# Mihomo 可执行文件路径
+executable = "C:/Program Files/mihomo/mihomo.exe"
+
+# Mihomo 配置文件路径
+config_file = "C:/Users/YourName/.config/mihomo/config.yaml"
+
+# 自动生成随机密钥（如果为 true，将忽略上面的 secret）
+auto_generate_secret = true
+
+# 健康检查超时时间（秒）
+health_check_timeout = 5
+
+# Mihomo API 配置
+[mihomo.api]
+# 外部控制器地址
+external_controller = "127.0.0.1:9090"
+
+# Mihomo 日志配置
+[mihomo.log]
+# 日志级别：debug, info, warning, error, silent
+level = "info"
+
+# 日志文件路径（可选）
+file = ""
+
+# 守护进程配置
+[daemon]
+# 启用守护进程模式（重要！）
+enabled = true
+
+# 工作目录（可选，默认为可执行文件所在目录）
+work_dir = ""
+
+# 日志文件路径（可选，如果为空则输出到 /dev/null 或 NUL）
+log_file = "C:/Users/YourName/.local/share/mihomo/mihomo-daemon.log"
+
+# 日志级别：debug, info, warning, error
+log_level = "info"
+
+# 日志文件最大大小（例如：100M, 1G）
+log_max_size = "100M"
+
+# 保留的日志文件备份数量
+log_max_backups = 10
+
+# 日志文件最大保留天数
+log_max_age = 30
+
+# 自动重启配置
+[daemon.auto_restart]
+# 启用自动重启
+enabled = true
+
+# 最大重启次数
+max_restarts = 5
+
+# 重启延迟（例如：5s, 10s）
+restart_delay = "5s"
+
+# 健康检查配置
+[daemon.health_check]
+# 启用健康检查
+enabled = true
+
+# 健康检查间隔（例如：30s, 1m）
+interval = "30s"
+
+# 健康检查超时（例如：10s, 20s）
+timeout = "10s"

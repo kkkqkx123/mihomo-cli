@@ -35,7 +35,7 @@ type StartResult struct {
 	PID        int
 }
 
-// Start 启动 Mihomo 内核
+// Start 启动 Mihomo 内核（守护进程模式）
 func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	// 检查是否启用自动启动
 	if !cfg.Mihomo.Enabled {
@@ -86,15 +86,24 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		}
 	}
 
-	// 启动内核
+	// 启动内核（守护进程模式）
 	if err := pm.Start(); err != nil {
-		return nil, pkgerrors.ErrService("failed to start mihomo", err)
+		return nil, pkgerrors.ErrService("failed to start mihomo daemon", err)
 	}
 
 	result := &StartResult{
 		APIAddress: pm.GetAPIAddress(),
 		Secret:     pm.GetSecret(),
 	}
+
+	// 获取 PID
+	pid, err := pm.GetPIDFromPIDFile()
+	if err != nil {
+		// 如果获取 PID 失败，但启动成功，继续健康检查
+		output.Warning("Failed to get PID, but daemon started successfully")
+		pid = 0
+	}
+	result.PID = pid
 
 	// 获取健康检查超时时间
 	healthCheckTimeout := cfg.Mihomo.HealthCheckTimeout
@@ -121,28 +130,19 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	for {
 		select {
 		case <-checkCtx.Done():
-			// 健康检查超时，通过 PID 停止进程
-			if pid, err := pm.GetPIDFromPIDFile(); err == nil {
-				_ = StopProcessByPID(pid, pm.GetAPIAddress(), pm.GetSecret())
+			// 健康检查超时，尝试停止守护进程
+			if pid > 0 {
+				if pm.daemonManager != nil {
+					_ = pm.daemonManager.StopDaemon(pid)
+				}
 			}
-			return nil, pkgerrors.ErrService("mihomo health check timeout: process may have failed to start", nil)
+			return nil, pkgerrors.ErrService("mihomo health check timeout: daemon may have failed to start", nil)
 
 		case <-ticker.C:
 			// 检查进程是否还在运行
-			if pid, err := pm.GetPIDFromPIDFile(); err == nil {
+			if pid > 0 {
 				if !IsProcessRunning(pid) {
-					// 获取错误输出
-					stderr := pm.GetErrorOutput()
-					stdout := pm.GetStandardOutput()
-
-					errMsg := "mihomo process exited unexpectedly"
-					if stderr != "" {
-						errMsg += fmt.Sprintf("\n错误输出:\n%s", stderr)
-					}
-					if stdout != "" {
-						errMsg += fmt.Sprintf("\n标准输出:\n%s", stdout)
-					}
-
+					errMsg := "mihomo daemon exited unexpectedly"
 					return nil, pkgerrors.ErrService(errMsg, nil)
 				}
 			}
@@ -165,7 +165,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 				healthStatus, err := healthChecker.CheckHealth(healthCtx)
 				if err != nil {
 					output.Warning("detailed health check failed: " + err.Error())
-					output.Warning("Process started but may have issues")
+					output.Warning("Daemon started but may have issues")
 				} else {
 					healthChecker.PrintHealthStatus(healthStatus)
 
@@ -199,7 +199,6 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 
 	var pid int
 	var err error
-	var apiAddress, secret string
 
 	// 如果指定了 PID 参数
 	if len(args) == 1 {
@@ -212,10 +211,6 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		if !IsProcessRunning(pid) {
 			return nil, pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
 		}
-
-		// 对于指定 PID 的情况，需要从配置获取 API 信息
-		apiAddress = cfg.Mihomo.API.ExternalController
-		secret = cfg.API.Secret
 	} else {
 		// 默认：停止当前配置的实例
 		pm := NewProcessManager(cfg)
@@ -225,29 +220,16 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		if err != nil {
 			return nil, pkgerrors.ErrService("mihomo is not running", err)
 		}
-
-		// 获取 API 地址和密钥
-		apiAddress = pm.GetAPIAddress()
-		secret = pm.GetSecret()
 	}
 
-	// 停止进程
-	if force {
-		// 强制关闭
-		if err := ForceKillProcessByPID(pid); err != nil {
-			return nil, pkgerrors.ErrService("failed to force kill process", err)
+	// 使用守护进程管理器停止
+	pm := NewProcessManager(cfg)
+	if pm.daemonManager != nil {
+		if err := pm.daemonManager.StopDaemon(pid); err != nil {
+			return nil, pkgerrors.ErrService("failed to stop daemon", err)
 		}
 	} else {
-		// 通过 API 关闭
-		if err := StopProcessByPID(pid, apiAddress, secret); err != nil {
-			return nil, err
-		}
-	}
-
-	// 删除 PID 文件
-	if len(args) == 0 {
-		pm := NewProcessManager(cfg)
-		os.Remove(pm.pidFile)
+		return nil, pkgerrors.ErrService("daemon manager not initialized", nil)
 	}
 
 	// 检查系统配置状态并尝试清理

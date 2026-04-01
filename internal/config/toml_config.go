@@ -16,6 +16,7 @@ import (
 type TomlConfig struct {
 	API    APIConfig    `toml:"api"`
 	Mihomo MihomoConfig `toml:"mihomo"`
+	Daemon *DaemonConfig `toml:"daemon"`
 }
 
 // MihomoConfig Mihomo 内核配置
@@ -41,6 +42,33 @@ type MihomoAPIConfig struct {
 type MihomoLogConfig struct {
 	Level string `toml:"level"`
 	File  string `toml:"file"`
+}
+
+// DaemonConfig 守护进程配置
+type DaemonConfig struct {
+	Enabled       bool             `toml:"enabled"`
+	WorkDir       string           `toml:"work_dir"`
+	LogFile       string           `toml:"log_file"`
+	LogLevel      string           `toml:"log_level"`
+	LogMaxSize    string           `toml:"log_max_size"`
+	LogMaxBackups int              `toml:"log_max_backups"`
+	LogMaxAge     int              `toml:"log_max_age"`
+	AutoRestart   AutoRestartConfig `toml:"auto_restart"`
+	HealthCheck   HealthCheckConfig `toml:"health_check"`
+}
+
+// AutoRestartConfig 自动重启配置
+type AutoRestartConfig struct {
+	Enabled      bool   `toml:"enabled"`
+	MaxRestarts  int    `toml:"max_restarts"`
+	RestartDelay string `toml:"restart_delay"`
+}
+
+// HealthCheckConfig 健康检查配置
+type HealthCheckConfig struct {
+	Enabled  bool   `toml:"enabled"`
+	Interval string `toml:"interval"`
+	Timeout  string `toml:"timeout"`
 }
 
 // Validate 验证 TomlConfig 配置
@@ -157,6 +185,25 @@ func GetDefaultTomlConfig() *TomlConfig {
 			},
 			Log: MihomoLogConfig{
 				Level: "info",
+			},
+		},
+		Daemon: &DaemonConfig{
+			Enabled:       true,
+			WorkDir:       "",
+			LogFile:       "",
+			LogLevel:      "info",
+			LogMaxSize:    "100M",
+			LogMaxBackups: 10,
+			LogMaxAge:     30,
+			AutoRestart: AutoRestartConfig{
+				Enabled:      false,
+				MaxRestarts:  5,
+				RestartDelay: "5s",
+			},
+			HealthCheck: HealthCheckConfig{
+				Enabled:  false,
+				Interval: "30s",
+				Timeout:  "10s",
 			},
 		},
 	}

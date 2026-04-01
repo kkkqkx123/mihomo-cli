@@ -1,34 +1,21 @@
 package mihomo
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"sync"
-	"time"
 
-	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
-	"github.com/kkkqkx123/mihomo-cli/internal/output"
-	"github.com/kkkqkx123/mihomo-cli/internal/system"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
-// ProcessManager Mihomo 进程管理器
+// ProcessManager Mihomo 进程管理器（使用守护进程模式）
 type ProcessManager struct {
-	config    *config.TomlConfig
-	process   *os.Process
-	secret    string
-	mu        sync.RWMutex
-	isRunning bool
-	cmd       *exec.Cmd
-	pidFile   string        // PID 文件路径
-	stderr    *bytes.Buffer // 捕获 stderr 输出
-	stdout    *bytes.Buffer // 捕获 stdout 输出
+	config        *config.TomlConfig
+	secret        string
+	pidFile       string       // PID 文件路径
+	daemonManager DaemonManager // 守护进程管理器
 }
 
 // NewProcessManager 创建进程管理器
@@ -38,6 +25,39 @@ func NewProcessManager(cfg *config.TomlConfig) *ProcessManager {
 		config:  cfg,
 		pidFile: pidFile,
 	}
+
+	// 创建守护进程配置
+	daemonConfig := &DaemonConfig{
+		Enabled:       true, // 默认启用守护进程模式
+		WorkDir:       "",
+		LogFile:       "",
+		LogLevel:      "info",
+		LogMaxSize:    "100M",
+		LogMaxBackups: 10,
+		LogMaxAge:     30,
+	}
+
+	// 如果配置文件中有守护进程配置，使用配置文件的值
+	if cfg.Daemon != nil {
+		daemonConfig.Enabled = true
+		daemonConfig.WorkDir = cfg.Daemon.WorkDir
+		daemonConfig.LogFile = cfg.Daemon.LogFile
+		daemonConfig.LogLevel = cfg.Daemon.LogLevel
+		daemonConfig.LogMaxSize = cfg.Daemon.LogMaxSize
+		daemonConfig.LogMaxBackups = cfg.Daemon.LogMaxBackups
+		daemonConfig.LogMaxAge = cfg.Daemon.LogMaxAge
+	}
+
+	// 创建守护进程管理器
+	pm.daemonManager = GetDaemonManager(
+		daemonConfig,
+		pidFile,
+		"", // secret 将在启动时设置
+		cfg.Mihomo.API.ExternalController,
+		cfg.Mihomo.Executable,
+		cfg.Mihomo.ConfigFile,
+	)
+
 	return pm
 }
 
@@ -48,13 +68,6 @@ func getPIDFilePath(configFile string) (string, error) {
 
 // Start 启动 Mihomo 内核
 func (pm *ProcessManager) Start() error {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	if pm.isRunning {
-		return pkgerrors.ErrService("mihomo is already running", nil)
-	}
-
 	// 生成随机密钥
 	var secret string
 	var err error
@@ -76,61 +89,56 @@ func (pm *ProcessManager) Start() error {
 		return pkgerrors.ErrService("failed to prepare config file", err)
 	}
 
-	// 构建命令（不使用 CommandContext，避免进程被取消）
-	pm.cmd = exec.Command(pm.config.Mihomo.Executable, "-f", configFile)
+	// 使用守护进程管理器启动
+	return pm.startAsDaemon(configFile, secret)
+}
 
-	// 初始化输出缓冲区
-	pm.stdout = &bytes.Buffer{}
-	pm.stderr = &bytes.Buffer{}
-	pm.cmd.Stdout = pm.stdout
-	pm.cmd.Stderr = pm.stderr
+// startAsDaemon 以守护进程方式启动
+func (pm *ProcessManager) startAsDaemon(configFile, secret string) error {
+	// 更新配置文件路径
+	pm.config.Mihomo.ConfigFile = configFile
 
-	// 设置工作目录
-	workDir := filepath.Dir(pm.config.Mihomo.Executable)
-	pm.cmd.Dir = workDir
-
-	// 启动进程
-	if err := pm.cmd.Start(); err != nil {
-		return pkgerrors.ErrService("failed to start mihomo", err)
+	// 创建新的守护进程管理器（包含 secret）
+	daemonConfig := &DaemonConfig{
+		Enabled:       true,
+		WorkDir:       "",
+		LogFile:       "",
+		LogLevel:      "info",
+		LogMaxSize:    "100M",
+		LogMaxBackups: 10,
+		LogMaxAge:     30,
 	}
 
-	pm.process = pm.cmd.Process
-	pm.isRunning = true
-
-	// 保存 PID 到文件
-	if err := pm.SavePID(pm.process.Pid); err != nil {
-		// 如果保存 PID 失败，记录但不影响启动
-		output.Warning("failed to save pid file: " + err.Error())
+	// 如果配置文件中有守护进程配置，使用配置文件的值
+	if pm.config.Daemon != nil {
+		daemonConfig.WorkDir = pm.config.Daemon.WorkDir
+		daemonConfig.LogFile = pm.config.Daemon.LogFile
+		daemonConfig.LogLevel = pm.config.Daemon.LogLevel
+		daemonConfig.LogMaxSize = pm.config.Daemon.LogMaxSize
+		daemonConfig.LogMaxBackups = pm.config.Daemon.LogMaxBackups
+		daemonConfig.LogMaxAge = pm.config.Daemon.LogMaxAge
 	}
 
-	// 等待进程退出（后台模式）
-	go func() {
-		err := pm.cmd.Wait()
-		pm.mu.Lock()
-		pm.isRunning = false
-		// 进程退出时删除 PID 文件
-		os.Remove(pm.pidFile)
+	pm.daemonManager = GetDaemonManager(
+		daemonConfig,
+		pm.pidFile,
+		secret,
+		pm.config.Mihomo.API.ExternalController,
+		pm.config.Mihomo.Executable,
+		configFile,
+	)
 
-		// 如果进程异常退出，输出错误信息
-		if err != nil {
-			output.Error("\n[Mihomo 进程异常退出] 错误: " + err.Error())
-			if pm.stderr.Len() > 0 {
-				output.Printf("错误输出:\n%s\n", pm.stderr.String())
-			}
-			if pm.stdout.Len() > 0 {
-				output.Printf("标准输出:\n%s\n", pm.stdout.String())
-			}
-		}
-		pm.mu.Unlock()
-	}()
+	// 使用守护进程管理器启动
+	ctx := context.Background()
+	if err := pm.daemonManager.StartAsDaemon(ctx, nil); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // GetSecret 获取当前密钥
 func (pm *ProcessManager) GetSecret() string {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
 	return pm.secret
 }
 
@@ -139,73 +147,24 @@ func (pm *ProcessManager) GetAPIAddress() string {
 	return pm.config.Mihomo.API.ExternalController
 }
 
-// GetErrorOutput 获取进程的错误输出
-func (pm *ProcessManager) GetErrorOutput() string {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-	if pm.stderr != nil {
-		return pm.stderr.String()
-	}
-	return ""
-}
-
-// GetStandardOutput 获取进程的标准输出
-func (pm *ProcessManager) GetStandardOutput() string {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-	if pm.stdout != nil {
-		return pm.stdout.String()
-	}
-	return ""
-}
-
-// SavePID 保存进程 PID 到文件
-func (pm *ProcessManager) SavePID(pid int) error {
-	// 确保目录存在
-	pidDir := filepath.Dir(pm.pidFile)
-	if err := os.MkdirAll(pidDir, 0755); err != nil {
-		return pkgerrors.ErrConfig("failed to create pid directory", err)
-	}
-
-	data := []byte(strconv.Itoa(pid))
-	if err := os.WriteFile(pm.pidFile, data, 0644); err != nil {
-		return pkgerrors.ErrConfig("failed to write pid file", err)
-	}
-	return nil
-}
-
-// ReadPID 从文件读取进程 PID
-func (pm *ProcessManager) ReadPID() (int, error) {
-	data, err := os.ReadFile(pm.pidFile)
-	if err != nil {
-		return 0, pkgerrors.ErrConfig("failed to read pid file", err)
-	}
-
-	pid, err := strconv.Atoi(string(data))
-	if err != nil {
-		return 0, pkgerrors.ErrConfig("invalid pid format", err)
-	}
-
-	return pid, nil
-}
-
-// IsProcessRunning 检查进程是否正在运行
-// 注意：此函数已在 process.go 中定义，这里保留是为了向后兼容
-// 实际调用会转发到 process.go 中的跨平台实现
-
 // GetPIDFromPIDFile 从 PID 文件读取并检查进程是否运行
 func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
-	pid, err := pm.ReadPID()
-	if err != nil {
-		return 0, err
+	// 从守护进程管理器获取 PID
+	if pm.daemonManager != nil {
+		pid, err := pm.daemonManager.GetDaemonPID()
+		if err != nil {
+			return 0, err
+		}
+
+		// 检查进程是否真的在运行
+		if !IsProcessRunning(pid) {
+			return 0, pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
+		}
+
+		return pid, nil
 	}
 
-	// 检查进程是否真的在运行
-	if !IsProcessRunning(pid) {
-		return 0, pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
-	}
-
-	return pid, nil
+	return 0, pkgerrors.ErrService("daemon manager not initialized", nil)
 }
 
 // prepareConfigFile 准备配置文件
@@ -260,171 +219,4 @@ rules:
 `, pm.config.Mihomo.Log.Level, pm.config.Mihomo.API.ExternalController, secret)
 }
 
-// ValidateProcess 验证进程是否是 Mihomo 进程
-func ValidateProcess(pid int, force bool) error {
-	// 验证进程
-	if !force {
-		if !IsProcessRunning(pid) {
-			return pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" does not exist", nil)
-		}
 
-		verified, err := VerifyMihomoProcess(pid)
-		if err != nil {
-			return pkgerrors.ErrService("failed to verify process", err)
-		}
-		if !verified {
-			return pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not a Mihomo process, use --force to stop", nil)
-		}
-	}
-	return nil
-}
-
-// StopProcessByPID 通过 PID 停止进程（使用 API 关闭）
-// 优先尝试通过 API 关闭，失败后提示用户使用 -F 强制关闭
-func StopProcessByPID(pid int, apiAddress, secret string) error {
-	// 检查进程是否存在
-	if !IsProcessRunning(pid) {
-		return pkgerrors.ErrService("process "+fmt.Sprintf("%d", pid)+" is not running", nil)
-	}
-
-	// 尝试通过 API 关闭
-	if apiAddress != "" && secret != "" {
-		output.Printf("Attempting to shutdown process %d via API...\n", pid)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		client := api.NewClient("http://"+apiAddress, secret, api.WithTimeout(10*time.Second))
-		if err := client.Shutdown(ctx); err != nil {
-			// API 错误已经包含了详细信息，直接返回并添加提示
-			output.Println("")
-			output.Println("请使用 -F 参数强制关闭进程：")
-			output.Printf("  mihomo-cli stop -F %d\n", pid)
-			return err
-		}
-
-		// 等待进程退出（最多 10 秒）
-		output.Printf("Waiting for process to exit (max 10 seconds)...\n")
-
-		timeout := 10 * time.Second
-		checkInterval := 500 * time.Millisecond
-		checkTicker := time.NewTicker(checkInterval)
-		defer checkTicker.Stop()
-
-		deadline := time.Now().Add(timeout)
-
-		for range checkTicker.C {
-			if !IsProcessRunning(pid) {
-				output.Success("Process %d has gracefully exited", pid)
-				return nil
-			}
-
-			if time.Now().After(deadline) {
-				output.Warning("Process did not exit within timeout")
-				output.Println("")
-				output.Println("进程未在超时时间内退出，请使用 -F 参数强制关闭：")
-				output.Printf("  mihomo-cli stop -F %d\n", pid)
-				return pkgerrors.ErrService("shutdown timeout, use -F to force kill", nil)
-			}
-		}
-	}
-
-	return nil
-}
-
-// ForceKillProcessByPID 强制终止进程
-func ForceKillProcessByPID(pid int) error {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return pkgerrors.ErrService("failed to find process "+fmt.Sprintf("%d", pid), err)
-	}
-
-	return forceKillProcess(proc, pid)
-}
-
-// forceKillProcess 强制终止进程
-func forceKillProcess(proc *os.Process, pid int) error {
-	output.Printf("Force killing process %d...\n", pid)
-
-	if err := proc.Kill(); err != nil {
-		return pkgerrors.ErrService("failed to stop process", err)
-	}
-
-	// 等待进程完全退出
-	state, err := proc.Wait()
-	if err != nil {
-		return pkgerrors.ErrService("failed to wait for process to exit", err)
-	}
-
-	// 验证进程确实已退出
-	if !state.Exited() {
-		return pkgerrors.ErrService("process did not exit as expected", nil)
-	}
-
-	output.Success("Process %d has been force killed", pid)
-
-	// 尝试自动清理系统配置
-	output.Info("Attempting to clean up system configuration...")
-	if err := cleanupAfterForceKill(); err != nil {
-		output.Warning("Automatic cleanup failed: " + err.Error())
-		output.Warning("You may need to manually clean up system configuration:")
-		output.Println("  - TUN network adapter (Windows: Network Adapter Settings)")
-		output.Println("  - Routing table modifications")
-		output.Println("  - Registry proxy settings")
-		output.Println("  - iptables rules (Linux)")
-		output.Println("Or restart the system to ensure complete cleanup")
-	} else {
-		output.Success("System configuration cleanup completed")
-	}
-
-	return nil
-}
-
-// cleanupAfterForceKill 强制终止后清理系统配置
-func cleanupAfterForceKill() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	output.Printf("Checking for residual system configurations...\n")
-
-	// 创建系统配置管理器
-	scm, err := system.NewSystemConfigManager()
-	if err != nil {
-		return fmt.Errorf("failed to create system config manager: %w", err)
-	}
-
-	// 检查残留配置
-	problems, err := scm.ValidateState()
-	if err != nil {
-		return fmt.Errorf("failed to validate system state: %w", err)
-	}
-
-	if len(problems) == 0 {
-		output.Success("No residual configurations found")
-		return nil
-	}
-
-	output.Warning("Found %d residual configuration issues", len(problems))
-	for _, problem := range problems {
-		output.Printf("  - %s (severity: %s)\n", problem.Description, problem.Severity)
-	}
-
-	// 尝试自动清理
-	output.Info("Attempting automatic cleanup...")
-	if err := scm.CleanupAll(); err != nil {
-		return fmt.Errorf("automatic cleanup failed: %w", err)
-	}
-
-	// 验证清理结果
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("cleanup timeout")
-	default:
-		// 再次检查是否还有残留
-		remainingProblems, _ := scm.ValidateState()
-		if len(remainingProblems) > 0 {
-			output.Warning("%d issues could not be automatically cleaned up", len(remainingProblems))
-		}
-		return nil
-	}
-}
