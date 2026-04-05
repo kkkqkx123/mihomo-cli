@@ -13,30 +13,47 @@ dns:
   enable: true
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - '*.lan'
+    - 'localhost.ptlogin2.qq.com'
 
-  # 分层 DNS 策略
+  # 第一层:仅使用国内 UDP DNS
   nameserver:
-    - 223.5.5.5 # 第一层：国内 UDP
+    - 223.5.5.5
     - 119.29.29.29
-    - https://doh.pub/dns-query # 第二层：国内 DoH
+    - 180.76.76.76
 
+  # 第二层:国外 DNS(包括 UDP、DoH、DoT)
   fallback:
-    - 8.8.8.8 # 第三层：国外 UDP
+    - 8.8.8.8
     - 1.1.1.1
-    - tls://8.8.8.8:853 # 第四层：DNS-over-TLS
+    - tls://8.8.8.8:853
+    - https://dns.google/dns-query
+    - https://cloudflare-dns.com/dns-query
 
-  # 智能 fallback 策略
+  # 修正的 fallback-filter
   fallback-filter:
     geoip: true
     geoip-code: CN
-    domain:
-      - "geosite:google"
-      - "geosite:github"
-      - "geosite:openai"
-      - "geosite:cloudflare"
+    # 移除 0.0.0.0/32,只保留真正的国内 IP 段
     ipcidr:
       - 240.0.0.0/4
-      - 0.0.0.0/32
+    domain:
+      - '+.google.com'
+      - '+.facebook.com'
+      - '+.youtube.com'
+      - '+.github.com'
+      - '+.openai.com'
+      - '+.cloudflare.com'
+
+  # 添加 DNS 规则优先级
+  nameserver-policy:
+    'geosite:cn':
+      - 223.5.5.5
+      - 119.29.29.29
+    'geosite:geolocation-!cn':
+      - https://dns.google/dns-query
+      - https://cloudflare-dns.com/dns-query
 
 # 代理提供者 - 使用您提供的订阅链接
 proxy-providers:
@@ -69,12 +86,12 @@ proxy-groups:
     interval: 300
 
 # 规则
-# 添加 DoH 域名的直连规则
+# DNS 相关规则放最前面
 rules:
-  - DOMAIN,doh.pub,DIRECT
-  - DOMAIN,dns.alidns.com,DIRECT
-  - DOMAIN,cloudflare-dns.com,DIRECT
-  - DOMAIN,dns.google,DIRECT
+  - DOMAIN-SUFFIX,doh.pub,DIRECT
+  - DOMAIN-SUFFIX,dns.alidns.com,DIRECT
+  - DOMAIN-SUFFIX,cloudflare-dns.com,DIRECT
+  - DOMAIN-SUFFIX,dns.google,DIRECT
   - DOMAIN-SUFFIX,google.com,PROXY
   - GEOIP,CN,DIRECT # 国内流量直连
   - MATCH,PROXY # 其他流量走默认代理

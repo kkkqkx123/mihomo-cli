@@ -4,5 +4,6 @@ go.sum
 
 scripts/config.toml
 test-mihomo-config.yaml
+CONFIG-BACKUP
 
 repomix-output.xml
