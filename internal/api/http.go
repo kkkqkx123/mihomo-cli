@@ -90,6 +90,18 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, baseURL, endpoint st
 		return nil, NewConnectionError(err)
 	}
 
+	// 创建请求
+	req, err := c.newRequest(ctx, method, fullURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 执行请求
+	return c.doRequestWithReq(req)
+}
+
+// newRequest 创建 HTTP 请求
+func (c *HTTPClient) newRequest(ctx context.Context, method, url string, body interface{}) (*http.Request, error) {
 	// 准备请求体
 	var reqBody io.Reader
 	if body != nil {
@@ -108,7 +120,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, baseURL, endpoint st
 	}
 
 	// 创建请求
-	req, err := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, NewConnectionError(err)
 	}
@@ -121,11 +133,16 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, baseURL, endpoint st
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	return req, nil
+}
+
+// doRequestWithReq 使用已创建的请求执行 HTTP 请求
+func (c *HTTPClient) doRequestWithReq(req *http.Request) (*http.Response, error) {
 	// 执行请求
 	resp, err := c.client.Do(req)
 	if err != nil {
 		// 检查是否为超时错误
-		if ctx.Err() == context.DeadlineExceeded || err.Error() == "http: Client.Timeout exceeded" {
+		if req.Context().Err() == context.DeadlineExceeded || err.Error() == "http: Client.Timeout exceeded" {
 			return nil, NewTimeoutError(err)
 		}
 		return nil, NewConnectionError(err)

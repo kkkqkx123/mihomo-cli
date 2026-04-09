@@ -12,7 +12,7 @@ import (
 )
 
 // formatBytes 格式化字节数为人类可读格式
-func formatBytes(bytes int64) string {
+func formatBytes(bytes uint64) string {
 	const (
 		KB = 1024
 		MB = KB * 1024
@@ -36,7 +36,10 @@ func formatBytes(bytes int64) string {
 
 // formatSpeed 格式化速度（字节/秒）
 func formatSpeed(bytesPerSec int64) string {
-	return formatBytes(bytesPerSec) + "/s"
+	if bytesPerSec < 0 {
+		bytesPerSec = 0
+	}
+	return formatBytes(uint64(bytesPerSec)) + "/s"
 }
 
 // TrafficFormatter 流量格式化器
@@ -57,6 +60,8 @@ func (f *TrafficFormatter) FormatOnce(traffic *types.TrafficInfo) error {
 	fmt.Fprintf(f.w, "流量统计:\n")
 	fmt.Fprintf(f.w, "  上传速度: %s\n", formatSpeed(traffic.Up))
 	fmt.Fprintf(f.w, "  下载速度: %s\n", formatSpeed(traffic.Down))
+	fmt.Fprintf(f.w, "  累计上传: %s\n", formatBytes(uint64(traffic.UpTotal)))
+	fmt.Fprintf(f.w, "  累计下载: %s\n", formatBytes(uint64(traffic.DownTotal)))
 	return nil
 }
 
@@ -77,9 +82,16 @@ func (f *TrafficFormatter) FormatWatchLine(traffic *types.TrafficInfo, totalUp, 
 	fmt.Fprintf(f.w, "\033[K")
 	fmt.Fprintf(f.w, "下载速度: %s\n", formatSpeed(traffic.Down))
 	fmt.Fprintf(f.w, "\033[K")
-	fmt.Fprintf(f.w, "累计上传: %s\n", formatBytes(totalUp))
-	fmt.Fprintf(f.w, "\033[K")
-	fmt.Fprintf(f.w, "累计下载: %s\n", formatBytes(totalDown))
+	// 使用 API 返回的总流量（如果可用），否则使用累计值
+	if traffic.UpTotal > 0 || traffic.DownTotal > 0 {
+		fmt.Fprintf(f.w, "累计上传: %s\n", formatBytes(uint64(traffic.UpTotal)))
+		fmt.Fprintf(f.w, "\033[K")
+		fmt.Fprintf(f.w, "累计下载: %s\n", formatBytes(uint64(traffic.DownTotal)))
+	} else {
+		fmt.Fprintf(f.w, "累计上传: %s\n", formatBytes(uint64(totalUp)))
+		fmt.Fprintf(f.w, "\033[K")
+		fmt.Fprintf(f.w, "累计下载: %s\n", formatBytes(uint64(totalDown)))
+	}
 }
 
 // FormatJSON 以 JSON 格式输出
@@ -104,9 +116,9 @@ func NewMemoryFormatter(w io.Writer) *MemoryFormatter {
 func (f *MemoryFormatter) FormatOnce(memory *types.MemoryInfo) error {
 	fmt.Fprintf(f.w, "内存使用:\n")
 	fmt.Fprintf(f.w, "  当前使用: %s\n", formatBytes(memory.Inuse))
-	if memory.OSLimit != nil {
-		fmt.Fprintf(f.w, "  系统限制: %s\n", formatBytes(*memory.OSLimit))
-		usagePercent := float64(memory.Inuse) / float64(*memory.OSLimit) * 100
+	if memory.OSLimit > 0 {
+		fmt.Fprintf(f.w, "  系统限制: %s\n", formatBytes(memory.OSLimit))
+		usagePercent := float64(memory.Inuse) / float64(memory.OSLimit) * 100
 		fmt.Fprintf(f.w, "  使用率: %.2f%%\n", usagePercent)
 	}
 	return nil
@@ -126,10 +138,10 @@ func (f *MemoryFormatter) FormatWatchLine(memory *types.MemoryInfo) {
 	fmt.Fprintf(f.w, "时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Fprintf(f.w, "\033[K")
 	fmt.Fprintf(f.w, "当前使用: %s\n", formatBytes(memory.Inuse))
-	if memory.OSLimit != nil {
+	if memory.OSLimit > 0 {
 		fmt.Fprintf(f.w, "\033[K")
-		fmt.Fprintf(f.w, "系统限制: %s\n", formatBytes(*memory.OSLimit))
-		usagePercent := float64(memory.Inuse) / float64(*memory.OSLimit) * 100
+		fmt.Fprintf(f.w, "系统限制: %s\n", formatBytes(memory.OSLimit))
+		usagePercent := float64(memory.Inuse) / float64(memory.OSLimit) * 100
 		fmt.Fprintf(f.w, "\033[K")
 		fmt.Fprintf(f.w, "使用率: %.2f%%\n", usagePercent)
 	}
