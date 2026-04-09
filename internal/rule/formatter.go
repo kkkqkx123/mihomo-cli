@@ -43,19 +43,22 @@ func formatRuleTable(rules []types.RuleInfo) error {
 	stats := calculateStats(rules)
 
 	// 遍历规则并添加到表格
-	for i, rule := range rules {
+	for _, rule := range rules {
 		// 截断过长的匹配内容
 		payload := rule.Payload
 		if len(payload) > 50 {
 			payload = payload[:47] + "..."
 		}
 
+		// 获取命中次数：优先使用 Extra.HitCount，否则使用 Size（仅 GEOIP/GEOSITE 有效）
+		hitCount := getHitCount(rule)
+
 		if err := table.Append([]string{
-			fmt.Sprintf("%d", i),
+			fmt.Sprintf("%d", rule.Index),
 			rule.Type,
 			payload,
 			rule.Proxy,
-			fmt.Sprintf("%d", rule.Size),
+			fmt.Sprintf("%d", hitCount),
 		}); err != nil {
 			return err
 		}
@@ -97,11 +100,24 @@ func calculateStats(rules []types.RuleInfo) *RuleStats {
 	}
 
 	for _, rule := range rules {
-		stats.TotalHits += rule.Size
+		stats.TotalHits += int(getHitCount(rule))
 		stats.ByType[rule.Type]++
 	}
 
 	return stats
+}
+
+// getHitCount 获取规则的命中次数
+// 优先使用 Extra.HitCount（真实命中统计），否则使用 Size（仅 GEOIP/GEOSITE 有效）
+func getHitCount(rule types.RuleInfo) uint64 {
+	if rule.Extra != nil {
+		return rule.Extra.HitCount
+	}
+	// Size 对于非 GEOIP/GEOSITE 规则是 -1，视为 0
+	if rule.Size < 0 {
+		return 0
+	}
+	return uint64(rule.Size)
 }
 
 // FormatDisableResult 格式化禁用规则结果
@@ -166,12 +182,13 @@ func FormatValidationError(err error) error {
 
 // PrintRuleInfo 打印单个规则信息
 func PrintRuleInfo(index int, rule types.RuleInfo) {
+	hitCount := getHitCount(rule)
 	fmt.Fprintf(output.GetGlobalStdout(), "规则详情:\n")
 	fmt.Fprintf(output.GetGlobalStdout(), "  索引: %d\n", index)
 	fmt.Fprintf(output.GetGlobalStdout(), "  类型: %s\n", rule.Type)
 	fmt.Fprintf(output.GetGlobalStdout(), "  匹配内容: %s\n", rule.Payload)
 	fmt.Fprintf(output.GetGlobalStdout(), "  代理: %s\n", rule.Proxy)
-	fmt.Fprintf(output.GetGlobalStdout(), "  命中次数: %d\n", rule.Size)
+	fmt.Fprintf(output.GetGlobalStdout(), "  命中次数: %d\n", hitCount)
 }
 
 // FormatRuleListWithFilter 格式化规则列表输出（带过滤）
@@ -223,7 +240,7 @@ func formatRuleProviderJSON(providers map[string]*types.RuleProviderInfo) error 
 func formatRuleProviderTable(providers map[string]*types.RuleProviderInfo) error {
 	// 创建表格
 	table := tablewriter.NewTable(output.GetGlobalStdout(),
-		tablewriter.WithHeader([]string{"名称", "类型", "来源类型", "规则数量", "更新时间"}),
+		tablewriter.WithHeader([]string{"名称", "类型", "行为", "格式", "来源类型", "规则数量", "更新时间"}),
 		tablewriter.WithHeaderAutoFormat(tw.On),
 		tablewriter.WithRowAlignment(tw.AlignLeft),
 		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
@@ -240,8 +257,10 @@ func formatRuleProviderTable(providers map[string]*types.RuleProviderInfo) error
 		if err := table.Append([]string{
 			name,
 			provider.Type,
+			provider.Behavior,
+			provider.Format,
 			provider.VehicleType,
-			fmt.Sprintf("%d", len(provider.Rules)),
+			fmt.Sprintf("%d", provider.RuleCount),
 			updatedAt,
 		}); err != nil {
 			return err
@@ -256,6 +275,13 @@ func formatRuleProviderTable(providers map[string]*types.RuleProviderInfo) error
 	fmt.Fprintf(output.GetGlobalStdout(), "\n")
 	output.Info("统计信息:")
 	fmt.Fprintf(output.GetGlobalStdout(), "  总提供者数: %d\n", len(providers))
+
+	// 计算总规则数
+	totalRules := 0
+	for _, provider := range providers {
+		totalRules += provider.RuleCount
+	}
+	fmt.Fprintf(output.GetGlobalStdout(), "  总规则数: %d\n", totalRules)
 
 	return nil
 }

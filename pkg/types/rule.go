@@ -1,11 +1,24 @@
 package types
 
+import "time"
+
+// RuleExtra 规则额外信息（命中统计）
+type RuleExtra struct {
+	Disabled  bool      `json:"disabled"`
+	HitCount  uint64    `json:"hitCount"`
+	HitAt     time.Time `json:"hitAt"`
+	MissCount uint64    `json:"missCount"`
+	MissAt    time.Time `json:"missAt"`
+}
+
 // RuleInfo 规则信息
 type RuleInfo struct {
-	Type    string `json:"type"`
-	Payload string `json:"payload"`
-	Proxy   string `json:"proxy"`
-	Size    int    `json:"size"`
+	Index   int        `json:"index"`
+	Type    string     `json:"type"`
+	Payload string     `json:"payload"`
+	Proxy   string     `json:"proxy"`
+	Size    int        `json:"size"`
+	Extra   *RuleExtra `json:"extra,omitempty"`
 }
 
 // RulesResponse 规则列表响应
@@ -35,9 +48,12 @@ type EnableRulesRequest struct {
 type RuleProviderInfo struct {
 	Name        string   `json:"name"`
 	Type        string   `json:"type"`
+	Behavior    string   `json:"behavior"`
+	Format      string   `json:"format"`
 	VehicleType string   `json:"vehicleType"`
-	Rules       []string `json:"rules"`
+	RuleCount   int      `json:"ruleCount"`
 	UpdatedAt   string   `json:"updatedAt"`
+	Payload     []string `json:"payload,omitempty"`
 }
 
 // RuleProvidersResponse 规则提供者列表响应

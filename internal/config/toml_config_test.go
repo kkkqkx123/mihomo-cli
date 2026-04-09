@@ -92,6 +92,7 @@ enabled = false
 executable = "custom-mihomo.exe"
 config_file = "/path/to/config.yaml"
 auto_generate_secret = false
+health_check_timeout = 5
 
 [mihomo.api]
 external_controller = "0.0.0.0:9090"
@@ -145,6 +146,7 @@ func TestTomlConfig_Save(t *testing.T) {
 			Executable:         "mihomo.exe",
 			ConfigFile:         "/etc/mihomo/config.yaml",
 			AutoGenerateSecret: false,
+			HealthCheckTimeout: 5,
 			API: MihomoAPIConfig{
 				ExternalController: "127.0.0.1:9090",
 			},
