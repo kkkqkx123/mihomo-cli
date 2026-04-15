@@ -116,7 +116,7 @@ func (wdm *WindowsDaemonManager) StopDaemon(pid int) error {
 		output.Warning("Using force kill")
 	}
 
-	// 强制关闭
+	// 执行强制关闭
 	return wdm.ForceKillDaemon(pid)
 }
 

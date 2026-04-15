@@ -57,12 +57,16 @@ func newProcessChecker() ProcessChecker {
 func (w *windowsProcessChecker) IsProcessRunning(pid int) bool {
 	// 使用 PROCESS_QUERY_INFORMATION 权限打开进程
 	// 如果进程不存在，OpenProcess 会返回 0
-	handle, _, _ := procOpenProcess.Call(
+	handle, _, err := procOpenProcess.Call(
 		uintptr(PROCESS_QUERY_INFORMATION),
 		0,
 		uintptr(pid),
 	)
 	if handle == 0 {
+		// 如果是权限不足（ERROR_ACCESS_DENIED），保守认为进程仍在运行
+		if err != nil && err.Error() == "Access is denied." {
+			return true
+		}
 		return false
 	}
 	// 关闭句柄

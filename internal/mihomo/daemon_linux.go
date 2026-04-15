@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -87,8 +88,13 @@ func (ldm *LinuxDaemonManager) StopDaemon(pid int) error {
 		output.Warning("API shutdown failed, using force kill")
 	}
 
-	// 强制关闭
-	return ldm.ForceKillDaemon(pid)
+	// 执行分级终止：先 SIGTERM，等待 5 秒，再 SIGKILL
+	if err := ldm.GracefulKillDaemon(pid); err != nil {
+		return err
+	}
+
+	ldm.CleanupPID()
+	return nil
 }
 
 // IsDaemonRunning 检查守护进程是否运行
@@ -111,6 +117,46 @@ func (ldm *LinuxDaemonManager) CreateProcessGroup(cmd *exec.Cmd) error {
 		Setsid:  true, // 创建新会话
 		Setpgid: true, // 创建新进程组
 	}
+	return nil
+}
+
+// GracefulKillDaemon 分级终止守护进程：先 SIGTERM，等待 5 秒，再 SIGKILL
+func (ldm *LinuxDaemonManager) GracefulKillDaemon(pid int) error {
+	output.Printf("Sending SIGTERM to process %d...\n", pid)
+
+	// 发送 SIGTERM 信号
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+		if err == syscall.ESRCH {
+			output.Info("Process %d already exited", pid)
+			return nil
+		}
+		return pkgerrors.ErrService("failed to send SIGTERM", err)
+	}
+
+	// 等待进程退出（最多 5 秒）
+	timeout := 5 * time.Second
+	checkInterval := 200 * time.Millisecond
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		if !IsProcessRunning(pid) {
+			output.Success("Process %d has gracefully exited", pid)
+			return nil
+		}
+		time.Sleep(checkInterval)
+	}
+
+	// 如果进程仍未退出，发送 SIGKILL
+	output.Warning("Process %d did not exit within %v, sending SIGKILL...", pid, timeout)
+	if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+		if err == syscall.ESRCH {
+			output.Info("Process %d already exited", pid)
+			return nil
+		}
+		return pkgerrors.ErrService("failed to send SIGKILL", err)
+	}
+
+	output.Success("Process %d has been killed", pid)
 	return nil
 }
 

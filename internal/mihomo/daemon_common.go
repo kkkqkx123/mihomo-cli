@@ -77,26 +77,71 @@ func (p *PIDFileManager) Exists() bool {
 
 // ForceKill 强制终止进程（跨平台通用）
 func ForceKill(pid int) error {
+	return ForceKillWithTimeout(pid, 5*time.Second)
+}
+
+// ForceKillWithTimeout 带超时机制的强制终止进程
+func ForceKillWithTimeout(pid int, timeout time.Duration) error {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return pkgerrors.ErrService("failed to find process", err)
 	}
 
 	if err := proc.Kill(); err != nil {
+		// Windows 特殊处理：如果返回 "Access is denied"，可能是进程正在退出
+		// 检查进程是否仍在运行，如果已退出则认为成功
+		if isAccessDeniedError(err) {
+			output.Warning("Kill returned access denied, checking if process exited...")
+			// 短暂等待后检查进程状态
+			time.Sleep(100 * time.Millisecond)
+			if !IsProcessRunning(pid) {
+				output.Success("Process %d has exited despite access denied error", pid)
+				return nil
+			}
+			// 进程仍在运行，返回原始错误
+			return pkgerrors.ErrService("failed to kill process (access denied)", err)
+		}
 		return pkgerrors.ErrService("failed to kill process", err)
 	}
 
-	// 等待进程退出
-	state, err := proc.Wait()
-	if err != nil {
-		return pkgerrors.ErrService("failed to wait for process exit", err)
-	}
+	// 使用 goroutine + channel 实现带超时的 Wait
+	done := make(chan error, 1)
+	go func() {
+		state, err := proc.Wait()
+		if err != nil {
+			done <- err
+			return
+		}
+		if !state.Exited() {
+			done <- pkgerrors.ErrService("process did not exit as expected", nil)
+			return
+		}
+		done <- nil
+	}()
 
-	if !state.Exited() {
-		return pkgerrors.ErrService("process did not exit as expected", nil)
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(timeout):
+		return pkgerrors.ErrService(fmt.Sprintf("wait for process exit timeout after %v", timeout), nil)
 	}
+}
 
-	return nil
+// isAccessDeniedError 检查是否为权限不足错误（主要用于 Windows）
+func isAccessDeniedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// Windows 权限错误
+	if errStr == "Access is denied." {
+		return true
+	}
+	// Unix 权限错误
+	if errStr == "operation not permitted" {
+		return true
+	}
+	return false
 }
 
 // DaemonManagerCommon 守护进程管理器通用功能
