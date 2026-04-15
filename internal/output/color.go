@@ -153,6 +153,11 @@ func CyanString(format string, a ...interface{}) string {
 	return color.CyanString(format, a...)
 }
 
+// GrayString 返回灰色字符串
+func GrayString(format string, a ...interface{}) string {
+	return color.New(color.FgHiBlack).Sprintf(format, a...)
+}
+
 // SetNoColor 禁用颜色输出
 func SetNoColor(noColor bool) {
 	color.NoColor = noColor

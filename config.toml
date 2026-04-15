@@ -9,8 +9,10 @@ timeout = 10
 [proxy]
 # 代理测速配置
 test_url = ""  # 测试 URL（留空使用默认）
-timeout = 10000  # 测速超时时间（毫秒），默认10秒
+timeout = 10000  # 测速超时时间（毫秒），默认 10 秒
 concurrent = 10  # 并发测试数
+batch_size = 100  # 每批次测试的节点数
+max_nodes = 500  # 最大测试节点数
 
 [mihomo]
 # Mihomo 内核配置

@@ -82,6 +82,12 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		}
 	}
 
+	// 启动前检查并清理残留配置（确保系统状态干净）
+	output.Info("Checking for residual configuration from abnormal exit...")
+	if err := ph.checkAndCleanupBeforeStart(cfg); err != nil {
+		return nil, pkgerrors.ErrService("failed to cleanup residual configuration", err)
+	}
+
 	// 启动前备份系统配置
 	if hasTUN || hasTProxy {
 		output.Info("Creating system configuration backup...")
@@ -264,6 +270,38 @@ func (ph *ProcessHandler) Status(cfg *config.TomlConfig) (*StatusResult, error) 
 		PID:        pid,
 		APIAddress: apiAddr,
 	}, nil
+}
+
+// checkAndCleanupBeforeStart 启动前检查并清理残留配置
+func (ph *ProcessHandler) checkAndCleanupBeforeStart(_ *config.TomlConfig) error {
+	scm, err := system.NewSystemConfigManager()
+	if err != nil {
+		return err
+	}
+
+	// 检查是否有上次异常退出留下的残留
+	problems, err := scm.ValidateState()
+	if err != nil {
+		return err
+	}
+
+	if len(problems) > 0 {
+		output.Warning("Detected %d residual configuration issues from abnormal exit", len(problems))
+		for _, problem := range problems {
+			output.Printf("  - %s (severity: %s)\n", problem.Description, problem.Severity)
+		}
+
+		// 尝试自动清理
+		output.Info("Cleaning up residual configuration before start...")
+		if err := scm.CleanupAll(); err != nil {
+			output.Warning("Automatic cleanup failed: " + err.Error())
+			output.Println("Manual cleanup may be required")
+			return fmt.Errorf("failed to cleanup residual configuration: %w", err)
+		}
+		output.Success("Automatic cleanup completed, system is now clean")
+	}
+
+	return nil
 }
 
 // backupSystemConfig 备份系统配置

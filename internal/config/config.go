@@ -29,6 +29,8 @@ type ProxyConfig struct {
 	TestURL    string `mapstructure:"test_url"`    // 测试 URL
 	Timeout    int    `mapstructure:"timeout"`     // 测速超时时间（毫秒）
 	Concurrent int    `mapstructure:"concurrent"`  // 并发测试数
+	BatchSize  int    `mapstructure:"batch_size"`  // 每批次测试的节点数
+	MaxNodes   int    `mapstructure:"max_nodes"`   // 最大测试节点数
 }
 
 // Validate 验证配置
@@ -111,8 +113,10 @@ func GetDefaultConfig() *CLIConfig {
 		},
 		Proxy: ProxyConfig{
 			TestURL:    "",
-			Timeout:    10000, // 默认10秒，比之前的5秒更宽松
+			Timeout:    10000, // 默认 10 秒
 			Concurrent: 10,
+			BatchSize:  100,  // 默认每批次 100 个节点
+			MaxNodes:   500,  // 默认最多测试 500 个节点
 		},
 		Output: output.OutputConfig{
 			File:   "",

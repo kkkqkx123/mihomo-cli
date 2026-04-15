@@ -2,19 +2,11 @@ package proxy
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 )
-
-// 逻辑节点类型列表
-var logicalTypes = map[string]bool{
-	"Direct":     true,
-	"Reject":     true,
-	"RejectDrop": true,
-	"Pass":       true,
-	"Compatible": true,
-}
 
 // FilterOptions 过滤选项
 type FilterOptions struct {
@@ -24,6 +16,7 @@ type FilterOptions struct {
 	ExcludeLogical bool   // 排除逻辑节点
 	GroupsOnly     bool   // 只显示代理组
 	NodesOnly      bool   // 只显示节点
+	SortBy         string // 排序方式（name/delay）
 }
 
 // FilterProxies 根据过滤条件过滤代理列表
@@ -103,4 +96,37 @@ func shouldIncludeProxy(name string, proxy *types.ProxyInfo, opts FilterOptions,
 	}
 
 	return true
+}
+
+// SortProxies 对代理进行排序
+func SortProxies(proxies map[string]*types.ProxyInfo, sortBy string) []string {
+	names := make([]string, 0, len(proxies))
+	for name := range proxies {
+		names = append(names, name)
+	}
+
+	switch sortBy {
+	case "name":
+		sort.Strings(names)
+	case "delay":
+		sort.Slice(names, func(i, j int) bool {
+			delayI := proxies[names[i]].Delay
+			delayJ := proxies[names[j]].Delay
+			// 延迟为 0 的排在最后
+			if delayI == 0 && delayJ == 0 {
+				return names[i] < names[j]
+			}
+			if delayI == 0 {
+				return false
+			}
+			if delayJ == 0 {
+				return true
+			}
+			return delayI < delayJ
+		})
+	default:
+		sort.Strings(names)
+	}
+
+	return names
 }

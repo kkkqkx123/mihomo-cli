@@ -294,6 +294,9 @@ type DefaultLifecycleHooks struct{}
 
 // OnPreStart 启动前钩子
 func (d *DefaultLifecycleHooks) OnPreStart(ctx context.Context, cfg *config.TomlConfig) error {
+	// 记录启动前日志
+	output.Info("Preparing to start Mihomo process...")
+
 	// 检查可执行文件是否存在
 	if _, err := os.Stat(cfg.Mihomo.Executable); os.IsNotExist(err) {
 		return pkgerrors.ErrConfig("mihomo executable not found: "+cfg.Mihomo.Executable, nil)
@@ -327,6 +330,9 @@ func (d *DefaultLifecycleHooks) OnPreStart(ctx context.Context, cfg *config.Toml
 			ln.Close()
 		}
 	}
+
+	// 执行启动前检查
+	output.Info("Performing pre-start checks...")
 
 	return nil
 }
