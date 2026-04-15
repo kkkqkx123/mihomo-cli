@@ -61,20 +61,16 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 	)
 
-	// 分离代理组和节点，以及逻辑节点和实际节点
-	var groups, nodes, logicalNodes []string
+	// 分离代理组和节点
+	var groups, nodes []string
 	
 	for name, proxy := range proxies {
 		if len(proxy.All) > 0 {
 			// 代理组
 			groups = append(groups, name)
 		} else {
-			// 单独节点
-			if logicalTypes[proxy.Type] {
-				logicalNodes = append(logicalNodes, name)
-			} else {
-				nodes = append(nodes, name)
-			}
+			// 单独节点（包括逻辑节点）
+			nodes = append(nodes, name)
 		}
 	}
 	
@@ -86,7 +82,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 		allNames = append(allNames, nodes...)
 		allNames = SortProxies(proxies, sortBy)
 		
-		// 先显示实际节点和代理组（已排序）
+		// 显示所有节点和代理组（已排序）
 		for _, name := range allNames {
 			proxy := proxies[name]
 			if len(proxy.All) > 0 {
@@ -122,26 +118,6 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 				}
 			} else {
 				// 单独节点
-				delayStr := formatDelayWithColor(proxy.Delay, proxy.Alive)
-				if err := table.Append([]string{
-					name,
-					proxy.Type,
-					"-",
-					"-",
-					delayStr,
-				}); err != nil {
-					return err
-				}
-			}
-		}
-		
-		// 最后显示逻辑节点
-		if len(logicalNodes) > 0 {
-			sort.Strings(logicalNodes)
-			output.Println()
-			output.Info("逻辑节点")
-			for _, name := range logicalNodes {
-				proxy := proxies[name]
 				delayStr := formatDelayWithColor(proxy.Delay, proxy.Alive)
 				if err := table.Append([]string{
 					name,
@@ -191,7 +167,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 			}
 		}
 		
-		// 2. 显示实际节点
+		// 2. 显示所有节点（包括逻辑节点）
 		sort.Strings(nodes)
 		for _, name := range nodes {
 			proxy := proxies[name]
@@ -204,26 +180,6 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 				delayStr,
 			}); err != nil {
 				return err
-			}
-		}
-		
-		// 3. 最后显示逻辑节点
-		if len(logicalNodes) > 0 {
-			sort.Strings(logicalNodes)
-			output.Println()
-			output.Info("逻辑节点")
-			for _, name := range logicalNodes {
-				proxy := proxies[name]
-				delayStr := formatDelayWithColor(proxy.Delay, proxy.Alive)
-				if err := table.Append([]string{
-					name,
-					proxy.Type,
-					"-",
-					"-",
-					delayStr,
-				}); err != nil {
-					return err
-				}
 			}
 		}
 	}

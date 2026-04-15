@@ -130,22 +130,24 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 		tester := proxy.NewDelayTester(client)
 		
 		// 设置测速参数
+		// 优先级：命令行参数 > 配置文件 > 默认值
 		if testURL != "" {
 			tester.SetTestURL(testURL)
-		} else if viper.IsSet("proxy.test_url") {
-			tester.SetTestURL(viper.GetString("proxy.test_url"))
+		} else if cfgTestURL := viper.GetString("proxy.test_url"); cfgTestURL != "" {
+			tester.SetTestURL(cfgTestURL)
 		}
+		// 否则使用 DelayTester 的默认值
 		
 		if testTimeout > 0 {
 			tester.SetTimeout(testTimeout)
-		} else if viper.IsSet("proxy.timeout") {
-			tester.SetTimeout(viper.GetInt("proxy.timeout"))
 		} else {
-			tester.SetTimeout(10000) // 默认 10 秒
+			tester.SetTimeout(viper.GetInt("proxy.timeout"))
 		}
 		
 		if concurrent > 0 {
 			tester.SetConcurrent(concurrent)
+		} else {
+			tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 		}
 		
 		// 收集需要测试的节点
@@ -348,21 +350,19 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 	// 优先使用命令行参数，其次使用配置文件
 	if testURL != "" {
 		tester.SetTestURL(testURL)
-	} else if viper.IsSet("proxy.test_url") {
+	} else {
 		tester.SetTestURL(viper.GetString("proxy.test_url"))
 	}
 	
 	if testTimeout > 0 {
 		tester.SetTimeout(testTimeout)
-	} else if viper.IsSet("proxy.timeout") {
-		tester.SetTimeout(viper.GetInt("proxy.timeout"))
 	} else {
-		tester.SetTimeout(10000) // 默认10秒
+		tester.SetTimeout(viper.GetInt("proxy.timeout"))
 	}
 	
 	if concurrent > 0 {
 		tester.SetConcurrent(concurrent)
-	} else if viper.IsSet("proxy.concurrent") {
+	} else {
 		tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 	}
 
@@ -458,21 +458,19 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 	// 优先使用命令行参数，其次使用配置文件
 	if testURL != "" {
 		tester.SetTestURL(testURL)
-	} else if viper.IsSet("proxy.test_url") {
+	} else {
 		tester.SetTestURL(viper.GetString("proxy.test_url"))
 	}
 	
 	if testTimeout > 0 {
 		tester.SetTimeout(testTimeout)
-	} else if viper.IsSet("proxy.timeout") {
-		tester.SetTimeout(viper.GetInt("proxy.timeout"))
 	} else {
-		tester.SetTimeout(10000) // 默认10秒
+		tester.SetTimeout(viper.GetInt("proxy.timeout"))
 	}
 	
 	if concurrent > 0 {
 		tester.SetConcurrent(concurrent)
-	} else if viper.IsSet("proxy.concurrent") {
+	} else {
 		tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 	}
 
@@ -588,18 +586,18 @@ func runProxyCurrent(cmd *cobra.Command, args []string) error {
 		tester := proxy.NewDelayTester(client)
 		
 		// 设置测速参数
+		// 优先级：命令行参数 > 配置文件 > 默认值
 		if testURL != "" {
 			tester.SetTestURL(testURL)
-		} else if viper.IsSet("proxy.test_url") {
-			tester.SetTestURL(viper.GetString("proxy.test_url"))
+		} else if cfgTestURL := viper.GetString("proxy.test_url"); cfgTestURL != "" {
+			tester.SetTestURL(cfgTestURL)
 		}
+		// 否则使用 DelayTester 的默认值
 		
 		if testTimeout > 0 {
 			tester.SetTimeout(testTimeout)
-		} else if viper.IsSet("proxy.timeout") {
-			tester.SetTimeout(viper.GetInt("proxy.timeout"))
 		} else {
-			tester.SetTimeout(10000) // 默认 10 秒
+			tester.SetTimeout(viper.GetInt("proxy.timeout"))
 		}
 		
 		// 测试当前节点的延迟
@@ -611,6 +609,13 @@ func runProxyCurrent(cmd *cobra.Command, args []string) error {
 			proxyGroup.Alive = true
 		} else {
 			proxyGroup.Alive = false
+		}
+	} else if proxyGroup.Now != "" && proxyGroup.Delay == 0 {
+		// 如果不测试延迟且没有延迟数据，尝试获取当前节点的历史延迟
+		currentNode, err := client.GetProxy(cmd.Context(), proxyGroup.Now)
+		if err == nil && currentNode.Delay > 0 {
+			proxyGroup.Delay = currentNode.Delay
+			proxyGroup.Alive = currentNode.Alive
 		}
 	}
 

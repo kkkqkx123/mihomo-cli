@@ -69,6 +69,13 @@ func (cm *ConfigManager) InitViperConfig(cfgFile string) {
 	viper.SetDefault("api.address", "http://127.0.0.1:9090")
 	viper.SetDefault("api.secret", "")
 	viper.SetDefault("api.timeout", 10)
+	
+	// 代理测速相关默认值
+	viper.SetDefault("proxy.test_url", "")
+	viper.SetDefault("proxy.timeout", 10000)
+	viper.SetDefault("proxy.concurrent", 10)
+	viper.SetDefault("proxy.batch_size", 100)
+	viper.SetDefault("proxy.max_nodes", 500)
 
 	if cfgFile != "" {
 		// 使用指定的配置文件

@@ -16,6 +16,18 @@ func (c *Client) ListProxies(ctx context.Context) (map[string]*types.ProxyInfo, 
 	if err != nil {
 		return nil, NewAPIError(ErrAPIError, "获取代理列表失败", err)
 	}
+	
+	// 根据 history 填充 Delay 字段
+	for _, proxy := range result.Proxies {
+		if proxy != nil && len(proxy.History) > 0 {
+			// 使用最后一条记录的 delay 值
+			lastHistory := proxy.History[len(proxy.History)-1]
+			if lastHistory.Delay > 0 {
+				proxy.Delay = uint16(lastHistory.Delay)
+			}
+		}
+	}
+	
 	return result.Proxies, nil
 }
 
@@ -29,6 +41,15 @@ func (c *Client) GetProxy(ctx context.Context, name string) (*types.ProxyInfo, e
 	if err != nil {
 		return nil, NewAPIError(ErrNotFound, fmt.Sprintf("获取代理 %s 失败", name), err)
 	}
+	
+	// 根据 history 填充 Delay 字段
+	if len(result.History) > 0 {
+		lastHistory := result.History[len(result.History)-1]
+		if lastHistory.Delay > 0 {
+			result.Delay = uint16(lastHistory.Delay)
+		}
+	}
+	
 	return &result, nil
 }
 
@@ -58,9 +79,12 @@ func (c *Client) TestDelay(ctx context.Context, name string, testURL string, tim
 	if testURL != "" {
 		queryParams["url"] = testURL
 	}
-	if timeout > 0 {
-		queryParams["timeout"] = strconv.Itoa(timeout)
+	// 始终传递 timeout 参数，避免 mihomo API 因空参数而报错
+	// 如果 timeout <= 0，使用默认值 5000ms
+	if timeout <= 0 {
+		timeout = 5000
 	}
+	queryParams["timeout"] = strconv.Itoa(timeout)
 
 	var result types.DelayResponse
 	err := c.Get(ctx, "/proxies/"+encodedName+"/delay", queryParams, &result)

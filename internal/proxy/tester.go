@@ -27,7 +27,7 @@ type DelayTester struct {
 func NewDelayTester(client *api.Client) *DelayTester {
 	return &DelayTester{
 		client:     client,
-		testURL:    "", // 使用默认测试 URL
+		testURL:    "https://www.google.com/generate_204", // 默认使用 Google 测速
 		timeout:    5000, // 默认 5 秒超时
 		concurrent: 10,  // 默认并发 10
 	}
