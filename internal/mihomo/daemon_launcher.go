@@ -179,14 +179,11 @@ func (dl *DaemonLauncher) Stop(force bool) error {
 	if apiAddr != "" && secret != "" && !force {
 		output.Info("Attempting to shutdown via API...")
 		if err := StopProcessByPID(pid, apiAddr, secret); err != nil {
-			output.Warning("API shutdown failed: " + err.Error())
-			output.Info("Using force kill...")
-			if err := ForceKill(pid); err != nil {
-				return pkgerrors.ErrService("failed to stop daemon", err)
-			}
+			return pkgerrors.ErrService("API shutdown failed (use -F flag to force kill)", err)
 		}
 	} else {
 		// 强制关闭
+		output.Info("Force killing process...")
 		if err := ForceKill(pid); err != nil {
 			return pkgerrors.ErrService("failed to stop daemon", err)
 		}
