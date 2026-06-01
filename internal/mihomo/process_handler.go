@@ -98,6 +98,16 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		}
 	}
 
+	// 确保 Mihomo 用户配置目录存在（用于 profile 文件持久化）
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		mihomoHomeDir := filepath.Join(homeDir, ".config", "mihomo")
+		profilesDir := filepath.Join(mihomoHomeDir, "profiles")
+		if err := os.MkdirAll(profilesDir, 0755); err != nil {
+			output.Warning("failed to create profiles directory: " + err.Error())
+		}
+	}
+
 	// 启动内核（守护进程模式）
 	if err := launcher.Start(); err != nil {
 		return nil, pkgerrors.ErrService("failed to start mihomo daemon", err)

@@ -77,7 +77,7 @@ API 地址: http://127.0.0.1:9090
 **说明：**
 - 内核会在后台运行
 - 自动生成随机密钥用于 API 认证
-- 记录密钥用于后续 API 调用
+- CLI 工具会自动更新配置文件中的密钥（auto_generate_secret = true 时）
 
 ### 步骤 2：配置 API 密钥
 
@@ -146,6 +146,23 @@ API 地址: http://127.0.0.1:9090
 **方式一：手动切换**
 ```bash
 .\mihomo-cli.exe proxy switch PROXY "香港-优化-Gemini"
+```
+
+**方式二：自动选择最快节点**
+```bash
+.\mihomo-cli.exe proxy auto PROXY
+```
+
+**方式三：测试延迟后手动选择**
+```bash
+# 测试所有节点延迟
+.\mihomo-cli.exe proxy test PROXY
+
+# 测试单个节点延迟
+.\mihomo-cli.exe proxy test PROXY "香港-优化-Gemini"
+
+# 自定义测试参数
+.\mihomo-cli.exe proxy test PROXY --url https://www.google.com/generate_204 --timeout 10000 --concurrent 20 --progress
 ```
 
 **输出示例：**
@@ -288,9 +305,6 @@ rules:
 ```bash
 # 更新订阅
 .\mihomo-cli.exe sub update
-
-# 查看订阅列表
-.\mihomo-cli.exe sub list
 ```
 
 ### 代理管理

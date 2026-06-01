@@ -19,6 +19,37 @@
 mihomo-cli proxy list
 ```
 
+**高级过滤选项：**
+
+```bash
+# 按节点类型过滤
+mihomo-cli proxy list --type Vmess
+
+# 按状态过滤（可用/不可用）
+mihomo-cli proxy list --status alive
+
+# 排除逻辑节点（DIRECT, REJECT 等）
+mihomo-cli proxy list --exclude-logical
+
+# 正则排除指定节点
+mihomo-cli proxy list --exclude "过期|剩余流量"
+
+# 只显示代理组
+mihomo-cli proxy list --groups-only
+
+# 只显示代理节点（排除代理组）
+mihomo-cli proxy list --nodes-only
+
+# 按延迟排序
+mihomo-cli proxy list --sort delay
+
+# 组合使用：列出 Vmess 类型的存活节点，排除逻辑节点，按延迟排序
+mihomo-cli proxy list --type Vmess --status alive --exclude-logical --sort delay
+
+# 列出时附带延迟测试
+mihomo-cli proxy list --test-delay --concurrent 20 --progress
+```
+
 输出示例：
 ```
 ┌─────────────────┬──────────┬──────────────────┬────────┬──────┬──────┐
@@ -122,9 +153,32 @@ JSON 输出中的关键字段：
 
 ```bash
 mihomo-cli proxy auto PROXY
+# 自定义测试参数
+mihomo-cli proxy auto PROXY --url https://www.gstatic.com/generate_204 --timeout 5000 --progress --concurrent 20
 ```
 
 该命令会测试代理组中所有节点的延迟，并自动切换到延迟最低的节点。
+
+**支持参数：**
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--url` | 测试 URL | 配置中的 test_url |
+| `--timeout` | 超时时间（毫秒） | 5000 |
+| `--concurrent` | 并发测试数 | 10 |
+| `--progress` | 显示进度条 | false |
+
+### 获取当前使用的节点
+```bash
+mihomo-cli proxy current PROXY
+```
+
+该命令显示指定代理组当前选中的节点信息：
+
+#### 附带延迟测试
+```bash
+mihomo-cli proxy current PROXY --test-delay
+mihomo-cli proxy current PROXY --test-delay --timeout 10000 --url https://www.google.com/generate_204
+```
 
 ### 测试节点延迟
 

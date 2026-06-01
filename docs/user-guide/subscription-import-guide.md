@@ -117,7 +117,7 @@ API 地址: http://127.0.0.1:9090
 ### 方法二：直接启动 Mihomo
 
 ```bash
-E:\server\mihomo\mihomo-windows-amd64.exe -f E:\project\mihomo-go\test-mihomo-config.yaml
+E:\\server\\mihomo\\mihomo-windows-amd64.exe -f E:\\project\\mihomo-go\\test-mihomo-config.yaml
 ```
 
 ## 三、配置 CLI 工具
@@ -130,7 +130,7 @@ E:\server\mihomo\mihomo-windows-amd64.exe -f E:\project\mihomo-go\test-mihomo-co
 
 ### 2. 设置 API 密钥
 
-使用启动时生成的密钥：
+当 `auto_generate_secret = true` 时，CLI 工具会自动从启动日志中提取密钥并更新到配置文件，无需手动设置。如果需要手动设置，请使用启动时生成的密钥：
 
 ```bash
 ./mihomo-cli.exe config set api.secret 2b9075640e8205fb2e7b267f94d459927668c460c5b8d3e01695dbec47b410a1
@@ -405,7 +405,7 @@ proxy-providers:
 
 1. **准备配置文件**：创建包含 proxy-providers 的 Mihomo 配置文件
 2. **启动 Mihomo 内核**：使用 CLI 工具或直接启动 Mihomo
-3. **配置 CLI 工具**：初始化配置并设置 API 密钥
+3. **配置 CLI 工具**：初始化配置并设置 API 密钥（可选，当 auto_generate_secret=true 时自动处理）
 4. **导入订阅**：使用 `sub update` 命令更新订阅
 5. **验证结果**：查看代理列表和持久化文件
 

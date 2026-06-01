@@ -95,17 +95,11 @@ func newConfigShowCmd() *cobra.Command {
 
 // runConfigShow 执行配置显示
 func runConfigShow() error {
-	// 创建配置管理器
-	cfgManager, err := config.NewConfigManager()
-	if err != nil {
-		return pkgerrors.ErrConfig("failed to create config manager", err)
-	}
+	// 查找 TOML 配置文件路径
+	configPath := config.FindTomlConfigPath("")
 
-	// 获取默认配置路径
-	configPath := cfgManager.GetDefaultCLIConfigPath()
-
-	// 加载配置文件
-	cfg, err := cfgManager.LoadCLIConfig(configPath)
+	// 加载 TOML 配置
+	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
 		return pkgerrors.ErrConfig("failed to load config", err)
 	}

@@ -1,52 +1,85 @@
-# mihomo-go
+# GeoIP 数据库管理指南
 
-Mihomo CLI 是一个非交互式的 Mihomo 代理核心管理工具，通过命令行界面提供对 Mihomo RESTful API 的完整管理能力。
+## 概述
 
-## 功能特性
+GeoIP（地理位置数据库）用于 Mihomo 根据 IP 地址地理位置进行流量分流。mihomo-cli 提供 GeoIP 数据库的下载更新和状态查询功能。
 
-### GeoIP 管理（新增）
+## 命令参考
 
-支持 GeoIP 地理位置数据库的下载和状态查询：
+### 更新 GeoIP 数据库
+
+从配置的数据源下载最新的 GeoIP 数据库文件：
 
 ```bash
-# 更新 GeoIP 数据库
 mihomo-cli geoip update
+```
 
-# 检查 GeoIP 数据库状态
+**输出示例：**
+```
+✓ GeoIP 数据库更新成功
+```
+
+### 查询 GeoIP 数据库状态
+
+检查本地 GeoIP 数据库文件的存在性和信息：
+
+```bash
 mihomo-cli geoip status
+```
 
-# JSON 格式输出
+**输出示例（已安装）：**
+```
+GeoIP 数据库状态: ✓ 已安装
+
+文件路径: C:\Users\<用户名>\.config\mihomo\Country.mmdb
+文件名: Country.mmdb
+文件大小: 4.52 MB
+最后更新: 2026-05-30 12:00:00
+存储目录: C:\Users\<用户名>\.config\mihomo
+```
+
+**输出示例（未安装）：**
+```
+GeoIP 数据库状态: ✗ 未安装
+
+预期存储目录: C:\Users\<用户名>\.config\mihomo
+
+支持的文件名（按优先级）:
+  - Country.mmdb
+  - geoip.db
+  - geoip.metadb
+  - GeoIP.dat
+
+提示: 使用 'mihomo-cli geoip update' 命令下载 GeoIP 数据库
+```
+
+### JSON 输出
+
+```bash
 mihomo-cli geoip status -o json
 ```
 
-详细文档请参见：[GeoIP 命令使用指南](docs/geoip-command.md)
+## 文件存储位置
 
-## 构建
+GeoIP 数据库文件存放在 Mihomo 配置目录：
 
-```bash
-go build -o mihomo-cli.exe main.go
-```
+- **Windows**: `C:\Users\<用户名>\.config\mihomo\`
+- **Linux/macOS**: `~/.config/mihomo/`
 
-## 使用
+## 支持的文件格式（按查找优先级）
 
-```bash
-# 查看帮助
-mihomo-cli --help
+1. `Country.mmdb` - MaxMind GeoLite2 格式（推荐）
+2. `geoip.db` - 轻量级数据库格式
+3. `geoip.metadb` - MetaDB 格式
+4. `GeoIP.dat` - 传统 GeoIP 格式
 
-# 初始化配置
-mihomo-cli config init
+## 注意事项
 
-# 查询当前模式
-mihomo-cli mode get
+- GeoIP 数据库需要定期更新以获取最新的 IP 地理位置信息
+- `geoip update` 命令通过 Mihomo API 触发更新，需要内核运行
+- `geoip status` 命令直接检查本地文件系统，不需要内核运行
+- 数据库文件可通过 Mihomo 配置文件中的 `geodata-loader` 选项切换加载器（`memconservative` 或 `standard`）
 
-# 列出代理节点
-mihomo-cli proxy list
+## 相关文档
 
-# 切换代理节点
-mihomo-cli proxy switch <proxy-name>
-```
-
-## 完整文档
-
-请查看 [docs](docs/) 目录下的详细文档。
-
+- [GeoIP 工作机制分析](../../docs/mihomo-core/geoip-mechanism.md)
