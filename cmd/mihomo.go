@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -28,6 +29,7 @@ func init() {
 	rootCmd.AddCommand(mihomoCmd)
 	mihomoCmd.AddCommand(newMihomoPatchCmd())
 	mihomoCmd.AddCommand(newMihomoReloadCmd())
+	mihomoCmd.AddCommand(newMihomoRestartCmd())
 	mihomoCmd.AddCommand(newMihomoEditCmd())
 }
 
@@ -216,6 +218,91 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 	}
 
 	return nil
+}
+
+// newMihomoRestartCmd 创建 mihomo restart 命令
+func newMihomoRestartCmd() *cobra.Command {
+	var wait bool
+	var waitTimeout int
+
+	cmd := &cobra.Command{
+		Use:   "restart",
+		Short: "通过 API 重启 Mihomo 内核",
+		Long: `通过 Mihomo RESTful API 触发核心进程重启。
+注意：此操作仅重启 Mihomo 内核进程，不会重启 CLI 本身。`,
+		Example: `  mihomo-cli mihomo restart
+  mihomo-cli mihomo restart --no-wait
+  mihomo-cli mihomo restart --wait-timeout 60`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runMihomoRestart(cmd.Context(), wait, waitTimeout)
+		},
+	}
+
+	cmd.Flags().BoolVar(&wait, "wait", true, "重启后等待并验证核心重新可用")
+	cmd.Flags().IntVar(&waitTimeout, "wait-timeout", 30, "等待核心重新可用的最大秒数")
+
+	return cmd
+}
+
+// runMihomoRestart 执行重启命令
+func runMihomoRestart(ctx context.Context, wait bool, waitTimeout int) error {
+	// 创建 API 客户端
+	client := api.NewClientWithTimeout(
+		viper.GetString("api.address"),
+		viper.GetString("api.secret"),
+		viper.GetInt("api.timeout"),
+	)
+
+	// 记录重启前版本信息，用于后续对比
+	var originalVersion string
+	if info, err := client.GetVersion(ctx); err == nil {
+		originalVersion = info.Version
+	}
+
+	// 执行重启
+	if err := client.Restart(ctx); err != nil {
+		return errors.WrapAPIError("failed to restart Mihomo", err)
+	}
+
+	if !wait {
+		output.Success("Mihomo 重启指令已发送")
+		return nil
+	}
+
+	output.Info("Mihomo 重启指令已发送，等待核心恢复...")
+
+	// 轮询等待核心重新可用
+	pollCtx, cancel := context.WithTimeout(ctx, time.Duration(waitTimeout)*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-pollCtx.Done():
+			return errors.WrapAPIError(
+				"Mihomo 重启后未能在规定时间内恢复",
+				api.NewAPIError(api.ErrTimeout, "等待超时", pollCtx.Err()),
+			)
+		case <-ticker.C:
+			info, err := client.GetVersion(pollCtx)
+			if err != nil {
+				// 核心可能仍在启动中，继续等待
+				output.Info("  核心尚未就绪，继续等待...")
+				continue
+			}
+
+			output.Success("Mihomo 已重启并恢复可用")
+			if info.Version != "" {
+				output.Printf("  版本: %s\n", info.Version)
+			}
+			if originalVersion != "" && info.Version != originalVersion {
+				output.Printf("  版本变化: %s -> %s\n", originalVersion, info.Version)
+			}
+			return nil
+		}
+	}
 }
 
 // newMihomoEditCmd 创建 mihomo edit 命令

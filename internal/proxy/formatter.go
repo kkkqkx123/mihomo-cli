@@ -227,26 +227,32 @@ func formatTestResultsJSON(results []types.DelayResult) error {
 // formatTestResultsTable 以表格格式输出测试结果
 func formatTestResultsTable(results []types.DelayResult) error {
 	table := tablewriter.NewTable(output.GetGlobalStdout(),
-		tablewriter.WithHeader([]string{"节点名称", "延迟", "耗时", "状态"}),
+		tablewriter.WithHeader([]string{"节点名称", "延迟", "耗时", "状态", "详情"}),
 		tablewriter.WithHeaderAutoFormat(tw.On),
 		tablewriter.WithRowAlignment(tw.AlignLeft),
 		tablewriter.WithRendition(tw.Rendition{Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off}}),
 	)
 
+	var successCount, failCount int
+
 	for _, result := range results {
 		var delayStr string
 		var timeStr string
 		var status string
+		var detail string
 
 		if result.Error != nil {
+			failCount++
 			delayStr = "-"
 			timeStr = fmt.Sprintf("%dms", result.Time)
-			status = output.RedString(result.Status)
+			status = formatTestStatus(result.Status)
+			detail = result.Detail
 		} else if result.Delay == 0 {
 			delayStr = "-"
 			timeStr = fmt.Sprintf("%dms", result.Time)
 			status = output.YellowString(result.Status)
 		} else {
+			successCount++
 			delayStr = fmt.Sprintf("%dms", result.Delay)
 			timeStr = fmt.Sprintf("%dms", result.Time)
 			if result.Delay < 100 {
@@ -263,12 +269,34 @@ func formatTestResultsTable(results []types.DelayResult) error {
 			delayStr,
 			timeStr,
 			status,
+			detail,
 		}); err != nil {
 			return err
 		}
 	}
 
-	return table.Render()
+	if err := table.Render(); err != nil {
+		return err
+	}
+
+	// 追加测试汇总
+	if len(results) > 0 {
+		fmt.Fprintf(output.GetGlobalStdout(), "\n测试完成：成功 %d / 失败 %d / 总计 %d\n",
+			successCount, failCount, len(results))
+	}
+
+	return nil
+}
+
+// formatTestStatus 根据失败分类返回带颜色的状态字符串
+func formatTestStatus(status string) string {
+	switch status {
+	case "参数错误":
+		return output.YellowString(status)
+	default:
+		// 超时、节点不可用、连接失败、测试失败均按错误展示
+		return output.RedString(status)
+	}
 }
 
 // FormatAutoSelectResult 格式化自动选择结果

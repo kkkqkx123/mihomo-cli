@@ -45,8 +45,9 @@ func TestNewDelayTester(t *testing.T) {
 	}
 
 	// Check default values
-	if tester.testURL != "" {
-		t.Errorf("Expected default testURL to be empty, got '%s'", tester.testURL)
+	expectedTestURL := "https://www.google.com/generate_204"
+	if tester.testURL != expectedTestURL {
+		t.Errorf("Expected default testURL to be '%s', got '%s'", expectedTestURL, tester.testURL)
 	}
 
 	if tester.timeout != 5000 {
@@ -167,6 +168,114 @@ func TestTestSingle_Error(t *testing.T) {
 	}
 	if result.Error.Error() != expectedError.Error() {
 		t.Errorf("Expected Error to be '%v', got '%v'", expectedError, result.Error)
+	}
+}
+
+// TestTestSingle_ClassifyErrors tests error classification in TestSingle
+func TestTestSingle_ClassifyErrors(t *testing.T) {
+	tests := []struct {
+		name           string
+		delay          uint16
+		err            error
+		expectedStatus string
+		expectedDetail string
+		expectedAlive  bool // 仅用于成功/未知分支
+	}{
+		{
+			name:           "ExcellentDelay",
+			delay:          50,
+			err:            nil,
+			expectedStatus: "优秀",
+		},
+		{
+			name:           "GoodDelay",
+			delay:          150,
+			err:            nil,
+			expectedStatus: "良好",
+		},
+		{
+			name:           "PoorDelay",
+			delay:          400,
+			err:            nil,
+			expectedStatus: "较差",
+		},
+		{
+			name:           "UnknownDelay",
+			delay:          0,
+			err:            nil,
+			expectedStatus: "未知",
+		},
+		{
+			name:           "Timeout504",
+			delay:          0,
+			err:            api.NewTimeoutError(errors.New("gateway timeout")),
+			expectedStatus: "超时",
+			expectedDetail: "request timeout",
+		},
+		{
+			name:           "ConnectionError",
+			delay:          0,
+			err:            api.NewConnectionError(errors.New("connection refused")),
+			expectedStatus: "连接失败",
+			expectedDetail: "failed to connect to API server",
+		},
+		{
+			name:           "BadRequest400",
+			delay:          0,
+			err:            &api.APIError{Code: api.ErrInvalidArgs, Message: "invalid timeout parameter", StatusCode: 400},
+			expectedStatus: "参数错误",
+			expectedDetail: "invalid timeout parameter",
+		},
+		{
+			name:           "ServiceUnavailable503",
+			delay:          0,
+			err:            &api.APIError{Code: api.ErrAPIError, Message: "node test failed", StatusCode: 503},
+			expectedStatus: "节点不可用",
+			expectedDetail: "node test failed",
+		},
+		{
+			name:           "GenericFailure",
+			delay:          0,
+			err:            api.NewAPIError(api.ErrGeneral, "something went wrong", nil),
+			expectedStatus: "测试失败",
+			expectedDetail: "something went wrong",
+		},
+		{
+			name:           "NonAPIError",
+			delay:          0,
+			err:            errors.New("plain error"),
+			expectedStatus: "测试失败",
+			expectedDetail: "plain error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockAPIClient{
+				TestDelayFunc: func(ctx context.Context, name string, testURL string, timeout int) (uint16, error) {
+					return tt.delay, tt.err
+				},
+			}
+
+			tester := NewDelayTester(mockClient)
+			result := tester.TestSingle(context.Background(), "Node1")
+
+			if result.Status != tt.expectedStatus {
+				t.Errorf("expected status %q, got %q", tt.expectedStatus, result.Status)
+			}
+
+			if tt.err != nil && result.Detail != tt.expectedDetail {
+				t.Errorf("expected detail %q, got %q", tt.expectedDetail, result.Detail)
+			}
+
+			if tt.err != nil && result.Error != tt.err {
+				t.Errorf("expected Error to be preserved, got %v", result.Error)
+			}
+
+			if tt.err == nil && tt.delay > 0 && result.Delay != tt.delay {
+				t.Errorf("expected delay %d, got %d", tt.delay, result.Delay)
+			}
+		})
 	}
 }
 
@@ -490,8 +599,9 @@ func TestDelayTester_DefaultValues(t *testing.T) {
 	tester := NewDelayTester(client)
 
 	// Verify defaults
-	if tester.testURL != "" {
-		t.Errorf("Default testURL should be empty, got '%s'", tester.testURL)
+	expectedTestURL := "https://www.google.com/generate_204"
+	if tester.testURL != expectedTestURL {
+		t.Errorf("Default testURL should be '%s', got '%s'", expectedTestURL, tester.testURL)
 	}
 	if tester.timeout != 5000 {
 		t.Errorf("Default timeout should be 5000, got %d", tester.timeout)

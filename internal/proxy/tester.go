@@ -14,9 +14,15 @@ import (
 // ProgressCallback 进度回调函数类型
 type ProgressCallback func(current, total int, nodeName string)
 
+// delayTestClient 延迟测试所需的 API 客户端能力
+type delayTestClient interface {
+	TestDelay(ctx context.Context, name string, testURL string, timeout int) (uint16, error)
+	GetProxy(ctx context.Context, name string) (*types.ProxyInfo, error)
+}
+
 // DelayTester 延迟测试器
 type DelayTester struct {
-	client    *api.Client
+	client     delayTestClient
 	testURL   string
 	timeout   int
 	concurrent int
@@ -24,7 +30,7 @@ type DelayTester struct {
 }
 
 // NewDelayTester 创建新的延迟测试器
-func NewDelayTester(client *api.Client) *DelayTester {
+func NewDelayTester(client delayTestClient) *DelayTester {
 	return &DelayTester{
 		client:     client,
 		testURL:    "https://www.google.com/generate_204", // 默认使用 Google 测速
@@ -53,6 +59,33 @@ func (t *DelayTester) SetConcurrent(concurrent int) {
 	t.concurrent = concurrent
 }
 
+// classifyTestError 根据 API 错误类型/HTTP 状态码分类失败原因
+// 返回 (状态文案, 详情文案)
+func classifyTestError(err error) (status, detail string) {
+	if err == nil {
+		return "", ""
+	}
+
+	apiErr, ok := err.(*api.APIError)
+	if !ok {
+		// 非 APIError，兜底为测试失败
+		return "测试失败", err.Error()
+	}
+
+	switch {
+	case api.IsAPIConnectionError(err):
+		return "连接失败", apiErr.Message
+	case api.IsTimeoutError(err):
+		return "超时", apiErr.Message
+	case apiErr.StatusCode == 400:
+		return "参数错误", apiErr.Message
+	case apiErr.StatusCode == 503:
+		return "节点不可用", apiErr.Message
+	default:
+		return "测试失败", apiErr.Message
+	}
+}
+
 // TestSingle 测试单个代理的延迟
 func (t *DelayTester) TestSingle(ctx context.Context, proxyName string) types.DelayResult {
 	start := time.Now()
@@ -65,7 +98,7 @@ func (t *DelayTester) TestSingle(ctx context.Context, proxyName string) types.De
 
 	if err != nil {
 		result.Error = err
-		result.Status = "超时"
+		result.Status, result.Detail = classifyTestError(err)
 	} else if delay == 0 {
 		result.Status = "未知"
 	} else {

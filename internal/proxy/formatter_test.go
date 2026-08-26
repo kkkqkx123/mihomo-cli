@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 )
@@ -275,6 +276,49 @@ func TestFormatTestResults_Table_DelayCategories(t *testing.T) {
 		if err != nil {
 			t.Errorf("FormatTestResults failed for delay %d: %v", tt.delay, err)
 		}
+	}
+}
+
+func TestFormatTestResultsTable_WithDetails(t *testing.T) {
+	results := []types.DelayResult{
+		{Name: "Node1", Delay: 50, Status: "优秀", Time: 120, Error: nil},
+		{Name: "Node2", Delay: 0, Status: "超时", Time: 5000, Error: api.NewTimeoutError(errors.New("gateway timeout")), Detail: "request timeout"},
+		{Name: "Node3", Delay: 0, Status: "参数错误", Time: 20, Error: &api.APIError{Code: api.ErrInvalidArgs, Message: "invalid timeout parameter", StatusCode: 400}, Detail: "invalid timeout parameter"},
+		{Name: "Node4", Delay: 0, Status: "节点不可用", Time: 15, Error: &api.APIError{Code: api.ErrAPIError, Message: "node test failed", StatusCode: 503}, Detail: "node test failed"},
+	}
+
+	output, err := captureOutput(func() error {
+		return FormatTestResults(results, "table")
+	})
+
+	if err != nil {
+		t.Fatalf("FormatTestResults failed: %v", err)
+	}
+
+	// 表格应包含节点名称
+	for _, name := range []string{"Node1", "Node2", "Node3", "Node4"} {
+		if !bytes.Contains([]byte(output), []byte(name)) {
+			t.Errorf("Expected output to contain '%s'", name)
+		}
+	}
+
+	// 详情列应展示原始 API 错误消息
+	if !bytes.Contains([]byte(output), []byte("request timeout")) {
+		t.Error("Expected output to contain timeout detail 'request timeout'")
+	}
+	if !bytes.Contains([]byte(output), []byte("invalid timeout parameter")) {
+		t.Error("Expected output to contain invalid args detail")
+	}
+	if !bytes.Contains([]byte(output), []byte("node test failed")) {
+		t.Error("Expected output to contain node unavailable detail")
+	}
+
+	// 汇总行
+	if !bytes.Contains([]byte(output), []byte("测试完成")) {
+		t.Error("Expected output to contain summary line")
+	}
+	if !bytes.Contains([]byte(output), []byte("成功 1 / 失败 3 / 总计 4")) {
+		t.Errorf("Expected summary count '成功 1 / 失败 3 / 总计 4', got: %s", output)
 	}
 }
 

@@ -40,3 +40,29 @@ func (c *Client) ListRuleProviders(ctx context.Context) (map[string]*types.RuleP
 	}
 	return result.Providers, nil
 }
+
+// UpdateRuleProvider 更新指定规则提供者的订阅
+func (c *Client) UpdateRuleProvider(ctx context.Context, name string) error {
+	// URL 编码提供者名称
+	encodedName := url.PathEscape(name)
+
+	err := c.Put(ctx, "/providers/rules/"+encodedName, nil, nil, nil)
+	if err != nil {
+		return NewAPIError(ErrNotFound, fmt.Sprintf("更新规则提供者 %s 失败", name), err)
+	}
+
+	return nil
+}
+
+// HealthCheckProvider 触发指定代理提供者的健康检查
+func (c *Client) HealthCheckProvider(ctx context.Context, name string) error {
+	// URL 编码提供者名称
+	encodedName := url.PathEscape(name)
+
+	err := c.Get(ctx, "/providers/proxies/"+encodedName+"/healthcheck", nil, nil)
+	if err != nil {
+		return NewAPIError(ErrNotFound, fmt.Sprintf("触发代理提供者 %s 健康检查失败", name), err)
+	}
+
+	return nil
+}

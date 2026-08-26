@@ -25,8 +25,9 @@ type DelayResult struct {
 	Name   string
 	Delay  uint16
 	Error  error
-	Status string // 状态描述：优秀/良好/较差/超时/未知
+	Status string // 状态描述：优秀/良好/较差/超时/未知/参数错误/节点不可用/连接失败/测试失败
 	Time   int64  // 测速耗时（毫秒）
+	Detail string `json:"detail,omitempty"` // 失败时的简短原因（表格/JSON 展示）
 }
 
 // SwitchRequest 切换代理请求

@@ -9,6 +9,7 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
+	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/rule"
 )
 
@@ -241,19 +242,51 @@ func parseRuleIndices(args []string, totalRules int) ([]int, error) {
 	return indices, nil
 }
 
-// newRuleProviderCmd 创建规则提供者命令
+// newRuleProviderCmd 创建规则提供者管理命令
 func newRuleProviderCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "provider",
+		Short: "管理规则提供者",
+		Long:  `管理规则提供者，包括列出和更新规则提供者订阅。`,
+		Example: `  mihomo-cli rule provider
+  mihomo-cli rule provider list
+  mihomo-cli rule provider update my-rule-provider`,
+		RunE: runRuleProvider,
+	}
+
+	cmd.AddCommand(newRuleProviderListCmd())
+	cmd.AddCommand(newRuleProviderUpdateCmd())
+
+	return cmd
+}
+
+// newRuleProviderListCmd 创建列出规则提供者命令
+func newRuleProviderListCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list",
 		Short: "列出规则提供者",
 		Long:  `列出所有规则提供者及其信息。`,
-		Example: `  mihomo-cli rule provider
-  mihomo-cli rule provider -o json`,
+		Example: `  mihomo-cli rule provider list
+  mihomo-cli rule provider list -o json`,
 		Args: cobra.NoArgs,
 		RunE: runRuleProvider,
 	}
 
 	return cmd
+}
+
+// newRuleProviderUpdateCmd 创建更新规则提供者命令
+func newRuleProviderUpdateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update <name>",
+		Short: "更新规则提供者订阅",
+		Long:  `触发 Mihomo 更新指定规则提供者的订阅配置。`,
+		Example: `  mihomo-cli rule provider update my-rule-provider`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRuleProviderUpdate(cmd, args[0])
+		},
+	}
 }
 
 // runRuleProvider 执行列出规则提供者命令
@@ -273,4 +306,21 @@ func runRuleProvider(cmd *cobra.Command, args []string) error {
 
 	// 格式化输出
 	return rule.FormatRuleProviderList(providers, outputFmt)
+}
+
+// runRuleProviderUpdate 执行更新规则提供者命令
+func runRuleProviderUpdate(cmd *cobra.Command, name string) error {
+	// 创建 API 客户端
+	client := api.NewClientWithTimeout(
+		viper.GetString("api.address"),
+		viper.GetString("api.secret"),
+		viper.GetInt("api.timeout"),
+	)
+
+	if err := client.UpdateRuleProvider(cmd.Context(), name); err != nil {
+		return errors.WrapAPIError("更新规则提供者失败", err)
+	}
+
+	output.Success("规则提供者 %s 已更新", name)
+	return nil
 }

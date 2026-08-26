@@ -89,7 +89,8 @@ func (c *Client) TestDelay(ctx context.Context, name string, testURL string, tim
 	var result types.DelayResponse
 	err := c.Get(ctx, "/proxies/"+encodedName+"/delay", queryParams, &result)
 	if err != nil {
-		return 0, NewAPIError(ErrTimeout, "测试延迟失败", err)
+		// 直接透传原始 API 错误，保留 HTTP 状态码，便于上层根据状态精确分类
+		return 0, err
 	}
 
 	return result.Delay, nil
