@@ -1,0 +1,71 @@
+From ff10dc8b3cf525bfa9f6dc30d2b84c4c22b9fa6d Mon Sep 17 00:00:00 2001
+From: Admin <3353074888@qq.com>
+Date: Mon, 20 Jul 2026 10:31:58 +0000
+Subject: [PATCH] feat: add /shutdown API endpoint for graceful shutdown
+
+Add a /shutdown POST endpoint that triggers executor.Shutdown() (cleanup
+listeners, tproxy iptables, fake-ip pool) and exits the process.
+This is especially useful on Windows where cross-process signals are
+not available.
+---
+ hub/route/server.go   |  3 ++-
+ hub/route/shutdown.go | 31 +++++++++++++++++++++++++++++++
+ 2 files changed, 33 insertions(+), 1 deletion(-)
+ create mode 100644 hub/route/shutdown.go
+
+diff --git a/hub/route/server.go b/hub/route/server.go
+index 4e0d0c93..e2f0fe23 100644
+--- a/hub/route/server.go
++++ b/hub/route/server.go
+@@ -132,8 +132,9 @@ func router(isDebug bool, secret string, dohServer string, cors Cors) *chi.Mux {
+ 		r.Mount("/providers/rules", ruleProviderRouter())
+ 		r.Mount("/cache", cacheRouter())
+ 		r.Mount("/dns", dnsRouter())
+-		if !embedMode { // disallow restart in embed mode
++		if !embedMode { // disallow restart/shutdown in embed mode
+ 			r.Mount("/restart", restartRouter())
++			r.Mount("/shutdown", shutdownRouter())
+ 		}
+ 		r.Mount("/upgrade", upgradeRouter())
+ 		addExternalRouters(r)
+diff --git a/hub/route/shutdown.go b/hub/route/shutdown.go
+new file mode 100644
+index 00000000..598f1bef
+--- /dev/null
++++ b/hub/route/shutdown.go
+@@ -0,0 +1,31 @@
++package route
++
++import (
++	"os"
++
++	"github.com/metacubex/mihomo/hub/executor"
++	"github.com/metacubex/mihomo/log"
++
++	"github.com/metacubex/chi"
++	"github.com/metacubex/chi/render"
++	"github.com/metacubex/http"
++)
++
++func shutdownRouter() http.Handler {
++	r := chi.NewRouter()
++	r.Post("/", shutdown)
++	return r
++}
++
++func shutdown(w http.ResponseWriter, r *http.Request) {
++	render.JSON(w, r, render.M{"status": "ok"})
++	if f, ok := w.(http.Flusher); ok {
++		f.Flush()
++	}
++
++	go func() {
++		log.Infoln("shutting down via API request")
++		executor.Shutdown()
++		os.Exit(0)
++	}()
++}
+\ No newline at end of file
+-- 
+2.43.0
+

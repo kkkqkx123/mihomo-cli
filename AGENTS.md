@@ -6,39 +6,49 @@ Mihomo CLI is a non-interactive management tool for the Mihomo proxy core. This 
 
 ### Project Goals
 
-- Provide a pure command-line interface for Mihomo management without requiring a GUI.
-- Support automated scripting and batch operations.
-- Decouple from the Mihomo core process to enhance stability.
+* Provide a pure command-line interface for Mihomo management without requiring a GUI.
+
+* Support automated scripting and batch operations.
+
+* Decouple from the Mihomo core process to enhance stability.
 
 ### Core Features
 
-- **Stateless Design**: The CLI does not persist runtime state; all state queries are performed in real-time against the API.
-- **Configuration Persistence**: API address and Secret are saved to a local configuration file to avoid repeated input.
-- **Query vs. Mutation Separation**: Distinct operations for querying (`get`, `list`, `show`) and modifying (`set`, `switch`, `update`).
-- **Controllable Output Format**: Supports both Table and JSON output formats for human readability and script parsing.
+* **Stateless Design**: The CLI does not persist runtime state; all state queries are performed in real-time against the API.
 
----
+* **Configuration Persistence**: API address and Secret are saved to a local configuration file to avoid repeated input.
+
+* **Query vs. Mutation Separation**: Distinct operations for querying (`get`, `list`, `show`) and modifying (`set`, `switch`, `update`).
+
+* **Controllable Output Format**: Supports both Table and JSON output formats for human readability and script parsing.
+
+***
 
 ## Technology Stack
 
 ### Programming Language
 
-- **Go 1.26.1**: Primary development language.
+* **Go 1.26.1**: Primary development language.
 
 ### Core Dependencies
 
-- **github.com/spf13/cobra v1.10.2**: CLI framework for building the command structure.
-- **github.com/spf13/viper v1.21.0**: Configuration management supporting config files and environment variables.
-- **github.com/fatih/color v1.18.0**: Colored terminal output.
-- **github.com/olekukonko/tablewriter v0.0.5**: Table formatting output.
+* **github.com/spf13/cobra v1.10.2**: CLI framework for building the command structure.
+
+* **github.com/spf13/viper v1.21.0**: Configuration management supporting config files and environment variables.
+
+* **github.com/fatih/color v1.18.0**: Colored terminal output.
+
+* **github.com/olekukonko/tablewriter v0.0.5**: Table formatting output.
 
 ### Project Architecture
 
-- Modular design following standard Go project structures.
-- Command tree architecture based on Cobra.
-- Layered design: `cmd` (Command Layer) → `internal` (Business Logic Layer) → `pkg` (Common Types Layer).
+* Modular design following standard Go project structures.
 
----
+* Command tree architecture based on Cobra.
+
+* Layered design: `cmd` (Command Layer) → `internal` (Business Logic Layer) → `pkg` (Common Types Layer).
+
+***
 
 ## Project Structure
 
@@ -68,13 +78,13 @@ mihomo-go/
 │   ├── monitor/           # Monitoring functionality (Planned)
 │   └── sysproxy/          # System proxy management
 ├── pkg/types/             # Common type definitions(include error type)
-├── mihomo-1.19.21/        # Mihomo core reference implementation
+├── mihomo-core/           # Mihomo core submodule (tracks feat/add-shutdown-api)
 ├── main.go                # Program entry point
 ├── go.mod                 # Go module definition
 └── README.md              # Project description
 ```
 
----
+***
 
 ## Build & Run
 
@@ -103,51 +113,67 @@ mihomo-go/
 .\mihomo-cli.exe proxy list -o json
 ```
 
----
+***
 
 ## Core Design Principles
 
 ### 1. Stateless
 
-- The CLI does not persist runtime state.
-- All state queries are performed in real-time against the API.
-- Prevents state synchronization issues.
+* The CLI does not persist runtime state.
+
+* All state queries are performed in real-time against the API.
+
+* Prevents state synchronization issues.
 
 ### 2. Configuration Persistence
 
-- API address and Secret are saved to a local configuration file.
-- Eliminates the need to input sensitive information repeatedly.
-- Configuration files are stored in the user directory with appropriate permissions.
+* API address and Secret are saved to a local configuration file.
+
+* Eliminates the need to input sensitive information repeatedly.
+
+* Configuration files are stored in the user directory with appropriate permissions.
 
 ### 3. Query vs. Mutation Separation
 
-- **Query Operations**: `get`, `list`, `show`.
-- **Mutation Operations**: `set`, `switch`, `update`.
-- Ensures clear semantics and distinct exit codes.
+* **Query Operations**: `get`, `list`, `show`.
+
+* **Mutation Operations**: `set`, `switch`, `update`.
+
+* Ensures clear semantics and distinct exit codes.
 
 ### 4. Controllable Output Format
 
-- Supports both Table and JSON formats.
-- Facilitates both human reading and script parsing.
-- Unified output format specifications.
+* Supports both Table and JSON formats.
+
+* Facilitates both human reading and script parsing.
+
+* Unified output format specifications.
 
 ### 5. Permission Management
 
-- Service management functions require Administrator privileges.
-- System proxy modification requires Administrator privileges.
-- Provides clear permission error messages.
+* Service management functions require Administrator privileges.
+
+* System proxy modification requires Administrator privileges.
+
+* Provides clear permission error messages.
 
 ### 6. Unified Output Formatting
 
-- All output must use `internal/output` module, never use `fmt.Print*` or `github.com/fatih/color` directly.
-- **Status messages**: Use `output.Success()`, `output.Error()`, `output.Warning()`, `output.Info()`.
-- **Plain output**: Use `fmt.Fprintf(output.GetGlobalStdout(), ...)` for stdout, `fmt.Fprintf(output.GetGlobalStderr(), ...)` for stderr.
-- **JSON output**: Use `output.PrintJSON(data)` when `-o json` flag is set.
-- **Table output**: Use `output.NewTable()` for table formatting.
-- This ensures consistent output style, proper stdout/stderr separation, and easy global output redirection.
+* All output must use `internal/output` module, never use `fmt.Print*` or `github.com/fatih/color` directly.
+
+* **Status messages**: Use `output.Success()`, `output.Error()`, `output.Warning()`, `output.Info()`.
+
+* **Plain output**: Use `fmt.Fprintf(output.GetGlobalStdout(), ...)` for stdout, `fmt.Fprintf(output.GetGlobalStderr(), ...)` for stderr.
+
+* **JSON output**: Use `output.PrintJSON(data)` when `-o json` flag is set.
+
+* **Table output**: Use `output.NewTable()` for table formatting.
+
+* This ensures consistent output style, proper stdout/stderr separation, and easy global output redirection.
 
 ## Documentation Resources
 
 ### Mihomo References
 
-- `mihomo-1.19.21/`: Mihomo core reference implementation (Version 1.19.21).
+* `mihomo-core/`: Mihomo core as a git submodule tracking `kkkqkx123/mihomo` on the `feat/add-shutdown-api` branch (adds the `/shutdown` API), actively synced with upstream `MetaCubeX/mihomo`.
+
