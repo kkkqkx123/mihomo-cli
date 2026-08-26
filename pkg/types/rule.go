@@ -28,20 +28,10 @@ type RulesResponse struct {
 
 // RuleStats 规则统计信息
 type RuleStats struct {
-	Total   int            `json:"total"`
-	ByType  map[string]int `json:"by_type"`
-	Enabled int            `json:"enabled"`
-	Disabled int           `json:"disabled"`
-}
-
-// DisableRulesRequest 禁用规则请求
-type DisableRulesRequest struct {
-	RuleIDs []int `json:"rule_ids"`
-}
-
-// EnableRulesRequest 启用规则请求
-type EnableRulesRequest struct {
-	RuleIDs []int `json:"rule_ids"`
+	Total    int            `json:"total"`
+	ByType   map[string]int `json:"by_type"`
+	Enabled  int            `json:"enabled"`
+	Disabled int            `json:"disabled"`
 }
 
 // RuleProviderInfo 规则提供者信息

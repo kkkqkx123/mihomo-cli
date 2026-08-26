@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
+	"github.com/kkkqkx123/mihomo-cli/internal/systemdns"
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 
 	"github.com/olekukonko/tablewriter"
@@ -140,99 +141,44 @@ func formatDNSStatus(status int) string {
 	}
 }
 
-// FormatDNSConfig 格式化 DNS 配置输出
-func FormatDNSConfig(config *types.DNSConfig, outputFormat string) error {
+// FormatSystemDNSConfig 格式化系统 DNS 配置输出
+func FormatSystemDNSConfig(config *systemdns.SystemDNSConfig, outputFormat string) error {
 	if outputFormat == "json" {
-		return formatDNSConfigJSON(config)
+		return output.PrintJSON(config)
 	}
-	return formatDNSConfigTable(config)
+	return formatSystemDNSConfigTable(config)
 }
 
-// formatDNSConfigJSON 以 JSON 格式输出 DNS 配置
-func formatDNSConfigJSON(config *types.DNSConfig) error {
-	return output.PrintJSON(config)
-}
+// formatSystemDNSConfigTable 以表格格式输出系统 DNS 配置
+func formatSystemDNSConfigTable(config *systemdns.SystemDNSConfig) error {
+	output.Info("系统 DNS 配置:")
+	output.PrintKeyValue("配置来源", config.Source)
 
-// formatDNSConfigTable 以表格格式输出 DNS 配置
-func formatDNSConfigTable(config *types.DNSConfig) error {
-	// 基本信息
-	output.Info("DNS 配置:")
-	output.PrintKeyValue("启用状态", formatBool(config.Enable))
-	output.PrintKeyValue("IPv6 支持", formatBool(config.IPv6))
-	output.PrintKeyValue("增强模式", config.EnhancedMode)
-
-	if config.Listen != "" {
-		output.PrintKeyValue("监听地址", config.Listen)
-	}
-
-	if config.FakeIPRange != "" {
-		output.PrintKeyValue("FakeIP 范围", config.FakeIPRange)
-	}
-
-	// Nameserver
-	if len(config.Nameserver) > 0 {
+	if len(config.Nameservers) == 0 {
+		output.Warning("未检测到 DNS 服务器")
+	} else {
 		output.PrintEmptyLine()
-		output.Info("Nameserver:")
-		for _, ns := range config.Nameserver {
+		output.Info("DNS 服务器:")
+		for _, ns := range config.Nameservers {
 			output.Printf("  - %s\n", ns)
 		}
 	}
 
-	// Fallback
-	if len(config.Fallback) > 0 {
+	if len(config.SearchDomains) > 0 {
 		output.PrintEmptyLine()
-		output.Info("Fallback:")
-		for _, fb := range config.Fallback {
-			output.Printf("  - %s\n", fb)
+		output.Info("搜索域:")
+		for _, domain := range config.SearchDomains {
+			output.Printf("  - %s\n", domain)
 		}
 	}
 
-	// Default Nameserver
-	if len(config.DefaultNameserver) > 0 {
+	if len(config.Options) > 0 {
 		output.PrintEmptyLine()
-		output.Info("Default Nameserver:")
-		for _, ns := range config.DefaultNameserver {
-			output.Printf("  - %s\n", ns)
-		}
-	}
-
-	// FakeIP Filter
-	if len(config.FakeIPFilter) > 0 {
-		output.PrintEmptyLine()
-		output.Info("FakeIP 过滤规则:")
-		for _, filter := range config.FakeIPFilter {
-			output.Printf("  - %s\n", filter)
-		}
-	}
-
-	// Fallback Filter
-	if config.FallbackFilter.GeoIP || len(config.FallbackFilter.IPCIDR) > 0 || len(config.FallbackFilter.Domain) > 0 {
-		output.PrintEmptyLine()
-		output.Info("Fallback 过滤器:")
-		if config.FallbackFilter.GeoIP {
-			output.Printf("  GeoIP: 启用 (代码: %s)\n", config.FallbackFilter.GeoIPCode)
-		}
-		if len(config.FallbackFilter.IPCIDR) > 0 {
-			output.Println("  IP CIDR:")
-			for _, cidr := range config.FallbackFilter.IPCIDR {
-				output.Printf("    - %s\n", cidr)
-			}
-		}
-		if len(config.FallbackFilter.Domain) > 0 {
-			output.Println("  Domain:")
-			for _, domain := range config.FallbackFilter.Domain {
-				output.Printf("    - %s\n", domain)
-			}
+		output.Info("解析器选项:")
+		for _, opt := range config.Options {
+			output.Printf("  - %s\n", opt)
 		}
 	}
 
 	return nil
-}
-
-// formatBool 格式化布尔值
-func formatBool(b bool) string {
-	if b {
-		return "启用"
-	}
-	return "禁用"
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/dns"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
+	"github.com/kkkqkx123/mihomo-cli/internal/systemdns"
 )
 
 var (
@@ -83,20 +84,18 @@ func newDNSConfigCmd() *cobra.Command {
 }
 
 // runDNSConfig 执行 DNS 配置命令
+// 从操作系统获取当前 DNS 配置（分平台实现，不走核心 API）
 func runDNSConfig(cmd *cobra.Command, args []string) error {
-	// 创建 API 客户端
-	client := api.NewClientWithTimeout(
-		viper.GetString("api.address"),
-		viper.GetString("api.secret"),
-		viper.GetInt("api.timeout"),
-	)
+	sd := systemdns.NewSystemDNS()
+	if !sd.IsSupported() {
+		return errors.NewValidationError("获取系统 DNS 配置在当前平台不受支持")
+	}
 
-	// 获取 DNS 配置
-	config, err := client.GetDNSConfig(cmd.Context())
+	config, err := sd.GetConfig()
 	if err != nil {
-		return errors.WrapAPIError("获取 DNS 配置失败", err)
+		return errors.WrapAPIError("获取系统 DNS 配置失败", err)
 	}
 
 	// 格式化输出
-	return dns.FormatDNSConfig(config, outputFmt)
+	return dns.FormatSystemDNSConfig(config, outputFmt)
 }
