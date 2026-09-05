@@ -35,7 +35,7 @@ var startCmd = &cobra.Command{
 var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "停止 Mihomo 内核",
-	Long:  `停止正在运行的 Mihomo 内核进程。
+	Long: `停止正在运行的 Mihomo 内核进程。
 
 可以指定 PID 或使用 --all 停止所有进程。
 停止操作会等待进程完全退出后才返回。
@@ -46,7 +46,7 @@ var stopCmd = &cobra.Command{
   mihomo-cli stop -F         # 强制关闭默认配置的实例
   mihomo-cli stop -F 12345   # 强制关闭指定 PID 的实例
   mihomo-cli stop --all      # 停止所有 Mihomo 进程`,
-	Args:  cobra.MaximumNArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runStop,
 }
 
@@ -54,7 +54,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "查询 Mihomo 内核状态",
 	Long:  `查询 Mihomo 内核进程的运行状态。`,
-	RunE: runStatus,
+	RunE:  runStatus,
 }
 
 func init() {
@@ -77,7 +77,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	output.Info("加载配置: %s", configPath)
 	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to load config", err)
+		return pkgerrors.ErrConfig("加载配置失败", err)
 	}
 
 	// 创建进程处理器
@@ -87,7 +87,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	output.Info("启动 Mihomo 进程...")
 	result, err := handler.Start(cfg)
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("启动 Mihomo 失败", err)
 	}
 
 	// 启动成功
@@ -122,7 +122,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	output.Info("加载配置: %s", configPath)
 	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to load config", err)
+		return pkgerrors.ErrConfig("加载配置失败", err)
 	}
 
 	// 创建进程处理器
@@ -132,7 +132,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	output.Info("停止 Mihomo 进程...")
 	result, err := handler.Stop(cfg, stopAll, stopConfig, stopForce, args)
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("停止 Mihomo 失败", err)
 	}
 
 	if result != nil {
@@ -151,7 +151,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	output.Info("加载配置: %s", configPath)
 	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to load config", err)
+		return pkgerrors.ErrConfig("加载配置失败", err)
 	}
 
 	// 创建进程处理器
@@ -160,7 +160,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// 查询状态
 	result, err := handler.Status(cfg)
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("获取 Mihomo 状态失败", err)
 	}
 
 	if result.IsRunning {

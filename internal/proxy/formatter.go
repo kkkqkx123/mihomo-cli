@@ -24,13 +24,11 @@ var logicalTypes = map[string]bool{
 
 // FormatProxyList 格式化代理列表输出
 func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, outputFormat string, filterOpts FilterOptions) error {
-	// 应用过滤条件
-	filteredProxies := FilterProxies(proxies, filterOpts)
-
 	// 如果有组过滤，只显示指定的代理组
+	// 注意：组名查找应在原始 proxies 中进行，而非过滤后的结果，
+	// 避免因其他过滤条件（如 --groups-only）导致误报 "does not exist"
 	if groupFilter != "" {
-		if proxy, exists := filteredProxies[groupFilter]; exists {
-			// 格式化单个代理组
+		if proxy, exists := proxies[groupFilter]; exists {
 			if outputFormat == "json" {
 				return formatProxyJSON(map[string]*types.ProxyInfo{groupFilter: proxy})
 			}
@@ -38,6 +36,9 @@ func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, ou
 		}
 		return pkgerrors.ErrInvalidArg("proxy group '"+groupFilter+"' does not exist", nil)
 	}
+
+	// 应用过滤条件（仅在非组过滤模式下生效）
+	filteredProxies := FilterProxies(proxies, filterOpts)
 
 	// 显示所有代理
 	if outputFormat == "json" {

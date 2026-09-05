@@ -101,7 +101,7 @@ func runConfigShow() error {
 	// 加载 TOML 配置
 	cfg, err := config.LoadTomlConfig(configPath)
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to load config", err)
+		return pkgerrors.ErrConfig("加载配置失败", err)
 	}
 
 	output.Println(output.CyanString("当前配置："))

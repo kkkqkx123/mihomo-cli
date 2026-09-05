@@ -65,7 +65,7 @@ func runOperationQuery(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 解析时间
@@ -108,7 +108,7 @@ func runOperationClear(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 清空操作记录
@@ -134,7 +134,7 @@ func runOperationPrune(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 清理操作记录

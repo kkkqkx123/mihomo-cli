@@ -1,9 +1,8 @@
 package main
 
 import (
-	"os"
-
 	"github.com/kkkqkx123/mihomo-cli/cmd"
+	internalerrors "github.com/kkkqkx123/mihomo-cli/internal/errors"
 )
 
 var (
@@ -13,6 +12,7 @@ var (
 
 func main() {
 	if err := cmd.Execute(version, commit); err != nil {
-		os.Exit(1)
+		// 统一错误收口：打印错误信息和建议，并按 CLIError.Code（2~8）退出
+		internalerrors.ExitWithError(err, false)
 	}
 }

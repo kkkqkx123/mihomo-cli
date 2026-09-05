@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
@@ -115,7 +118,7 @@ func runSystemStatus(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 获取配置状态
@@ -192,22 +195,26 @@ func runSystemStatus(cmd *cobra.Command, args []string) error {
 func runSystemCleanup(cmd *cobra.Command, args []string) error {
 	// 检查管理员权限
 	if !util.IsAdmin() {
-		return pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
+		return pkgerrors.ErrService("该操作需要管理员权限，请以管理员身份运行", nil)
 	}
 
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	output.Println("开始清理系统配置...")
+
+	// 收集清理失败项，部分失败时整体返回错误（非 0 退出码）
+	var failed []string
 
 	// 清理系统代理
 	if cleanupSysProxy {
 		output.Println("清理系统代理...")
 		if err := mgr.GetSysProxyManager().Cleanup(); err != nil {
 			output.Printf("  警告: %v\n", err)
+			failed = append(failed, "系统代理")
 		} else {
 			output.Println("  完成")
 		}
@@ -218,6 +225,7 @@ func runSystemCleanup(cmd *cobra.Command, args []string) error {
 		output.Println("清理 TUN 设备...")
 		if err := mgr.GetTUNManager().Cleanup(); err != nil {
 			output.Printf("  警告: %v\n", err)
+			failed = append(failed, "TUN 设备")
 		} else {
 			output.Println("  完成")
 		}
@@ -228,9 +236,14 @@ func runSystemCleanup(cmd *cobra.Command, args []string) error {
 		output.Println("清理路由表...")
 		if err := mgr.GetRouteManager().Cleanup(); err != nil {
 			output.Printf("  警告: %v\n", err)
+			failed = append(failed, "路由表")
 		} else {
 			output.Println("  完成")
 		}
+	}
+
+	if len(failed) > 0 {
+		return pkgerrors.ErrService(fmt.Sprintf("清理完成，但以下项清理失败: %s", strings.Join(failed, ", ")), nil)
 	}
 
 	output.Println("清理完成")
@@ -242,7 +255,7 @@ func runSystemValidate(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 验证配置状态
@@ -283,7 +296,7 @@ func runSystemSnapshotCreate(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 创建快照
@@ -306,7 +319,7 @@ func runSystemSnapshotList(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 列出快照
@@ -336,7 +349,7 @@ func runSystemSnapshotList(cmd *cobra.Command, args []string) error {
 func runSystemSnapshotRestore(cmd *cobra.Command, args []string) error {
 	// 检查管理员权限
 	if !util.IsAdmin() {
-		return pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
+		return pkgerrors.ErrService("该操作需要管理员权限，请以管理员身份运行", nil)
 	}
 
 	snapshotID := args[0]
@@ -344,12 +357,12 @@ func runSystemSnapshotRestore(cmd *cobra.Command, args []string) error {
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 恢复快照
 	if err := mgr.RestoreSnapshot(snapshotID); err != nil {
-		return pkgerrors.ErrService("failed to restore snapshot", err)
+		return pkgerrors.ErrService("恢复快照失败", err)
 	}
 
 	output.Printf("配置快照 %s 已恢复\n", snapshotID)
@@ -358,17 +371,22 @@ func runSystemSnapshotRestore(cmd *cobra.Command, args []string) error {
 }
 
 func runSystemSnapshotDelete(cmd *cobra.Command, args []string) error {
+	// 检查管理员权限（与其他修改系统配置的命令保持一致）
+	if !util.IsAdmin() {
+		return pkgerrors.ErrService("该操作需要管理员权限，请以管理员身份运行", nil)
+	}
+
 	snapshotID := args[0]
 
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 删除快照
 	if err := mgr.DeleteSnapshot(snapshotID); err != nil {
-		return pkgerrors.ErrService("failed to delete snapshot", err)
+		return pkgerrors.ErrService("删除快照失败", err)
 	}
 
 	output.Printf("配置快照 %s 已删除\n", snapshotID)
@@ -379,13 +397,13 @@ func runSystemSnapshotDelete(cmd *cobra.Command, args []string) error {
 func runSystemFix(cmd *cobra.Command, args []string) error {
 	// 检查管理员权限
 	if !util.IsAdmin() {
-		return pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
+		return pkgerrors.ErrService("该操作需要管理员权限，请以管理员身份运行", nil)
 	}
 
 	// 创建系统配置管理器
 	mgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return pkgerrors.ErrService("failed to create system config manager", err)
+		return pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 	routeManager := mgr.GetRouteManager()
 
@@ -394,7 +412,7 @@ func runSystemFix(cmd *cobra.Command, args []string) error {
 	// 自动修复路由问题
 	report, err := routeManager.FixRouteIssues()
 	if err != nil {
-		return pkgerrors.ErrService("failed to fix route issues", err)
+		return pkgerrors.ErrService("修复路由问题失败", err)
 	}
 
 	// 输出修复报告

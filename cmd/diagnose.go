@@ -20,8 +20,8 @@ var diagnoseCmd = &cobra.Command{
 }
 
 var (
-	diagnoseFix        bool
-	diagnoseFormat     string
+	diagnoseFix    bool
+	diagnoseFormat string
 )
 
 func init() {
@@ -67,8 +67,7 @@ func runDiagnoseRoute() error {
 	// 诊断路由
 	diagnosis, err := routeManager.DiagnoseNetworkRouting()
 	if err != nil {
-		output.Error("failed to diagnose routes: %v", err)
-		return err
+		return fmt.Errorf("failed to diagnose routes: %w", err)
 	}
 
 	// 输出诊断结果
@@ -91,8 +90,7 @@ func runDiagnoseNetwork() error {
 	// 诊断网络
 	diagnosis, err := routeManager.DiagnoseNetworkRouting()
 	if err != nil {
-		output.Error("failed to diagnose network: %v", err)
-		return err
+		return fmt.Errorf("failed to diagnose network: %w", err)
 	}
 
 	// 输出诊断结果

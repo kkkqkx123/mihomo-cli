@@ -75,13 +75,13 @@ func createRecoveryManager() (*recovery.RecoveryManager, error) {
 	// 创建系统配置管理器
 	sysMgr, err := system.NewSystemConfigManager()
 	if err != nil {
-		return nil, pkgerrors.ErrService("failed to create system config manager", err)
+		return nil, pkgerrors.ErrService("创建系统配置管理器失败", err)
 	}
 
 	// 创建恢复管理器
 	recoveryMgr, err := recovery.NewRecoveryManager(sysMgr, nil)
 	if err != nil {
-		return nil, pkgerrors.ErrService("failed to create recovery manager", err)
+		return nil, pkgerrors.ErrService("创建恢复管理器失败", err)
 	}
 
 	return recoveryMgr, nil
@@ -97,7 +97,7 @@ func runRecoveryDetect(cmd *cobra.Command, args []string) error {
 	// 检测问题
 	problems, err := mgr.Detect()
 	if err != nil {
-		return pkgerrors.ErrService("failed to detect problems", err)
+		return pkgerrors.ErrService("检测问题失败", err)
 	}
 
 	if len(problems) == 0 {
@@ -131,7 +131,7 @@ func runRecoveryDetect(cmd *cobra.Command, args []string) error {
 func runRecoveryExecute(cmd *cobra.Command, args []string) error {
 	// 检查管理员权限
 	if !util.IsAdmin() {
-		return pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
+		return pkgerrors.ErrService("该操作需要管理员权限，请以管理员身份运行", nil)
 	}
 
 	// 创建恢复管理器
@@ -156,7 +156,7 @@ func runRecoveryExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	if err != nil {
-		return pkgerrors.ErrService("failed to execute recovery", err)
+		return pkgerrors.ErrService("执行恢复失败", err)
 	}
 
 	// 显示报告
@@ -201,6 +201,15 @@ func runRecoveryExecute(cmd *cobra.Command, args []string) error {
 			}
 			output.Printf("   耗时: %v\n", action.Duration)
 		}
+	}
+
+	// 部分失败时返回错误，确保退出码非 0
+	if !report.Success {
+		msg := "恢复执行失败"
+		if report.ErrorMessage != "" {
+			msg += ": " + report.ErrorMessage
+		}
+		return pkgerrors.ErrService(msg, nil)
 	}
 
 	return nil

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -72,11 +71,11 @@ func runMihomoPatch(ctx context.Context, args []string, configFile string) error
 		// 从文件读取配置
 		data, err := os.ReadFile(configFile)
 		if err != nil {
-			return pkgerrors.ErrConfig("failed to read config file", err)
+			return pkgerrors.ErrConfig("读取配置文件失败", err)
 		}
 
 		if err := yaml.Unmarshal(data, &patchData); err != nil {
-			return pkgerrors.ErrConfig("failed to parse config file", err)
+			return pkgerrors.ErrConfig("解析配置文件失败", err)
 		}
 	} else if len(args) == 2 {
 		// 从命令行参数读取
@@ -85,33 +84,31 @@ func runMihomoPatch(ctx context.Context, args []string, configFile string) error
 
 		// 检查配置键是否支持
 		if !config.IsConfigKeySupported(key) {
-			color.Yellow("unsupported config key: %s", key)
-			color.Yellow("use --help to see supported config keys")
-			return pkgerrors.ErrInvalidArg("unsupported config key: "+key, nil)
+			return pkgerrors.ErrInvalidArg(fmt.Sprintf("不支持的配置键: %s，使用 --help 查看支持的配置键", key), nil)
 		}
 
 		// 检查是否支持热更新
 		if !config.IsHotUpdateSupported(key) {
-			return pkgerrors.ErrInvalidArg("config key "+key+" does not support hot update, use 'mihomo edit' command instead", nil)
+			return pkgerrors.ErrInvalidArg(fmt.Sprintf("配置键 %s 不支持热更新，请使用 mihomo edit 命令", key), nil)
 		}
 
 		// 解析配置值
 		value, err := config.ParseConfigValue(key, valueStr)
 		if err != nil {
-			return pkgerrors.ErrConfig("failed to parse config value", err)
+			return pkgerrors.ErrConfig("解析配置值失败", err)
 		}
 
 		patchData = map[string]interface{}{key: value}
 	} else {
-		return pkgerrors.ErrInvalidArg("please specify config key-value pair or use --file parameter", nil)
+		return pkgerrors.ErrInvalidArg("请指定配置键值对或使用 --file 参数", nil)
 	}
 
 	// 执行热更新
 	if err := client.PatchConfig(ctx, patchData); err != nil {
-		return errors.WrapAPIError("failed to hot update config", err)
+		return errors.WrapAPIError("热更新配置失败", err)
 	}
 
-	color.Green("✓ 配置已热更新")
+	output.Success("配置已热更新")
 	for k, v := range patchData {
 		output.Printf("  %s = %v\n", k, v)
 	}
@@ -150,12 +147,12 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 	if configPath != "" {
 		// 检查是否为绝对路径
 		if !filepath.IsAbs(configPath) {
-			return pkgerrors.ErrInvalidArg("config file path must be absolute: "+configPath, nil)
+			return pkgerrors.ErrInvalidArg("配置文件路径必须是绝对路径: "+configPath, nil)
 		}
 
 		// 检查文件是否存在
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
-			return pkgerrors.ErrConfig("config file does not exist: "+configPath, nil)
+			return pkgerrors.ErrConfig("配置文件不存在: "+configPath, nil)
 		}
 
 		actualConfigPath = configPath
@@ -163,37 +160,37 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 		// 验证配置文件语法和有效性
 		validator := config.NewConfigValidator(configPath)
 		if err := validator.ValidateConfigSyntax(); err != nil {
-			color.Yellow("Config validation failed: %v", err)
+			output.Warning("配置校验失败: %v", err)
 			if !force {
-				return pkgerrors.ErrConfig("config validation failed, use --force to ignore", err)
+				return pkgerrors.ErrConfig("配置校验失败，使用 --force 强制执行", err)
 			}
-			color.Yellow("Continuing with force reload...")
+			output.Warning("强制重载，忽略校验错误...")
 		}
 
 		// 检查是否有高风险配置
 		if err := validator.ValidateAndWarn(); err != nil {
-			color.Yellow("Warning: %v", err)
+			output.Warning("高风险配置警告: %v", err)
 		}
 	} else {
 		// 如果没有指定配置文件路径，尝试从配置中获取
 		tomlConfigPath := config.FindTomlConfigPath("")
 		tomlCfg, err := config.LoadTomlConfig(tomlConfigPath)
 		if err != nil {
-			return pkgerrors.ErrConfig("failed to load config", err)
+			return pkgerrors.ErrConfig("加载配置失败", err)
 		}
 		actualConfigPath = tomlCfg.Mihomo.ConfigFile
 	}
 
 	// 在重载前备份当前配置
 	if actualConfigPath != "" {
-		output.Println("Creating backup before reload...")
+		output.Println("重载前备份当前配置...")
 		backupHandler := config.NewBackupHandler(actualConfigPath)
 		backupInfo, err := backupHandler.CreateBackup("", "pre-reload")
 		if err != nil {
-			color.Yellow("Warning: failed to create backup: %v", err)
-			color.Yellow("Continuing with reload without backup...")
+			output.Warning("备份失败: %v", err)
+			output.Warning("继续重载，不创建备份...")
 		} else {
-			color.Green("✓ Backup created: %s", backupInfo.Path)
+			output.Success("备份已创建: %s", backupInfo.Path)
 		}
 	}
 
@@ -206,10 +203,10 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 
 	// 执行重载
 	if err := client.ReloadConfig(ctx, configPath, force); err != nil {
-		return errors.WrapAPIError("failed to reload config", err)
+		return errors.WrapAPIError("重载配置失败", err)
 	}
 
-	color.Green("✓ 配置已重载")
+	output.Success("配置已重载")
 	if configPath != "" {
 		output.Printf("  配置文件: %s\n", configPath)
 	}
@@ -340,7 +337,7 @@ func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, 
 
 	// 检查配置键是否支持
 	if !config.IsConfigKeySupported(key) {
-		color.Yellow("警告: 配置键 %s 不在已知配置键列表中", key)
+		output.Warning("配置键 %s 不在已知配置键列表中", key)
 	}
 
 	// 解析配置值
@@ -369,7 +366,7 @@ func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, 
 		return pkgerrors.ErrConfig("failed to edit config file", err)
 	}
 
-	color.Green("✓ 配置文件已更新")
+	output.Success("配置文件已更新")
 	output.Printf("  配置文件: %s\n", configPath)
 	output.Printf("  %s = %v\n", key, value)
 	if backupPath != "" {
@@ -387,12 +384,11 @@ func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, 
 
 		// 重载配置
 		if err := client.ReloadConfig(ctx, configPath, false); err != nil {
-			color.Yellow("警告: 重载配置失败: %v", err)
-			color.Yellow("配置文件已修改，但未生效，请手动重启服务")
-			return nil
+			output.Warning("配置文件已修改，但未生效，请手动重启服务")
+			return pkgerrors.ErrAPI(fmt.Sprintf("重载配置失败: %v", err), err)
 		}
 
-		color.Green("✓ 配置已重载生效")
+		output.Success("配置已重载生效")
 	}
 
 	return nil

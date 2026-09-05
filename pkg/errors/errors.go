@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,15 +10,15 @@ import (
 
 // ExitCode 定义退出码常量
 const (
-	ExitSuccess = 0    // 成功
-	ExitError   = 1    // 一般错误
-	ExitInvalid = 2    // 无效参数或用法错误
-	ExitNetwork = 3    // 网络错误
-	ExitAPI     = 4    // API 错误
-	ExitConfig  = 5    // 配置错误
-	ExitService = 6    // 服务错误
-	ExitTimeout = 7    // 超时错误
-	ExitAuth    = 8    // 认证错误
+	ExitSuccess = 0 // 成功
+	ExitError   = 1 // 一般错误
+	ExitInvalid = 2 // 无效参数或用法错误
+	ExitNetwork = 3 // 网络错误
+	ExitAPI     = 4 // API 错误
+	ExitConfig  = 5 // 配置错误
+	ExitService = 6 // 服务错误
+	ExitTimeout = 7 // 超时错误
+	ExitAuth    = 8 // 认证错误
 )
 
 // CLIError CLI 错误类型
@@ -52,7 +53,7 @@ func NewError(code int, message string, cause error) *CLIError {
 // WrapError 包装错误，添加上下文信息
 func WrapError(message string, err error) *CLIError {
 	code := ExitError
-	if cliErr, ok := err.(*CLIError); ok {
+	if cliErr := GetCLIError(err); cliErr != nil {
 		code = cliErr.Code
 	}
 	return &CLIError{
@@ -115,7 +116,7 @@ func PrintError(err error) {
 	}
 
 	var message string
-	if cliErr, ok := err.(*CLIError); ok {
+	if cliErr := GetCLIError(err); cliErr != nil {
 		message = cliErr.Error()
 	} else {
 		message = err.Error()
@@ -129,7 +130,7 @@ func PrintErrorAndExit(err error) {
 	PrintError(err)
 
 	code := ExitError
-	if cliErr, ok := err.(*CLIError); ok {
+	if cliErr := GetCLIError(err); cliErr != nil {
 		code = cliErr.Code
 	}
 
@@ -156,28 +157,32 @@ func HandleErrorAndExit(err error) {
 	PrintErrorAndExit(err)
 }
 
-// GetExitCode 获取错误的退出码
+// GetExitCode 获取错误的退出码（支持错误链查找）
 func GetExitCode(err error) int {
 	if err == nil {
 		return ExitSuccess
 	}
 
-	if cliErr, ok := err.(*CLIError); ok {
+	if cliErr := GetCLIError(err); cliErr != nil {
 		return cliErr.Code
 	}
 
 	return ExitError
 }
 
-// IsCLIError 检查是否是 CLI 错误
+// IsCLIError 检查是否是 CLI 错误（支持错误链查找）
 func IsCLIError(err error) bool {
-	_, ok := err.(*CLIError)
-	return ok
+	return GetCLIError(err) != nil
 }
 
-// GetCLIError 获取 CLI 错误
+// GetCLIError 获取 CLI 错误（支持错误链查找）
 func GetCLIError(err error) *CLIError {
-	if cliErr, ok := err.(*CLIError); ok {
+	if err == nil {
+		return nil
+	}
+
+	var cliErr *CLIError
+	if errors.As(err, &cliErr) {
 		return cliErr
 	}
 	return nil

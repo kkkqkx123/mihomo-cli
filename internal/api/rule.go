@@ -11,7 +11,8 @@ func (c *Client) GetRules(ctx context.Context) (*types.RulesResponse, error) {
 	var result types.RulesResponse
 	err := c.Get(ctx, "/rules", nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取规则列表失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
 	return &result, nil
 }
@@ -30,7 +31,7 @@ func (c *Client) DisableRules(ctx context.Context, ruleIDs []int) error {
 
 	err := c.Patch(ctx, "/rules/disable", nil, payload, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "禁用规则失败", err)
+		return err
 	}
 
 	return nil
@@ -50,7 +51,7 @@ func (c *Client) EnableRules(ctx context.Context, ruleIDs []int) error {
 
 	err := c.Patch(ctx, "/rules/disable", nil, payload, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "启用规则失败", err)
+		return err
 	}
 
 	return nil

@@ -10,6 +10,7 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 var backupCmd = &cobra.Command{
@@ -57,7 +58,7 @@ func runBackupCreate(mihomoConfigPath, note string) error {
 	// 创建备份
 	info, err := handler.CreateBackup(mihomoConfigPath, note)
 	if err != nil {
-		return err
+		return pkgerrors.ErrConfig("创建备份失败", err)
 	}
 
 	output.Success("备份创建成功")
@@ -98,7 +99,7 @@ func runBackupList(mihomoConfigPath string) error {
 	// 获取备份列表
 	backups, err := handler.ListBackups(mihomoConfigPath)
 	if err != nil {
-		return err
+		return pkgerrors.ErrConfig("获取备份列表失败", err)
 	}
 
 	if len(backups) == 0 {
@@ -170,7 +171,7 @@ func runBackupRestore(ctx context.Context, mihomoConfigPath, backupRef string, n
 	// 恢复备份
 	result, err := handler.RestoreBackupWithClient(ctx, mihomoConfigPath, backupRef, noReload, client)
 	if err != nil {
-		return err
+		return pkgerrors.ErrConfig("恢复备份失败", err)
 	}
 
 	output.Cyan("已备份当前配置: %s", result.CurrentBackup.Path)
@@ -179,8 +180,9 @@ func runBackupRestore(ctx context.Context, mihomoConfigPath, backupRef string, n
 	output.PrintKeyValue("配置文件", result.ConfigPath)
 
 	if result.ReloadError != nil {
-		output.Warning("重载配置失败: %v", result.ReloadError)
 		output.Warning("配置文件已恢复，但未生效，请手动重启服务")
+		// 重载失败属于整体失败，返回错误确保退出码非 0
+		return pkgerrors.ErrAPI(fmt.Sprintf("重载配置失败: %v", result.ReloadError), result.ReloadError)
 	} else if result.Reloaded {
 		output.Success("配置已重载生效")
 	}
@@ -225,7 +227,7 @@ func runBackupDelete(mihomoConfigPath string, args []string, deleteAll bool, kee
 	// 删除备份
 	result, err := handler.DeleteBackup(mihomoConfigPath, args, deleteAll, keep, olderThan)
 	if err != nil {
-		return err
+		return pkgerrors.ErrConfig("删除备份失败", err)
 	}
 
 	if deleteAll {
@@ -290,7 +292,7 @@ func runBackupPrune(mihomoConfigPath string, keep, olderThan int, dryRun bool) e
 	// 清理备份
 	result, err := handler.PruneBackups(mihomoConfigPath, keep, olderThan, dryRun)
 	if err != nil {
-		return err
+		return pkgerrors.ErrConfig("清理备份失败", err)
 	}
 
 	if len(result.ToDelete) == 0 {

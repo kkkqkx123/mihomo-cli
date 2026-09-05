@@ -15,9 +15,9 @@ import (
 
 // WebSocketClient WebSocket 客户端封装
 type WebSocketClient struct {
-	secret    string
-	dialer    *websocket.Dialer
-	timeout   time.Duration
+	secret  string
+	dialer  *websocket.Dialer
+	timeout time.Duration
 }
 
 // NewWebSocketClient 创建新的 WebSocket 客户端
@@ -140,7 +140,8 @@ func (c *Client) StreamLogs(ctx context.Context) (*LogStream, error) {
 	// 建立 WebSocket 连接
 	conn, err := wsClient.connectWebSocket(ctx, c.baseURL, "/logs")
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "建立日志流连接失败", err)
+		// 直接透传连接错误，避免双重包装导致错误码丢失
+		return nil, err
 	}
 
 	// 创建日志流处理器
@@ -225,7 +226,8 @@ func (c *Client) StreamTraffic(ctx context.Context) (*TrafficStream, error) {
 	// 建立 WebSocket 连接
 	conn, err := wsClient.connectWebSocket(ctx, c.baseURL, "/traffic")
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "建立流量统计流连接失败", err)
+		// 直接透传连接错误，避免双重包装导致错误码丢失
+		return nil, err
 	}
 
 	// 创建流量统计流处理器
@@ -310,7 +312,8 @@ func (c *Client) StreamMemory(ctx context.Context) (*MemoryStream, error) {
 	// 建立 WebSocket 连接
 	conn, err := wsClient.connectWebSocket(ctx, c.baseURL, "/memory")
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "建立内存使用流连接失败", err)
+		// 直接透传连接错误，避免双重包装导致错误码丢失
+		return nil, err
 	}
 
 	// 创建内存使用流处理器

@@ -774,3 +774,65 @@ return pkgerrors.NewError(pkgerrors.ExitConfig, "配置错误", nil)
 - 测试是关键，确保所有功能正常
 - 使用编译器检查错误，不要手动检查
 - 遵循 Go 语言的最佳实践
+
+---
+
+## 九、实施状态（2026-09-05）
+
+本轮基于对全部命令错误处理/反馈信息的分析（P0 级问题清单），完成以下修复：
+
+### 本轮已完成（P0 反馈类问题）
+
+#### 1. `mode get -o json` 无输出 ✅
+
+**文件**：`cmd/mode.go`
+
+- 原因：json 分支注释声称"JSON 输出在 GetMode 中已经处理"，但 `internal/api` 的 `GetMode` 只返回结构体、从不打印，导致 `-o json` 静默无输出且退出码为 0。
+- 修复：json 分支改为 `output.PrintJSON(modeInfo)`（`ModeInfo` 已带 `json:"mode"` tag）。
+
+#### 2. 变更类命令 `-o json` 结构化载荷被丢弃 ✅
+
+**文件**：`cmd/cache.go`、`cmd/geoip.go`
+
+- 原因：`output.Success("操作成功", map[string]interface{}{...})` 将 map 作为多余 fmt 参数，被 fmt 静默忽略，`message/action` 从未输出；非 json 分支还有 `Success("✓ ...")` 导致的 `✓ ✓` 重复前缀。
+- 修复：
+  - `cache clear fakeip/dns`、`geoip update` 的 json 分支改为 `output.PrintJSON(map[string]string{...})`，表格分支改为 `output.Success("...")`（去掉手动 `✓` 前缀，Success 自带）。
+  - `geoip status` 的 json 分支改为 `output.PrintJSON(info)`（GeoInfo 已带 json tag）。
+
+#### 3. 错误重复打印与误导文案 ✅
+
+**文件**：`cmd/proxy.go`、`cmd/diagnose.go`
+
+- 原因：多处先 `output.Error(...)` 打印，再 `return err`，Cobra 顶层会再打印一遍 `Error: ...`；且 GetProxy 失败把"网络故障"与"代理组不存在"混为一谈。
+- 修复：
+  - `proxy switch`/`proxy test` 的节点校验失败改为将可用节点列表并入 `errors.NewValidationError` 的错误信息（单次输出），不再先打印后返回；
+  - GetProxy 失败改用 `errors.WrapAPIError`（中文文案，不再断言"不存在"）；
+  - `diagnose route`/`diagnose network` 移除 `output.Error` 预打印，改为 `fmt.Errorf("failed to diagnose %s: %w")` 包装后返回。
+
+#### 4. 历史记录成功/失败反馈失真 ✅
+
+**文件**：`cmd/root.go`
+
+- 原因：历史记录写在 `PersistentPostRunE` 中且 `entry.Success` 写死为 `true`，且 post-run 感知不到 RunE 的失败 → 失败命令被记为成功，`history` 输出的 `✗` 分支不可达。
+- 修复：`Execute()` 改用 `rootCmd.ExecuteC()` 收口，取得实际执行的叶子命令与最终错误，统一按 `err == nil` 记录真实成败；`postRun` 只保留输出流关闭等清理职责。
+
+#### 5. `history clear` 非交互阻塞 ✅
+
+**文件**：`cmd/history.go`
+
+- 原因：`fmt.Scanln` 无条件交互确认，脚本/管道等非交互环境下会阻塞等待输入（或直接取消）。
+- 修复：新增 `--yes/-y` 跳过确认；非交互环境（stdin 非终端，新增 `stdinIsInteractive()` 判断 `os.ModeCharDevice`）未携带 `--yes` 时返回 `ErrInvalidArg` 明确提示，不再阻塞。
+
+### 验证结果
+
+- `go build ./...` 通过；
+- `go test ./...` 全部通过（`internal/api`、`internal/config`、`internal/proxy`、`internal/systemdns`、`internal/util` 等均 ok）；
+- 修改过的 7 个 cmd 文件已 `gofmt -w` 规范化（其余 cmd 文件的格式问题为历史遗留，未在本轮处理）。
+
+### 尚未完成（后续批次候选）
+
+- **P1 错误体系接线**：`main.go` 固定 `os.Exit(1)`，`CLIError.Code`（2~8）与 `internal/errors/handler.go`（`HandleCmdError`/`ExitWithError`/`GetSuggestion`）仍未接线；建议设 `SilenceErrors/SilenceUsage` 后统一收口打印 → 建议 → 按退出码退出。
+- **P1 API 层双重包装**：`internal/api` 各方法在 HTTP 层错误外再包 `ErrAPIError`，导致 `WrapAPIError` 的连接错误特判与映射失效；应只包一层并支持 `errors.As` 链式查找。
+- **P1 部分失败整体成功**：`system cleanup`、`sub update`、`mihomo edit`/`backup restore`（重载失败）、`recovery execute` 等在发生失败时仍退出 0。
+- **P1 错误包装风格统一**：service/sysproxy/backup/start 等仍大量裸 `return err` / `fmt.Errorf`，未统一为 `CLIError`。
+- **P2 一致性**：中英文错误混排、cmd 层直用 `fatih/color`（cleanup/mihomo）、成功样式分裂（`✓` 写法）、管理员权限检查不一致（`system snapshot delete` 等）等。

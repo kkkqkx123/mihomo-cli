@@ -1,6 +1,7 @@
 package errors
 
 import (
+	stderrors "errors"
 	"fmt"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
@@ -54,8 +55,9 @@ func WrapAPIError(message string, err error) *errors.CLIError {
 		return errors.WrapError(message, cliErr)
 	}
 
-	// 检测是否是连接错误，提供更友好的提示
-	if apiErr, ok := err.(*api.APIError); ok && api.IsAPIConnectionError(apiErr) {
+	// 检测是否是连接错误，提供更友好的提示（支持错误链查找）
+	var apiErr *api.APIError
+	if stderrors.As(err, &apiErr) && api.IsAPIConnectionError(apiErr) {
 		return errors.ErrService(
 			message+": Mihomo 进程未运行或 API 地址配置错误\n"+
 				"  提示: 请先启动 Mihomo: mihomo-cli start\n"+
@@ -65,7 +67,7 @@ func WrapAPIError(message string, err error) *errors.CLIError {
 	}
 
 	// 如果是 API 错误，转换后包装
-	if apiErr, ok := err.(*api.APIError); ok {
+	if apiErr != nil {
 		cliErr := APIErrorToCLIError(apiErr)
 		if cliErr != nil {
 			return errors.WrapError(message, cliErr)
@@ -87,8 +89,9 @@ func WrapAPIErrorWithCode(code int, message string, err error) *errors.CLIError 
 		return errors.WrapErrorWithCode(cliErr.Code, message, cliErr)
 	}
 
-	// 如果是 API 错误，转换后包装
-	if apiErr, ok := err.(*api.APIError); ok {
+	// 如果是 API 错误，转换后包装（支持错误链查找）
+	var apiErr *api.APIError
+	if stderrors.As(err, &apiErr) {
 		cliErr := APIErrorToCLIError(apiErr)
 		if cliErr != nil {
 			return errors.WrapErrorWithCode(cliErr.Code, message, cliErr)
@@ -110,12 +113,9 @@ func IsAPIConnectionError(err error) bool {
 		return cliErr.Code == errors.ExitNetwork
 	}
 
-	// 检查是否是 API 连接错误
-	if apiErr, ok := err.(*api.APIError); ok {
-		return api.IsAPIConnectionError(apiErr)
-	}
-
-	return false
+	// 检查是否是 API 连接错误（支持错误链查找）
+	var apiErr *api.APIError
+	return stderrors.As(err, &apiErr) && api.IsAPIConnectionError(apiErr)
 }
 
 // IsAPIAuthError 检查是否为 API 认证错误
@@ -129,12 +129,9 @@ func IsAPIAuthError(err error) bool {
 		return cliErr.Code == errors.ExitAuth
 	}
 
-	// 检查是否是 API 认证错误
-	if apiErr, ok := err.(*api.APIError); ok {
-		return api.IsAPIAuthError(apiErr)
-	}
-
-	return false
+	// 检查是否是 API 认证错误（支持错误链查找）
+	var apiErr *api.APIError
+	return stderrors.As(err, &apiErr) && api.IsAPIAuthError(apiErr)
 }
 
 // IsAPITimeoutError 检查是否为 API 超时错误
@@ -148,12 +145,9 @@ func IsAPITimeoutError(err error) bool {
 		return cliErr.Code == errors.ExitTimeout
 	}
 
-	// 检查是否是 API 超时错误
-	if apiErr, ok := err.(*api.APIError); ok {
-		return api.IsTimeoutError(apiErr)
-	}
-
-	return false
+	// 检查是否是 API 超时错误（支持错误链查找）
+	var apiErr *api.APIError
+	return stderrors.As(err, &apiErr) && api.IsTimeoutError(apiErr)
 }
 
 // IsAPINotFoundError 检查是否为 API 未找到错误
@@ -167,12 +161,9 @@ func IsAPINotFoundError(err error) bool {
 		return cliErr.Code == errors.ExitInvalid
 	}
 
-	// 检查是否是 API 未找到错误
-	if apiErr, ok := err.(*api.APIError); ok {
-		return api.IsNotFoundError(apiErr)
-	}
-
-	return false
+	// 检查是否是 API 未找到错误（支持错误链查找）
+	var apiErr *api.APIError
+	return stderrors.As(err, &apiErr) && api.IsNotFoundError(apiErr)
 }
 
 // FormatAPIError 格式化 API 错误信息
@@ -181,8 +172,9 @@ func FormatAPIError(err error) string {
 		return ""
 	}
 
-	// 如果是 API 错误，格式化输出
-	if apiErr, ok := err.(*api.APIError); ok {
+	// 如果是 API 错误，格式化输出（支持错误链查找）
+	var apiErr *api.APIError
+	if stderrors.As(err, &apiErr) {
 		statusCode := apiErr.StatusCode
 		if statusCode == 0 {
 			return fmt.Sprintf("API 错误: %s", apiErr.Message)

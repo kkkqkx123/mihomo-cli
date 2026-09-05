@@ -66,13 +66,13 @@ func runGeoIPUpdate(cmd *cobra.Command, args []string) error {
 
 	// 显示成功信息
 	if outputFmt == "json" {
-		output.Success("更新成功", map[string]interface{}{
+		return output.PrintJSON(map[string]string{
 			"message": "GeoIP 数据库更新成功",
 			"action":  "update",
 		})
-	} else {
-		output.Success("✓ GeoIP 数据库更新成功")
 	}
+
+	output.Success("GeoIP 数据库更新成功")
 
 	return nil
 }
@@ -99,8 +99,7 @@ func runGeoIPStatus(cmd *cobra.Command, args []string) error {
 
 	// 根据输出格式显示结果
 	if outputFmt == "json" {
-		output.Success("查询成功", info)
-		return nil
+		return output.PrintJSON(info)
 	}
 
 	// 表格输出

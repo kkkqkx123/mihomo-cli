@@ -37,7 +37,8 @@ func (c *Client) QueryDNS(ctx context.Context, domain string, recordType string)
 	var result types.DNSQueryResponse
 	err := c.Get(ctx, "/dns/query", queryParams, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "DNS 查询失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
 
 	return &result, nil

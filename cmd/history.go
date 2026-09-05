@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -11,7 +12,10 @@ import (
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
-var historyLimit int
+var (
+	historyLimit int
+	historyYes   bool
+)
 
 // NewHistoryCmd 创建历史记录命令
 func NewHistoryCmd() *cobra.Command {
@@ -22,12 +26,14 @@ func NewHistoryCmd() *cobra.Command {
 		RunE:  runHistory,
 	}
 
-	cmd.AddCommand(&cobra.Command{
+	clearCmd := &cobra.Command{
 		Use:   "clear",
 		Short: "清除历史记录",
-		Long:  "清除所有命令历史记录",
+		Long:  "清除所有命令历史记录。非交互环境（无终端）下需使用 --yes 确认。",
 		RunE:  runHistoryClear,
-	})
+	}
+	clearCmd.Flags().BoolVarP(&historyYes, "yes", "y", false, "跳过确认直接清除")
+	cmd.AddCommand(clearCmd)
 
 	cmd.Flags().IntVarP(&historyLimit, "limit", "l", 50, "显示记录数量")
 
@@ -84,14 +90,20 @@ func runHistory(cmd *cobra.Command, args []string) error {
 
 // runHistoryClear 执行清除历史记录
 func runHistoryClear(cmd *cobra.Command, args []string) error {
-	// 确认
-	output.PrintRaw("确定要清除所有历史记录吗？(y/N): ")
-	var confirm string
-	_, _ = fmt.Scanln(&confirm)
+	// 确认：交互式终端提示输入；非交互环境（脚本/管道）必须显式使用 --yes，避免阻塞等待输入
+	if !historyYes {
+		if !stdinIsInteractive() {
+			return pkgerrors.ErrInvalidArg("非交互环境清除历史记录需要确认，请使用 --yes 参数", nil)
+		}
 
-	if confirm != "y" && confirm != "Y" {
-		output.PrintInfo("操作已取消")
-		return nil
+		output.PrintRaw("确定要清除所有历史记录吗？(y/N): ")
+		var confirm string
+		_, _ = fmt.Scanln(&confirm)
+
+		if confirm != "y" && confirm != "Y" {
+			output.PrintInfo("操作已取消")
+			return nil
+		}
 	}
 
 	// 获取历史目录
@@ -110,4 +122,13 @@ func runHistoryClear(cmd *cobra.Command, args []string) error {
 
 	output.PrintSuccess("历史记录已清除")
 	return nil
+}
+
+// stdinIsInteractive 判断标准输入是否为交互式终端
+func stdinIsInteractive() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }

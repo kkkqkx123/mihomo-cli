@@ -67,13 +67,13 @@ func runCacheClearFakeIP(cmd *cobra.Command, args []string) error {
 
 	// 显示成功信息
 	if outputFmt == "json" {
-		output.Success("操作成功", map[string]interface{}{
+		return output.PrintJSON(map[string]string{
 			"message": "FakeIP 池已清空",
 			"action":  "cache_clear_fakeip",
 		})
-	} else {
-		output.Println("✓ FakeIP 池已清空")
 	}
+
+	output.Success("FakeIP 池已清空")
 
 	return nil
 }
@@ -109,13 +109,13 @@ func runCacheClearDNS(cmd *cobra.Command, args []string) error {
 
 	// 显示成功信息
 	if outputFmt == "json" {
-		output.Success("操作成功", map[string]interface{}{
+		return output.PrintJSON(map[string]string{
 			"message": "DNS 缓存已清空",
 			"action":  "cache_clear_dns",
 		})
-	} else {
-		output.Println("✓ DNS 缓存已清空")
 	}
+
+	output.Success("DNS 缓存已清空")
 
 	return nil
 }

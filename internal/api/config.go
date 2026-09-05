@@ -6,22 +6,22 @@ import (
 
 // ConfigInfo Mihomo 配置信息
 type ConfigInfo struct {
-	Port           int          `json:"port"`
-	SocksPort      int          `json:"socks-port"`
-	RedirPort      int          `json:"redir-port"`
-	TproxyPort     int          `json:"tproxy-port"`
-	MixedPort      int          `json:"mixed-port"`
-	AllowLan       bool         `json:"allow-lan"`
-	BindAddress    string       `json:"bind-address"`
-	Mode           string       `json:"mode"`
-	LogLevel       string       `json:"log-level"`
-	IPv6           bool         `json:"ipv6"`
-	Sniffing       bool         `json:"sniffing"`
-	TCPConcurrent  bool         `json:"tcp-concurrent"`
+	Port            int         `json:"port"`
+	SocksPort       int         `json:"socks-port"`
+	RedirPort       int         `json:"redir-port"`
+	TproxyPort      int         `json:"tproxy-port"`
+	MixedPort       int         `json:"mixed-port"`
+	AllowLan        bool        `json:"allow-lan"`
+	BindAddress     string      `json:"bind-address"`
+	Mode            string      `json:"mode"`
+	LogLevel        string      `json:"log-level"`
+	IPv6            bool        `json:"ipv6"`
+	Sniffing        bool        `json:"sniffing"`
+	TCPConcurrent   bool        `json:"tcp-concurrent"`
 	FindProcessMode string      `json:"find-process-mode"`
-	InterfaceName  string       `json:"interface-name"`
-	Tun            *TunConfig   `json:"tun"`
-	TuicServer     *TuicConfig  `json:"tuic-server"`
+	InterfaceName   string      `json:"interface-name"`
+	Tun             *TunConfig  `json:"tun"`
+	TuicServer      *TuicConfig `json:"tuic-server"`
 }
 
 // TunConfig TUN 配置
@@ -40,11 +40,11 @@ type TunConfig struct {
 
 // TuicConfig TUIC 服务器配置
 type TuicConfig struct {
-	Enable       bool     `json:"enable"`
-	Listen       string   `json:"listen"`
-	Token        []string `json:"token"`
-	Certificate  string   `json:"certificate"`
-	PrivateKey   string   `json:"private-key"`
+	Enable      bool     `json:"enable"`
+	Listen      string   `json:"listen"`
+	Token       []string `json:"token"`
+	Certificate string   `json:"certificate"`
+	PrivateKey  string   `json:"private-key"`
 }
 
 // ReloadConfigRequest 重载配置请求
@@ -58,7 +58,8 @@ func (c *Client) GetConfig(ctx context.Context) (*ConfigInfo, error) {
 	var result ConfigInfo
 	err := c.Get(ctx, "/configs", nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取配置失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
 	return &result, nil
 }
@@ -67,7 +68,7 @@ func (c *Client) GetConfig(ctx context.Context) (*ConfigInfo, error) {
 func (c *Client) PatchConfig(ctx context.Context, patch map[string]interface{}) error {
 	err := c.Patch(ctx, "/configs", nil, patch, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "热更新配置失败", err)
+		return err
 	}
 	return nil
 }
@@ -87,7 +88,7 @@ func (c *Client) ReloadConfig(ctx context.Context, path string, force bool) erro
 
 	err := c.Put(ctx, "/configs", queryParams, req, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "重载配置失败", err)
+		return err
 	}
 	return nil
 }
@@ -96,7 +97,7 @@ func (c *Client) ReloadConfig(ctx context.Context, path string, force bool) erro
 func (c *Client) UpdateGeo(ctx context.Context) error {
 	err := c.Post(ctx, "/configs/geo", nil, nil, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "更新 Geo 数据库失败", err)
+		return err
 	}
 	return nil
 }

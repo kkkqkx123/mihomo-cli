@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/schollz/progressbar/v3"
@@ -16,22 +18,22 @@ import (
 )
 
 var (
-	testURL       string
-	testTimeout   int
-	concurrent    int
-	showProgress  bool
-	testDelay     bool
-	waitTest      bool
-	batchSize     int
-	maxNodes      int
-	sortBy        string
+	testURL      string
+	testTimeout  int
+	concurrent   int
+	showProgress bool
+	testDelay    bool
+	waitTest     bool
+	batchSize    int
+	maxNodes     int
+	sortBy       string
 	// 过滤参数
-	filterType        string
-	filterStatus      string
-	excludePattern    string
-	excludeLogical    bool
-	groupsOnly        bool
-	nodesOnly         bool
+	filterType     string
+	filterStatus   string
+	excludePattern string
+	excludeLogical bool
+	groupsOnly     bool
+	nodesOnly      bool
 )
 
 // NewProxyCmd 创建代理管理命令
@@ -76,17 +78,17 @@ func newProxyListCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&excludeLogical, "exclude-logical", false, "排除逻辑节点（DIRECT, REJECT 等）")
 	cmd.Flags().BoolVar(&groupsOnly, "groups-only", false, "只显示代理组")
 	cmd.Flags().BoolVar(&nodesOnly, "nodes-only", false, "只显示节点（排除代理组）")
-	
+
 	// 添加测速标志
 	cmd.Flags().BoolVar(&testDelay, "test-delay", false, "测试所有节点的延迟")
 	cmd.Flags().IntVar(&concurrent, "concurrent", 10, "测速并发数（默认 10）")
 	cmd.Flags().BoolVar(&showProgress, "progress", false, "显示测速进度条")
-	
+
 	// 添加测速控制标志
 	cmd.Flags().BoolVar(&waitTest, "wait", true, "等待测速完成（默认 true，与 --async 互斥）")
 	cmd.Flags().IntVar(&batchSize, "batch-size", 100, "每批次测试的节点数（默认 100）")
 	cmd.Flags().IntVar(&maxNodes, "max-nodes", 500, "最大测试节点数（默认 500）")
-	
+
 	// 添加排序标志
 	cmd.Flags().StringVar(&sortBy, "sort", "name", "排序方式（name/delay）")
 
@@ -128,7 +130,7 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 	// 如果需要测试延迟
 	if testDelay {
 		tester := proxy.NewDelayTester(client)
-		
+
 		// 设置测速参数
 		// 优先级：命令行参数 > 配置文件 > 默认值
 		if testURL != "" {
@@ -137,19 +139,19 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 			tester.SetTestURL(cfgTestURL)
 		}
 		// 否则使用 DelayTester 的默认值
-		
+
 		if testTimeout > 0 {
 			tester.SetTimeout(testTimeout)
 		} else {
 			tester.SetTimeout(viper.GetInt("proxy.timeout"))
 		}
-		
+
 		if concurrent > 0 {
 			tester.SetConcurrent(concurrent)
 		} else {
 			tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 		}
-		
+
 		// 收集需要测试的节点
 		var nodeNames []string
 		for name, proxyInfo := range proxies {
@@ -161,13 +163,13 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-		
+
 		// 限制最大节点数
 		if len(nodeNames) > maxNodes {
 			output.Warning("节点数量过多（%d 个），只测试前 %d 个节点", len(nodeNames), maxNodes)
 			nodeNames = nodeNames[:maxNodes]
 		}
-		
+
 		// 如果需要显示进度条
 		if showProgress && len(nodeNames) > 0 {
 			bar := progressbar.NewOptions(len(nodeNames),
@@ -176,12 +178,12 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 				progressbar.OptionShowIts(),
 				progressbar.OptionClearOnFinish(),
 			)
-			
+
 			tester.SetProgress(func(current, total int, nodeName string) {
 				_ = bar.Set(current)
 			})
 		}
-		
+
 		// 分批测速
 		var results []types.DelayResult
 		if waitTest {
@@ -199,7 +201,7 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 			// 不等待结果，直接返回
 			return proxy.FormatProxyList(proxies, groupFilter, outputFmt, filterOpts)
 		}
-		
+
 		// 更新代理信息的延迟数据
 		for _, result := range results {
 			if result.Error == nil && result.Delay > 0 {
@@ -213,7 +215,7 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-		
+
 		if showProgress && len(nodeNames) > 0 {
 			output.Println()
 		}
@@ -228,12 +230,12 @@ func shouldIncludeProxyForTest(name string, proxyInfo *types.ProxyInfo) bool {
 	if proxyInfo == nil {
 		return false
 	}
-	
+
 	// 排除空类型节点
 	if proxyInfo.Type == "" {
 		return false
 	}
-	
+
 	// 排除逻辑节点（逻辑节点无法测试延迟）
 	logicalTypes := map[string]bool{
 		"Direct":     true,
@@ -245,45 +247,50 @@ func shouldIncludeProxyForTest(name string, proxyInfo *types.ProxyInfo) bool {
 	if logicalTypes[proxyInfo.Type] {
 		return false
 	}
-	
+
 	return true
 }
 
 // testNodesInBatches 分批测试节点延迟
 func testNodesInBatches(tester *proxy.DelayTester, nodeNames []string, batchSize int, ctx context.Context) ([]types.DelayResult, error) {
 	var allResults []types.DelayResult
-	
+
 	// 分批测试
 	for i := 0; i < len(nodeNames); i += batchSize {
 		end := i + batchSize
 		if end > len(nodeNames) {
 			end = len(nodeNames)
 		}
-		
+
 		batch := nodeNames[i:end]
 		results, err := tester.TestNodes(ctx, batch)
 		if err != nil {
 			return allResults, err
 		}
 		allResults = append(allResults, results...)
-		
+
 		// 批次间短暂延迟，避免连接过多
 		if end < len(nodeNames) {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
-	
+
 	return allResults, nil
 }
 
 // newProxySwitchCmd 创建切换代理命令
 func newProxySwitchCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "switch <group> <node>",
-		Short: "切换代理节点",
-		Long:  `切换指定代理组的选中节点。`,
+		Use:     "switch <group> <node>",
+		Short:   "切换代理节点",
+		Long:    `切换指定代理组的选中节点。`,
 		Example: `  mihomo-cli proxy switch Proxy Node1`,
-		Args: cobra.ExactArgs(2),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 2 {
+				return fmt.Errorf("缺少参数：需要提供代理组名称和节点名称\n\n用法：mihomo-cli proxy switch <group> <node>\n示例：mihomo-cli proxy switch Proxy Node1")
+			}
+			return nil
+		},
 		RunE: runProxySwitch,
 	}
 
@@ -302,8 +309,31 @@ func runProxySwitch(cmd *cobra.Command, args []string) error {
 		viper.GetInt("api.timeout"),
 	)
 
+	// 前置校验：获取代理组信息，确认组存在且节点在组内
+	proxyGroup, err := client.GetProxy(cmd.Context(), groupName)
+	if err != nil {
+		return errors.WrapAPIError(fmt.Sprintf("获取代理组 '%s' 失败，请先执行 'mihomo-cli proxy list' 确认代理组名称", groupName), err)
+	}
+
+	// 校验节点是否属于该组
+	found := false
+	for _, name := range proxyGroup.All {
+		if name == nodeName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		// 节点不在组内：将可用节点列表并入错误信息，避免先打印再返回错误造成重复输出
+		hint := ""
+		if len(proxyGroup.All) > 0 {
+			hint = fmt.Sprintf("，可用节点: %s", strings.Join(proxyGroup.All, ", "))
+		}
+		return errors.NewValidationError("节点 '%s' 不在代理组 '%s' 中%s", nodeName, groupName, hint)
+	}
+
 	// 切换代理
-	err := client.SwitchProxy(cmd.Context(), groupName, nodeName)
+	err = client.SwitchProxy(cmd.Context(), groupName, nodeName)
 	if err != nil {
 		return errors.WrapAPIError("failed to switch proxy", err)
 	}
@@ -346,20 +376,20 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 
 	// 创建延迟测试器
 	tester := proxy.NewDelayTester(client)
-	
+
 	// 优先使用命令行参数，其次使用配置文件
 	if testURL != "" {
 		tester.SetTestURL(testURL)
 	} else {
 		tester.SetTestURL(viper.GetString("proxy.test_url"))
 	}
-	
+
 	if testTimeout > 0 {
 		tester.SetTimeout(testTimeout)
 	} else {
 		tester.SetTimeout(viper.GetInt("proxy.timeout"))
 	}
-	
+
 	if concurrent > 0 {
 		tester.SetConcurrent(concurrent)
 	} else {
@@ -371,6 +401,26 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 	// 如果指定了节点名称，测试单个节点
 	if len(args) == 2 {
 		nodeName := args[1]
+		// 前置校验：确认节点存在于组内
+		proxyGroup, err := client.GetProxy(cmd.Context(), groupName)
+		if err != nil {
+			return errors.WrapAPIError(fmt.Sprintf("获取代理组 '%s' 失败，请先执行 'mihomo-cli proxy list' 确认代理组名称", groupName), err)
+		}
+		found := false
+		for _, name := range proxyGroup.All {
+			if name == nodeName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// 节点不在组内：将可用节点列表并入错误信息，避免先打印再返回错误造成重复输出
+			hint := ""
+			if len(proxyGroup.All) > 0 {
+				hint = fmt.Sprintf("，可用节点: %s", strings.Join(proxyGroup.All, ", "))
+			}
+			return errors.NewValidationError("节点 '%s' 不在代理组 '%s' 中%s", nodeName, groupName, hint)
+		}
 		result := tester.TestSingle(cmd.Context(), nodeName)
 		results = []types.DelayResult{result}
 	} else {
@@ -454,20 +504,20 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 
 	// 创建延迟测试器
 	tester := proxy.NewDelayTester(client)
-	
+
 	// 优先使用命令行参数，其次使用配置文件
 	if testURL != "" {
 		tester.SetTestURL(testURL)
 	} else {
 		tester.SetTestURL(viper.GetString("proxy.test_url"))
 	}
-	
+
 	if testTimeout > 0 {
 		tester.SetTimeout(testTimeout)
 	} else {
 		tester.SetTimeout(viper.GetInt("proxy.timeout"))
 	}
-	
+
 	if concurrent > 0 {
 		tester.SetConcurrent(concurrent)
 	} else {
@@ -511,12 +561,12 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 // newProxyUnfixCmd 创建取消固定代理命令
 func newProxyUnfixCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "unfix <group>",
-		Short: "取消固定代理",
-		Long:  `取消代理组中固定的代理，恢复自动选择模式。`,
+		Use:     "unfix <group>",
+		Short:   "取消固定代理",
+		Long:    `取消代理组中固定的代理，恢复自动选择模式。`,
 		Example: `  mihomo-cli proxy unfix Proxy`,
-		Args: cobra.ExactArgs(1),
-		RunE: runProxyUnfix,
+		Args:    cobra.ExactArgs(1),
+		RunE:    runProxyUnfix,
 	}
 
 	return cmd
@@ -584,7 +634,7 @@ func runProxyCurrent(cmd *cobra.Command, args []string) error {
 	// 如果需要测试延迟
 	if testDelay && proxyGroup.Now != "" {
 		tester := proxy.NewDelayTester(client)
-		
+
 		// 设置测速参数
 		// 优先级：命令行参数 > 配置文件 > 默认值
 		if testURL != "" {
@@ -593,16 +643,16 @@ func runProxyCurrent(cmd *cobra.Command, args []string) error {
 			tester.SetTestURL(cfgTestURL)
 		}
 		// 否则使用 DelayTester 的默认值
-		
+
 		if testTimeout > 0 {
 			tester.SetTimeout(testTimeout)
 		} else {
 			tester.SetTimeout(viper.GetInt("proxy.timeout"))
 		}
-		
+
 		// 测试当前节点的延迟
 		result := tester.TestSingle(cmd.Context(), proxyGroup.Now)
-		
+
 		// 更新代理信息
 		if result.Error == nil && result.Delay > 0 {
 			proxyGroup.Delay = result.Delay

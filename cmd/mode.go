@@ -6,8 +6,8 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
-	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
+	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -55,8 +55,7 @@ func runModeGet(cmd *cobra.Command, args []string) error {
 
 	// 根据输出格式显示结果
 	if outputFmt == "json" {
-		// JSON 输出在 GetMode 中已经处理
-		return nil
+		return output.PrintJSON(modeInfo)
 	}
 
 	// 表格输出

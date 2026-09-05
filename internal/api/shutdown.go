@@ -11,7 +11,7 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	}
 	err := c.Post(ctx, "/shutdown", nil, nil, &result)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "关闭 Mihomo 失败", err)
+		return err
 	}
 	return nil
 }

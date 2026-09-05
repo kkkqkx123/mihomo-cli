@@ -18,7 +18,8 @@ func (c *Client) GetTraffic(ctx context.Context) (*types.TrafficInfo, error) {
 		return &types.TrafficInfo{}
 	})
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取流量统计失败", err)
+		// 直接透传错误，避免双重包装导致错误码丢失
+		return nil, err
 	}
 
 	if traffic, ok := result.(*types.TrafficInfo); ok {
@@ -37,7 +38,8 @@ func (c *Client) GetMemory(ctx context.Context) (*types.MemoryInfo, error) {
 		return &types.MemoryInfo{}
 	})
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取内存使用失败", err)
+		// 直接透传错误，避免双重包装导致错误码丢失
+		return nil, err
 	}
 
 	if memory, ok := result.(*types.MemoryInfo); ok {

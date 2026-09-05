@@ -8,6 +8,7 @@ import (
 
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/service"
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 var asyncMode bool
@@ -20,11 +21,11 @@ var serviceCmd = &cobra.Command{
 		factory := service.NewServiceFactory()
 		sm, err := factory.CreateServiceManager()
 		if err != nil {
-			return err
+			return pkgerrors.ErrService("创建服务管理器失败", err)
 		}
 
 		if !sm.IsSupported() {
-			return fmt.Errorf("service command not supported on %s", runtime.GOOS)
+			return pkgerrors.ErrService(fmt.Sprintf("当前平台 %s 不支持服务管理", runtime.GOOS), service.ErrPlatformNotSupported)
 		}
 
 		return cmd.Help()
@@ -86,7 +87,11 @@ func NewServiceCmd() *cobra.Command {
 // getServiceManager 获取服务管理器
 func getServiceManager() (service.ServiceManager, error) {
 	factory := service.NewServiceFactory()
-	return factory.CreateServiceManager()
+	sm, err := factory.CreateServiceManager()
+	if err != nil {
+		return nil, pkgerrors.ErrService("创建服务管理器失败", err)
+	}
+	return sm, nil
 }
 
 func runServiceStart(cmd *cobra.Command, args []string) error {
@@ -96,12 +101,12 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 	}
 
 	if !sm.IsSupported() {
-		return service.ErrPlatformNotSupported
+		return pkgerrors.ErrService("当前平台不支持服务管理", service.ErrPlatformNotSupported)
 	}
 
 	err = sm.Start(asyncMode)
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("启动服务失败", err)
 	}
 
 	if asyncMode {
@@ -120,12 +125,12 @@ func runServiceStop(cmd *cobra.Command, args []string) error {
 	}
 
 	if !sm.IsSupported() {
-		return service.ErrPlatformNotSupported
+		return pkgerrors.ErrService("当前平台不支持服务管理", service.ErrPlatformNotSupported)
 	}
 
 	err = sm.Stop(asyncMode)
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("停止服务失败", err)
 	}
 
 	if asyncMode {
@@ -144,12 +149,12 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	if !sm.IsSupported() {
-		return service.ErrPlatformNotSupported
+		return pkgerrors.ErrService("当前平台不支持服务管理", service.ErrPlatformNotSupported)
 	}
 
 	err = sm.Install()
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("安装服务失败", err)
 	}
 
 	output.Success("服务 %s 已成功安装", sm.GetServiceName())
@@ -165,12 +170,12 @@ func runServiceUninstall(cmd *cobra.Command, args []string) error {
 	}
 
 	if !sm.IsSupported() {
-		return service.ErrPlatformNotSupported
+		return pkgerrors.ErrService("当前平台不支持服务管理", service.ErrPlatformNotSupported)
 	}
 
 	err = sm.Uninstall()
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("卸载服务失败", err)
 	}
 
 	output.Success("服务 %s 已成功卸载", sm.GetServiceName())
@@ -184,12 +189,12 @@ func runServiceStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if !sm.IsSupported() {
-		return service.ErrPlatformNotSupported
+		return pkgerrors.ErrService("当前平台不支持服务管理", service.ErrPlatformNotSupported)
 	}
 
 	status, err := sm.Status()
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("获取服务状态失败", err)
 	}
 
 	output.PrintKeyValue("服务名称", sm.GetServiceName())

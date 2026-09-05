@@ -9,6 +9,7 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/api"
 	"github.com/kkkqkx123/mihomo-cli/internal/errors"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
+	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 // NewSubCmd 创建订阅管理命令
@@ -27,11 +28,11 @@ func NewSubCmd() *cobra.Command {
 // newSubUpdateCmd 创建更新订阅命令
 func newSubUpdateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "update",
-		Short: "更新代理订阅",
-		Long:  `触发 Mihomo 更新所有代理提供者的订阅配置。`,
+		Use:     "update",
+		Short:   "更新代理订阅",
+		Long:    `触发 Mihomo 更新所有代理提供者的订阅配置。`,
 		Example: `  mihomo-cli sub update`,
-		RunE: runSubUpdate,
+		RunE:    runSubUpdate,
 	}
 }
 
@@ -47,7 +48,7 @@ func runSubUpdate(cmd *cobra.Command, args []string) error {
 	// 获取所有代理提供者
 	providers, err := client.ListProviders(cmd.Context())
 	if err != nil {
-		return errors.WrapAPIError("failed to get proxy provider list", err)
+		return errors.WrapAPIError("获取代理提供者列表失败", err)
 	}
 
 	if len(providers) == 0 {
@@ -63,7 +64,7 @@ func runSubUpdate(cmd *cobra.Command, args []string) error {
 	failCount := 0
 	for name, provider := range providers {
 		fmt.Fprintf(output.GetGlobalStdout(), "正在更新 %s (%s)...\n", name, provider.VehicleType)
-		
+
 		err := client.UpdateProvider(cmd.Context(), name)
 		if err != nil {
 			output.Error("  更新失败: %v", err)
@@ -77,6 +78,11 @@ func runSubUpdate(cmd *cobra.Command, args []string) error {
 	// 显示汇总信息
 	fmt.Fprintf(output.GetGlobalStdout(), "\n")
 	fmt.Fprintf(output.GetGlobalStdout(), "更新完成: 成功 %d 个，失败 %d 个\n", successCount, failCount)
+
+	// 部分失败时返回错误，确保退出码非 0
+	if failCount > 0 {
+		return pkgerrors.ErrAPI(fmt.Sprintf("订阅更新部分失败: 成功 %d 个，失败 %d 个", successCount, failCount), nil)
+	}
 
 	return nil
 }

@@ -12,7 +12,8 @@ func (c *Client) GetMode(ctx context.Context) (*types.ModeInfo, error) {
 	var result types.ModeInfo
 	err := c.Get(ctx, "/configs", nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取模式失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
 	return &result, nil
 }
@@ -31,7 +32,7 @@ func (c *Client) SetMode(ctx context.Context, mode types.TunnelMode) error {
 
 	err := c.Patch(ctx, "/configs", nil, patchData, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "设置模式失败", err)
+		return err
 	}
 
 	return nil

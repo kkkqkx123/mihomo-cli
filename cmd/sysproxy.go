@@ -25,7 +25,7 @@ var sysproxyCmd = &cobra.Command{
 		sp := sysproxy.NewSysProxy()
 
 		if !sp.IsSupported() {
-			return fmt.Errorf("sysproxy command not supported on %s", runtime.GOOS)
+			return pkgerrors.ErrService(fmt.Sprintf("当前平台 %s 不支持系统代理管理", runtime.GOOS), sysproxy.ErrPlatformNotSupported)
 		}
 
 		return cmd.Help()
@@ -65,12 +65,12 @@ func runSysproxyGet(cmd *cobra.Command, args []string) error {
 	sp := sysproxy.NewSysProxy()
 
 	if !sp.IsSupported() {
-		return sysproxy.ErrPlatformNotSupported
+		return pkgerrors.ErrService("当前平台不支持系统代理管理", sysproxy.ErrPlatformNotSupported)
 	}
 
 	settings, err := sp.GetStatus()
 	if err != nil {
-		return err
+		return pkgerrors.ErrService("获取系统代理状态失败", err)
 	}
 
 	output.Println("系统代理状态:")
@@ -91,12 +91,12 @@ func runSysproxySet(cmd *cobra.Command, args []string) error {
 	sp := sysproxy.NewSysProxy()
 
 	if !sp.IsSupported() {
-		return sysproxy.ErrPlatformNotSupported
+		return pkgerrors.ErrService("当前平台不支持系统代理管理", sysproxy.ErrPlatformNotSupported)
 	}
 
 	// 检查管理员权限
 	if !util.IsAdmin() {
-		return pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
+		return pkgerrors.ErrService("该操作需要管理员权限，请以管理员身份运行", nil)
 	}
 
 	action := args[0]
@@ -105,7 +105,7 @@ func runSysproxySet(cmd *cobra.Command, args []string) error {
 	case "on":
 		err := sp.Enable(proxyServer, bypassList)
 		if err != nil {
-			return err
+			return pkgerrors.ErrService("启用系统代理失败", err)
 		}
 		output.Success("系统代理已启用")
 		output.PrintKeyValue("代理服务器", proxyServer)
@@ -116,7 +116,7 @@ func runSysproxySet(cmd *cobra.Command, args []string) error {
 	case "off":
 		err := sp.Disable()
 		if err != nil {
-			return err
+			return pkgerrors.ErrService("禁用系统代理失败", err)
 		}
 		output.Success("系统代理已禁用")
 

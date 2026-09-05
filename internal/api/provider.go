@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
@@ -13,7 +12,8 @@ func (c *Client) ListProviders(ctx context.Context) (map[string]*types.ProviderI
 	var result types.ProvidersResponse
 	err := c.Get(ctx, "/providers/proxies", nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取代理提供者列表失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
 	return result.Providers, nil
 }
@@ -25,7 +25,7 @@ func (c *Client) UpdateProvider(ctx context.Context, name string) error {
 
 	err := c.Put(ctx, "/providers/proxies/"+encodedName, nil, nil, nil)
 	if err != nil {
-		return NewAPIError(ErrNotFound, fmt.Sprintf("更新代理提供者 %s 失败", name), err)
+		return err
 	}
 
 	return nil
@@ -36,7 +36,8 @@ func (c *Client) ListRuleProviders(ctx context.Context) (map[string]*types.RuleP
 	var result types.RuleProvidersResponse
 	err := c.Get(ctx, "/providers/rules", nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取规则提供者列表失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
 	return result.Providers, nil
 }
@@ -48,7 +49,7 @@ func (c *Client) UpdateRuleProvider(ctx context.Context, name string) error {
 
 	err := c.Put(ctx, "/providers/rules/"+encodedName, nil, nil, nil)
 	if err != nil {
-		return NewAPIError(ErrNotFound, fmt.Sprintf("更新规则提供者 %s 失败", name), err)
+		return err
 	}
 
 	return nil
@@ -61,7 +62,7 @@ func (c *Client) HealthCheckProvider(ctx context.Context, name string) error {
 
 	err := c.Get(ctx, "/providers/proxies/"+encodedName+"/healthcheck", nil, nil)
 	if err != nil {
-		return NewAPIError(ErrNotFound, fmt.Sprintf("触发代理提供者 %s 健康检查失败", name), err)
+		return err
 	}
 
 	return nil

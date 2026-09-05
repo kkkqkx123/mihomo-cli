@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"strconv"
 
@@ -14,9 +13,10 @@ func (c *Client) ListProxies(ctx context.Context) (map[string]*types.ProxyInfo, 
 	var result types.ProxiesResponse
 	err := c.Get(ctx, "/proxies", nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取代理列表失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
-	
+
 	// 根据 history 填充 Delay 字段
 	for _, proxy := range result.Proxies {
 		if proxy != nil && len(proxy.History) > 0 {
@@ -27,7 +27,7 @@ func (c *Client) ListProxies(ctx context.Context) (map[string]*types.ProxyInfo, 
 			}
 		}
 	}
-	
+
 	return result.Proxies, nil
 }
 
@@ -39,9 +39,10 @@ func (c *Client) GetProxy(ctx context.Context, name string) (*types.ProxyInfo, e
 	var result types.ProxyInfo
 	err := c.Get(ctx, "/proxies/"+encodedName, nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrNotFound, fmt.Sprintf("获取代理 %s 失败", name), err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
-	
+
 	// 根据 history 填充 Delay 字段
 	if len(result.History) > 0 {
 		lastHistory := result.History[len(result.History)-1]
@@ -49,7 +50,7 @@ func (c *Client) GetProxy(ctx context.Context, name string) (*types.ProxyInfo, e
 			result.Delay = uint16(lastHistory.Delay)
 		}
 	}
-	
+
 	return &result, nil
 }
 
@@ -64,7 +65,7 @@ func (c *Client) SwitchProxy(ctx context.Context, group, proxy string) error {
 
 	err := c.Put(ctx, "/proxies/"+encodedGroup, nil, &request, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "切换代理失败", err)
+		return err
 	}
 
 	return nil
@@ -103,7 +104,7 @@ func (c *Client) UnfixProxy(ctx context.Context, group string) error {
 
 	err := c.Delete(ctx, "/proxies/"+encodedGroup, nil, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "取消固定代理失败", err)
+		return err
 	}
 
 	return nil

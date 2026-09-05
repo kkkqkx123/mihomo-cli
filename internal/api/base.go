@@ -11,7 +11,8 @@ func (c *Client) GetVersion(ctx context.Context) (*types.VersionInfo, error) {
 	var result types.VersionInfo
 	err := c.Get(ctx, "/version", nil, &result)
 	if err != nil {
-		return nil, NewAPIError(ErrAPIError, "获取版本信息失败", err)
+		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
+		return nil, err
 	}
 	return &result, nil
 }
@@ -20,7 +21,7 @@ func (c *Client) GetVersion(ctx context.Context) (*types.VersionInfo, error) {
 func (c *Client) Restart(ctx context.Context) error {
 	err := c.Post(ctx, "/restart", nil, nil, nil)
 	if err != nil {
-		return NewAPIError(ErrAPIError, "重启 Mihomo 失败", err)
+		return err
 	}
 	return nil
 }
