@@ -1,8 +1,6 @@
 package mihomo
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -81,9 +79,9 @@ func getStateFilePath(configFile string) (string, error) {
 		return "", err
 	}
 
-	// 根据配置文件生成唯一的状态文件名
-	hash := generateConfigHash(configFile)
-	return filepath.Join(baseDir, fmt.Sprintf("state-%s.json", hash)), nil
+	// 根据配置文件路径生成唯一的 identity（与 PID/锁文件命名一致）
+	identity := config.IdentityOf(configFile)
+	return filepath.Join(baseDir, fmt.Sprintf("state-%s.json", identity)), nil
 }
 
 // Save 保存状态到文件
@@ -281,25 +279,4 @@ func (sm *StateManager) UpdateHealthCheck() error {
 	return sm.Update(func(state *ProcessState) {
 		state.LastHealthCheck = time.Now()
 	})
-}
-
-// generateConfigHash 根据配置文件路径生成唯一 hash
-func generateConfigHash(configFile string) string {
-	if configFile == "" {
-		return "default"
-	}
-
-	// 使用文件路径的绝对路径作为 hash
-	absPath, err := filepath.Abs(configFile)
-	if err != nil {
-		absPath = configFile
-	}
-
-	// 使用 SHA256 计算路径的 hash
-	h := sha256.New()
-	h.Write([]byte(absPath))
-
-	// 取前16个字符，提供足够的唯一性同时保持可读性
-	hash := hex.EncodeToString(h.Sum(nil))[:16]
-	return hash
 }

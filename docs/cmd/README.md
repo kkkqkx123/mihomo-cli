@@ -130,7 +130,7 @@
 
 所有命令都支持以下全局选项：
 
-- `-c, --config` - 配置文件路径（默认：`~/.config/.mihomo-cli/config.toml`）
+- `-c, --config` - 配置文件路径（默认：`<UserConfigDir>/mihomo-cli/config.toml`）
 - `-o, --output` - 输出格式（table/json）
 - `--api` - API 地址（覆盖配置文件）
 - `--secret` - API 密钥（覆盖配置文件）
@@ -209,9 +209,9 @@ mihomo-cli proxy list --help
 1. 某些命令需要管理员权限（如系统代理管理、系统配置清理等）
 2. 服务管理命令仅支持 Windows 系统
 3. 系统代理管理命令仅支持 Windows 系统
-4. 配置文件默认存储在 `~/.config/.mihomo-cli/` 目录
-5. 历史记录存储在 `~/.config/.mihomo-cli/history/` 目录
-6. 备份文件存储在 `~/.config/.mihomo-cli/backups/` 目录
+4. 配置文件默认存储在 `<UserConfigDir>/mihomo-cli/` 目录
+5. 历史记录存储在 `<UserConfigDir>/mihomo-cli/history/` 目录
+6. 备份文件存储在 `<UserConfigDir>/mihomo-cli/backups/` 目录
 
 ## 配置文件示例
 

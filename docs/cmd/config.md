@@ -321,7 +321,7 @@ mihomo-cli backup prune --dry-run
 
 ## 注意事项
 
-1. 配置文件默认存储在 `~/.config/.mihomo-cli/` 目录
+1. 配置文件默认存储在 `<UserConfigDir>/mihomo-cli/` 目录
 2. 敏感数据存储在 `secrets.json` 文件中，权限设置为 600
 3. 热更新配置不会修改配置文件，只影响运行时配置
 4. 重载配置会先自动创建备份

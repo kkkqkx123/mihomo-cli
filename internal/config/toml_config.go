@@ -14,20 +14,21 @@ import (
 
 // TomlConfig 项目 TOML 配置
 type TomlConfig struct {
-	API    APIConfig    `toml:"api"`
-	Mihomo MihomoConfig `toml:"mihomo"`
+	API    APIConfig     `toml:"api"`
+	Mihomo MihomoConfig  `toml:"mihomo"`
 	Daemon *DaemonConfig `toml:"daemon"`
 }
 
 // MihomoConfig Mihomo 内核配置
 type MihomoConfig struct {
-	Enabled                bool             `toml:"enabled"`
-	Executable             string           `toml:"executable"`
-	ConfigFile             string           `toml:"config_file"`
-	AutoGenerateSecret     bool             `toml:"auto_generate_secret"`
-	HealthCheckTimeout     int              `toml:"health_check_timeout"`
-	API                    MihomoAPIConfig  `toml:"api"`
-	Log                    MihomoLogConfig  `toml:"log"`
+	Enabled            bool            `toml:"enabled"`
+	Executable         string          `toml:"executable"`
+	ExecutableSearch   *bool           `toml:"executable_search"` // nil=默认 true：允许按查找链搜索内核；false=只使用显式路径
+	ConfigFile         string          `toml:"config_file"`
+	AutoGenerateSecret bool            `toml:"auto_generate_secret"`
+	HealthCheckTimeout int             `toml:"health_check_timeout"`
+	API                MihomoAPIConfig `toml:"api"`
+	Log                MihomoLogConfig `toml:"log"`
 }
 
 // MihomoAPIConfig Mihomo API 配置
@@ -46,13 +47,13 @@ type MihomoLogConfig struct {
 
 // DaemonConfig 守护进程配置
 type DaemonConfig struct {
-	Enabled       bool             `toml:"enabled"`
-	WorkDir       string           `toml:"work_dir"`
-	LogFile       string           `toml:"log_file"`
-	LogLevel      string           `toml:"log_level"`
-	LogMaxSize    string           `toml:"log_max_size"`
-	LogMaxBackups int              `toml:"log_max_backups"`
-	LogMaxAge     int              `toml:"log_max_age"`
+	Enabled       bool              `toml:"enabled"`
+	WorkDir       string            `toml:"work_dir"`
+	LogFile       string            `toml:"log_file"`
+	LogLevel      string            `toml:"log_level"`
+	LogMaxSize    string            `toml:"log_max_size"`
+	LogMaxBackups int               `toml:"log_max_backups"`
+	LogMaxAge     int               `toml:"log_max_age"`
 	AutoRestart   AutoRestartConfig `toml:"auto_restart"`
 	HealthCheck   HealthCheckConfig `toml:"health_check"`
 }
@@ -131,10 +132,9 @@ func FindTomlConfigPath(customPath string) string {
 		return currentDirConfig
 	}
 
-	// 3. 用户配置目录
-	home, err := os.UserHomeDir()
-	if err == nil {
-		userConfig := filepath.Join(home, ".config", ".mihomo-cli", "config.toml")
+	// 3. 用户配置目录（平台规范目录）
+	if baseDir, err := GetBaseDir(); err == nil {
+		userConfig := filepath.Join(baseDir, "config.toml")
 		if _, err := os.Stat(userConfig); err == nil {
 			return userConfig
 		}
@@ -175,11 +175,11 @@ func GetDefaultTomlConfig() *TomlConfig {
 			Timeout: 10,
 		},
 		Mihomo: MihomoConfig{
-			Enabled:                true,
-			Executable:             "mihomo.exe",
-			ConfigFile:             "",
-			AutoGenerateSecret:     true,
-			HealthCheckTimeout:     5,
+			Enabled:            true,
+			Executable:         "",
+			ConfigFile:         "",
+			AutoGenerateSecret: true,
+			HealthCheckTimeout: 5,
 			API: MihomoAPIConfig{
 				ExternalController: "127.0.0.1:9090",
 			},

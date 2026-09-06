@@ -28,110 +28,119 @@ CLI 设计为无状态工具，每次命令执行都是独立的进程，无法�
 
 ### 默认路径
 
+基础目录为**平台规范目录** `os.UserConfigDir()/mihomo-cli`（由 `config.GetBaseDir()` 统一解析）：
+
+- **Windows**: `%AppData%\Roaming\mihomo-cli\`
+- **macOS**: `~/Library/Application Support/mihomo-cli/`
+- **Linux**: `$XDG_CONFIG_HOME/mihomo-cli`（未设置时为 `~/.config/mihomo-cli/`）
+
 ```
-~/.config/.mihomo-cli/
+<UserConfigDir>/mihomo-cli/
 ├── mihomo.pid           # 默认配置（未指定配置文件）
-├── mihomo-{hash}.pid    # 指定配置文件的实例
+├── mihomo-{identity}.pid  # 指定配置文件的实例（PID 元数据 v1）
+├── state-{identity}.json  # 运行状态文件
+├── lock-{identity}        # 并发启动锁文件
 └── backups/             # 配置备份目录
 ```
 
 ### 路径生成规则
 
-**基础目录**：
-- 首选：`~/.config/.mihomo-cli/`（用户主目录）
-- 备选：`%TEMP%/.mihomo-cli/`（无法获取用户目录时）
+**基础目录**：`os.UserConfigDir()/mihomo-cli`（平台规范，无旧目录回退）。
 
 **PID 文件名**：
 - 未指定配置文件：`mihomo.pid`
-- 指定配置文件：`mihomo-{hash}.pid`
+- 指定配置文件：`mihomo-{identity}.pid`
 
-### Hash 生成规则
+### Identity 生成规则
 
-Hash 基于配置文件路径生成，确保同一配置文件使用同一 PID 文件：
+identity 由 `internal/config/identity.go` 的 `config.IdentityOf()` **唯一**生成：
+配置文件的规范化绝对路径（`filepath.Abs` + `filepath.Clean`）取 SHA-256 前 12 位
+十六进制（48 bit）。同一配置文件无论以相对/绝对路径传入，结果一致；
+空路径返回 `"default"`。
 
 ```go
-func generateConfigHash(configFile string) string {
-    // 1. 获取配置文件的绝对路径
-    absPath := filepath.Abs(configFile)
-
-    // 2. 提取文件名（不含扩展名）
-    filename := filepath.Base(absPath)
-    nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
-
-    // 3. 限制长度（最多 8 个字符）
-    if len(nameWithoutExt) > 8 {
-        nameWithoutExt = nameWithoutExt[:8]
+func IdentityOf(configFile string) string {
+    if configFile == "" {
+        return DefaultIdentity // "default"
     }
-
-    // 4. 空名称使用默认值
-    if nameWithoutExt == "" {
-        nameWithoutExt = "default"
-    }
-
-    return nameWithoutExt
+    abs := filepath.Clean(mustAbs(configFile))
+    sum := sha256.Sum256([]byte(abs))
+    return hex.EncodeToString(sum[:])[:12]
 }
 ```
+
+同一 identity 同时用于 **PID 元数据文件、状态文件与锁文件**的命名。
+此前三处各实现一套互不兼容的 hash（截断文件名 / SHA256[:16] / SHA256[:8]），
+已全部收敛到 `config.IdentityOf` 一处。
 
 ### 示例
 
 | 配置文件路径 | PID 文件路径 |
 |-------------|-------------|
-| (未指定) | `~/.config/.mihomo-cli/mihomo.pid` |
-| `config.yaml` | `~/.config/.mihomo-cli/mihomo-config.pid` |
-| `scripts/mihomo-config.yaml` | `~/.config/.mihomo-cli/mihomo-mihomo-co.pid` |
-| `E:\project\mihomo-go\test-config.yaml` | `~/.config/.mihomo-cli/mihomo-test-con.pid` |
+| (未指定) | `<UserConfigDir>/mihomo-cli/mihomo.pid` |
+| `C:/Users/dev/proxy/mihomo-config.yaml` | `<UserConfigDir>/mihomo-cli/mihomo-<identity>.pid`（identity 由上述算法推导） |
 
 ## PID 文件生命周期
 
 ### 创建
 
-**时机**：Mihomo 内核启动成功后
+**时机**：Mihomo 内核启动成功后（各平台守护进程管理器 `StartAsDaemon`）
 
-**位置**：`internal/mihomo/manager.go:Start()`
+**位置**：`internal/mihomo/daemon_common.go`（`DaemonManagerCommon.SavePID`），
+内部组合元数据后由 `InstanceRegistry.Save`（`internal/mihomo/instance.go`）
+原子写入（先写 `.tmp` 再 rename）：
 
 ```go
-// 1. 保存 PID 到文件
-if err := pm.SavePID(pm.process.Pid); err != nil {
-    fmt.Printf("Warning: failed to save pid file: %v\n", err)
+// SavePID 保存 PID 元数据（v1 JSON，含配置文件/可执行文件/API 地址/启动时间）
+func (d *DaemonManagerCommon) SavePID(pid int) error {
+    meta := InstanceMeta{
+        PID:        pid,
+        ConfigFile: d.base.GetConfigFile(),
+        ExecPath:   d.base.GetExecutablePath(),
+        APIAddr:    d.base.GetAPIAddress(),
+        StartedAt:  time.Now().Format(time.RFC3339),
+    }
+    return d.pid.Save(meta)
 }
-
-// 2. 启动后台监控，进程退出时自动删除
-go func() {
-    err := pm.cmd.Wait()
-    os.Remove(pm.pidFile)  // 进程退出时删除
-}()
 ```
 
-**内容**：纯文本，仅包含进程 ID
+**内容**：v1 JSON 元数据（不是纯数字 PID），使 `ps`/`status` 可直接读取
+配置文件、可执行文件与 API 端口信息：
 
-```
-18296
+```json
+{
+  "version": 1,
+  "pid": 18296,
+  "config_file": "C:/Users/dev/proxy/mihomo-config.yaml",
+  "exec_path": "C:/Users/dev/proxy/mihomo.exe",
+  "api_addr": "127.0.0.1:9090",
+  "started_at": "2026-09-05T10:00:00+08:00"
+}
 ```
 
 ### 读取
 
-**方法**：`ProcessManager.GetPIDFromPIDFile()`
+**方法**：`ProcessManager.GetPIDFromPIDFile()` / `DaemonLauncher.GetRunningPID()`，
+内部统一经 `InstanceRegistry.Load()`（`internal/mihomo/instance.go`）读取。
 
 **验证流程**：
-1. 读取 PID 文件内容
-2. 解析为整数
-3. 检查进程是否真实存在（使用 Windows API）
-4. 如果进程不存在，返回错误
+1. 读取 PID 文件内容并解析（必须为 v1 JSON，版本不符视为损坏文件）
+2. 检查进程是否真实存在（使用各平台进程检测 API）
+3. 如果进程不存在，返回错误
 
 ```go
-func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
-    pid, err := pm.ReadPID()
-    if err != nil {
-        return 0, err
-    }
-
-    // 验证进程是否真的在运行
-    if !IsProcessRunning(pid) {
-        return 0, pkgerrors.ErrService("process ... is not running", nil)
-    }
-
-    return pid, nil
+// ProcessManager.GetPIDFromPIDFile（内部经 InstanceRegistry.Load）
+meta, err := NewInstanceRegistry(pm.pidFile).Load()
+if err != nil {
+    return 0, err
 }
+
+// 关键：验证进程是否真实存在
+if !IsProcessRunning(meta.PID) {
+    return 0, pkgerrors.ErrService("process ... is not running", nil)
+}
+
+return meta.PID, nil
 ```
 
 ### 删除
@@ -167,6 +176,23 @@ func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
    ```
 
 5. **手动清理**：`cleanup` 命令
+
+## 格式版本（锁定 v1）
+
+| 文件 | 格式 | 说明 |
+|---|---|---|
+| PID 文件 | JSON 元数据 v1 + identity 文件名（`mihomo-<12位hex>.pid`） | 版本号锁定为 1；`InstanceMeta.Version` 固定写入 1 |
+| 状态文件 | `state-<identity>.json` | 内容格式不变，命名统一走 `config.IdentityOf` |
+| 锁文件 | `lock-<identity>` | 命名统一走 `config.IdentityOf` |
+
+读取规则（`internal/mihomo/instance.go`）：
+
+1. 内容可解析为 JSON 且 `version=1`、`pid>0` → 直接使用；
+2. 否则视为损坏文件：跳过 + 提示（不按错误 PID 执行 kill）。
+
+**开发阶段决策**：不做 v2 版本升级，不兼容任何旧数据格式（纯数字 PID、
+旧目录、旧 hash 命名一律不读、不迁移、不回退）。解析失败即"跳过 + 提示"，
+绝不按错误 PID 执行 kill（防止 PID 复用导致误杀）。
 
 ## 各命令使用情况
 
@@ -229,7 +255,7 @@ func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
 
 **流程**：
 ```
-1. 扫描 ~/.mihomo-cli/ 目录
+1. 扫描 <UserConfigDir>/mihomo-cli/ 目录
 2. 遍历所有 .pid 文件
 3. 验证进程是否存在
 4. 删除无效的 PID 文件：
@@ -387,13 +413,17 @@ mihomo-cli stop <PID>
 
 ## 相关文件
 
-- `internal/mihomo/manager.go` - PID 文件路径生成、读写逻辑
-- `internal/mihomo/process_handler.go` - 各命令的 PID 文件使用
-- `internal/mihomo/scanner.go` - 残留文件清理、进程检测
-- `cmd/start.go` - start 命令的 PID 文件使用
-- `cmd/stop.go` - stop 命令的 PID 文件使用
-- `cmd/status.go` - status 命令的 PID 文件使用
-- `cmd/cleanup.go` - cleanup 命令实现
+- `internal/config/identity.go` - `IdentityOf` 唯一身份算法（PID/状态/锁文件命名）
+- `internal/config/paths.go` / `config/path_resolver.go` - 路径计算（平台规范目录）
+- `internal/config/executable_resolver.go` - 内核可执行文件统一解析（启动/服务安装共用）
+- `internal/mihomo/instance.go` - `InstanceMeta` / `InstanceRegistry`（PID 元数据 v1 读写，原子写）
+- `internal/mihomo/daemon_common.go` - `DaemonManagerCommon.SavePID`（启动后写入完整元数据）
+- `internal/mihomo/daemon_launcher.go` - `DaemonLauncher` 读取/清理 PID 文件
+- `internal/mihomo/manager.go` - `ProcessManager.GetPIDFromPIDFile`（status 等场景）
+- `internal/mihomo/discovery.go` - 两源进程发现（managed + external 合并、验证分级）
+- `internal/mihomo/scanner.go` - 实例扫描（`ps`）、残留文件清理（`cleanup`）
+- `internal/mihomo/process_list_*.go` - 全进程枚举（windows/linux/darwin）
+- `cmd/ps.go` / `cmd/cleanup.go` / `cmd/start.go` - ps / cleanup / start+stop+status 命令
 
 ## 参考资料
 

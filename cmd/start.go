@@ -14,6 +14,7 @@ import (
 var stopAll bool
 var stopConfig string
 var stopForce bool
+var stopIncludeUnmanaged bool
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -66,6 +67,7 @@ func init() {
 	stopCmd.Flags().BoolVarP(&stopAll, "all", "a", false, "停止所有 Mihomo 进程")
 	stopCmd.Flags().StringVarP(&stopConfig, "config", "c", "", "指定配置文件路径")
 	stopCmd.Flags().BoolVarP(&stopForce, "force", "F", false, "强制关闭进程（不通过 API）")
+	stopCmd.Flags().BoolVar(&stopIncludeUnmanaged, "include-unmanaged", false, "配合 --all 使用：同时停止未托管（外部启动/未验证）的 Mihomo 进程")
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
@@ -81,7 +83,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	// 创建进程处理器
-	handler := mihomo.NewProcessHandler("")
+	handler := mihomo.NewProcessHandler(configPath)
 
 	// 启动内核（守护进程模式或传统模式）
 	output.Info("启动 Mihomo 进程...")
@@ -126,11 +128,11 @@ func runStop(cmd *cobra.Command, args []string) error {
 	}
 
 	// 创建进程处理器
-	handler := mihomo.NewProcessHandler("")
+	handler := mihomo.NewProcessHandler(configPath)
 
 	// 停止内核
 	output.Info("停止 Mihomo 进程...")
-	result, err := handler.Stop(cfg, stopAll, stopConfig, stopForce, args)
+	result, err := handler.Stop(cfg, stopAll, stopConfig, stopForce, stopIncludeUnmanaged, args)
 	if err != nil {
 		return pkgerrors.ErrService("停止 Mihomo 失败", err)
 	}
@@ -155,7 +157,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// 创建进程处理器
-	handler := mihomo.NewProcessHandler("")
+	handler := mihomo.NewProcessHandler(configPath)
 
 	// 查询状态
 	result, err := handler.Status(cfg)

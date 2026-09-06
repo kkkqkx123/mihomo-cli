@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
@@ -75,38 +74,15 @@ func (pr *PathResolver) GetPIDFilePath(configFile string) string {
 		return filepath.Join(pr.GetPIDDir(), "mihomo.pid")
 	}
 
-	// 根据配置文件路径生成唯一的 hash
-	hash := pr.generateConfigHash(configFile)
-	return filepath.Join(pr.GetPIDDir(), fmt.Sprintf("mihomo-%s.pid", hash))
+	// 根据配置文件路径生成唯一的 identity
+	identity := IdentityOf(configFile)
+	return filepath.Join(pr.GetPIDDir(), fmt.Sprintf("mihomo-%s.pid", identity))
 }
 
 // GetStateFilePath 获取状态文件路径（基于配置文件路径）
 func (pr *PathResolver) GetStateFilePath(configFile string) string {
-	hash := pr.generateConfigHash(configFile)
-	return filepath.Join(pr.baseDir, fmt.Sprintf("state-%s.json", hash))
-}
-
-// generateConfigHash 根据配置文件路径生成短 hash
-func (pr *PathResolver) generateConfigHash(configFile string) string {
-	// 使用配置文件的绝对路径作为输入
-	absPath := pr.GetAbsolutePath(configFile)
-
-	// 使用文件名作为简单的 hash（避免依赖 crypto 包）
-	// 取文件名的最后部分，去除扩展名
-	filename := filepath.Base(absPath)
-	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
-
-	// 如果名称太长，截取前 8 个字符
-	if len(nameWithoutExt) > 8 {
-		nameWithoutExt = nameWithoutExt[:8]
-	}
-
-	// 如果名称为空，使用默认
-	if nameWithoutExt == "" {
-		nameWithoutExt = "default"
-	}
-
-	return nameWithoutExt
+	identity := IdentityOf(configFile)
+	return filepath.Join(pr.baseDir, fmt.Sprintf("state-%s.json", identity))
 }
 
 // EnsureDirExists 确保目录存在，如果不存在则创建

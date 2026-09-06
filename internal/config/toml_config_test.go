@@ -50,8 +50,9 @@ func TestGetDefaultTomlConfig(t *testing.T) {
 	if !cfg.Mihomo.Enabled {
 		t.Error("GetDefaultTomlConfig() Mihomo.Enabled should be true")
 	}
-	if cfg.Mihomo.Executable != "mihomo.exe" {
-		t.Errorf("GetDefaultTomlConfig() Mihomo.Executable = %v, want mihomo.exe", cfg.Mihomo.Executable)
+	// 默认 Executable 置空：由 ExecutableResolver 按平台解析（PATH → 平台默认候选）
+	if cfg.Mihomo.Executable != "" {
+		t.Errorf("GetDefaultTomlConfig() Mihomo.Executable = %v, want empty (resolved at runtime)", cfg.Mihomo.Executable)
 	}
 	if !cfg.Mihomo.AutoGenerateSecret {
 		t.Error("GetDefaultTomlConfig() Mihomo.AutoGenerateSecret should be true")

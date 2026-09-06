@@ -38,6 +38,12 @@ func (o *otherProcessChecker) GetProcessExecutable(pid int) (string, error) {
 		fmt.Sprintf("getting process executable not supported on %s", runtime.GOOS), nil)
 }
 
+// GetProcessCommandLine 获取进程完整命令行（不支持的平台）
+func (o *otherProcessChecker) GetProcessCommandLine(pid int) (string, error) {
+	return "", pkgerrors.ErrService(
+		fmt.Sprintf("getting process command line not supported on %s", runtime.GOOS), nil)
+}
+
 // getProcessResourceUsage 获取进程资源使用情况 (不支持的平台)
 func getProcessResourceUsage(pid int) (cpu, memory float64, err error) {
 	return 0, 0, pkgerrors.ErrService(

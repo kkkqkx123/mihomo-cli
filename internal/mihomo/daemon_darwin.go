@@ -4,7 +4,6 @@ package mihomo
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -202,120 +201,6 @@ func (ddm *DarwinDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error 
 	cmd.Stdin = devNull
 
 	return nil
-}
-
-// LaunchdManager launchd 守护进程管理器
-type LaunchdManager struct {
-	plistPath string
-	label     string
-}
-
-// NewLaunchdManager 创建 launchd 管理器
-func NewLaunchdManager(label, plistPath string) *LaunchdManager {
-	return &LaunchdManager{
-		label:     label,
-		plistPath: plistPath,
-	}
-}
-
-// CreatePlist 创建 launchd plist 文件
-func (lm *LaunchdManager) CreatePlist(execPath, configFile, logPath string) error {
-	// 确保 plist 目录存在
-	plistDir := filepath.Dir(lm.plistPath)
-	if err := os.MkdirAll(plistDir, 0755); err != nil {
-		return pkgerrors.ErrConfig("failed to create plist directory", err)
-	}
-
-	// 确保 log 目录存在
-	logDir := filepath.Dir(logPath)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return pkgerrors.ErrConfig("failed to create log directory", err)
-	}
-
-	// 构建 plist 内容
-	plistContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>%s</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>%s</string>
-        <string>-f</string>
-        <string>%s</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>%s</string>
-    <key>StandardErrorPath</key>
-    <string>%s</string>
-    <key>WorkingDirectory</key>
-    <string>%s</string>
-</dict>
-</plist>`,
-		lm.label,
-		execPath,
-		configFile,
-		logPath+".stdout.log",
-		logPath+".stderr.log",
-		filepath.Dir(execPath),
-	)
-
-	return os.WriteFile(lm.plistPath, []byte(plistContent), 0644)
-}
-
-// Load 加载 launchd 服务
-func (lm *LaunchdManager) Load() error {
-	cmd := exec.Command("launchctl", "load", lm.plistPath)
-	if err := cmd.Run(); err != nil {
-		return pkgerrors.ErrService("failed to load launchd service", err)
-	}
-	output.Success("Launchd service loaded: %s", lm.label)
-	return nil
-}
-
-// Unload 卸载 launchd 服务
-func (lm *LaunchdManager) Unload() error {
-	cmd := exec.Command("launchctl", "unload", lm.plistPath)
-	if err := cmd.Run(); err != nil {
-		return pkgerrors.ErrService("failed to unload launchd service", err)
-	}
-	output.Success("Launchd service unloaded: %s", lm.label)
-	return nil
-}
-
-// Start 启动 launchd 服务
-func (lm *LaunchdManager) Start() error {
-	cmd := exec.Command("launchctl", "start", lm.label)
-	if err := cmd.Run(); err != nil {
-		return pkgerrors.ErrService("failed to start launchd service", err)
-	}
-	output.Success("Launchd service started: %s", lm.label)
-	return nil
-}
-
-// Stop 停止 launchd 服务
-func (lm *LaunchdManager) Stop() error {
-	cmd := exec.Command("launchctl", "stop", lm.label)
-	if err := cmd.Run(); err != nil {
-		return pkgerrors.ErrService("failed to stop launchd service", err)
-	}
-	output.Success("Launchd service stopped: %s", lm.label)
-	return nil
-}
-
-// GetStatus 获取服务状态
-func (lm *LaunchdManager) GetStatus() (string, error) {
-	cmd := exec.Command("launchctl", "list", lm.label)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", pkgerrors.ErrService("failed to get launchd service status", err)
-	}
-	return string(output), nil
 }
 
 // GetDaemonManager 获取守护进程管理器（工厂函数）

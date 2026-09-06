@@ -42,14 +42,8 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		return nil, pkgerrors.ErrConfig("mihomo auto-start is disabled in config.toml", nil)
 	}
 
-	// 检查可执行文件是否存在
-	execPath := cfg.Mihomo.Executable
-	if _, err := os.Stat(execPath); os.IsNotExist(err) {
-		return nil, pkgerrors.ErrConfig("mihomo executable not found: "+execPath, nil)
-	}
-
-	// 创建守护进程启动器
-	launcher, err := NewDaemonLauncher(cfg)
+	// 创建守护进程启动器（内核可执行文件校验统一由 ExecutableResolver 完成）
+	launcher, err := NewDaemonLauncher(cfg, ph.configPath)
 	if err != nil {
 		return nil, pkgerrors.ErrService("failed to create daemon launcher", err)
 	}
@@ -209,14 +203,14 @@ type StopResult struct {
 }
 
 // Stop 停止 Mihomo 内核
-func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig string, force bool, args []string) (*StopResult, error) {
+func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig string, force bool, includeUnmanaged bool, args []string) (*StopResult, error) {
 	// 如果指定了 --all，停止所有进程
 	if stopAll {
-		return nil, StopAllMihomoProcesses()
+		return nil, StopAllMihomoProcesses(includeUnmanaged)
 	}
 
 	// 创建守护进程启动器
-	launcher, err := NewDaemonLauncher(cfg)
+	launcher, err := NewDaemonLauncher(cfg, ph.configPath)
 	if err != nil {
 		return nil, pkgerrors.ErrService("failed to create daemon launcher", err)
 	}
@@ -267,7 +261,7 @@ type StatusResult struct {
 // Status 查询 Mihomo 内核状态
 func (ph *ProcessHandler) Status(cfg *config.TomlConfig) (*StatusResult, error) {
 	// 创建守护进程启动器
-	launcher, err := NewDaemonLauncher(cfg)
+	launcher, err := NewDaemonLauncher(cfg, ph.configPath)
 	if err != nil {
 		return nil, pkgerrors.ErrService("failed to create daemon launcher", err)
 	}

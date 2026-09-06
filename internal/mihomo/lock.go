@@ -42,9 +42,9 @@ func getLockFilePath(configFile string) (string, error) {
 		return "", err
 	}
 
-	// 根据配置文件生成唯一的锁文件名
-	hash := generateConfigHash(configFile)
-	return filepath.Join(baseDir, fmt.Sprintf("lock-%s", hash)), nil
+	// 根据配置文件生成唯一的锁文件名（identity 与 PID/状态文件命名一致）
+	identity := config.IdentityOf(configFile)
+	return filepath.Join(baseDir, fmt.Sprintf("lock-%s", identity)), nil
 }
 
 // Acquire 获取锁（使用系统级文件锁）

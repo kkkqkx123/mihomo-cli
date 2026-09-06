@@ -3,9 +3,6 @@ package mihomo
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,68 +10,6 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
-
-// PIDFileManager PID 文件管理器（跨平台通用）
-type PIDFileManager struct {
-	pidFile string
-}
-
-// NewPIDFileManager 创建 PID 文件管理器
-func NewPIDFileManager(pidFile string) *PIDFileManager {
-	return &PIDFileManager{pidFile: pidFile}
-}
-
-// Save 保存 PID 到文件
-func (p *PIDFileManager) Save(pid int) error {
-	if p.pidFile == "" {
-		return nil
-	}
-
-	// 确保目录存在
-	pidDir := filepath.Dir(p.pidFile)
-	if err := os.MkdirAll(pidDir, 0755); err != nil {
-		return pkgerrors.ErrConfig("failed to create PID directory", err)
-	}
-
-	data := []byte(strconv.Itoa(pid))
-	if err := os.WriteFile(p.pidFile, data, 0644); err != nil {
-		return pkgerrors.ErrConfig("failed to write PID file", err)
-	}
-
-	return nil
-}
-
-// Read 从文件读取 PID
-func (p *PIDFileManager) Read() (int, error) {
-	if p.pidFile == "" {
-		return 0, pkgerrors.ErrConfig("PID file not configured", nil)
-	}
-
-	data, err := os.ReadFile(p.pidFile)
-	if err != nil {
-		return 0, pkgerrors.ErrConfig("failed to read PID file", err)
-	}
-
-	pid, err := strconv.Atoi(string(data))
-	if err != nil {
-		return 0, pkgerrors.ErrConfig("invalid PID format", err)
-	}
-
-	return pid, nil
-}
-
-// Cleanup 清理 PID 文件
-func (p *PIDFileManager) Cleanup() {
-	if p.pidFile != "" {
-		os.Remove(p.pidFile)
-	}
-}
-
-// Exists 检查 PID 文件是否存在
-func (p *PIDFileManager) Exists() bool {
-	_, err := os.Stat(p.pidFile)
-	return err == nil
-}
 
 // ForceKill 强制终止进程（跨平台通用）
 func ForceKill(pid int) error {
@@ -107,30 +42,43 @@ func isAccessDeniedError(err error) bool {
 // DaemonManagerCommon 守护进程管理器通用功能
 type DaemonManagerCommon struct {
 	base *DaemonManagerBase
-	pid  *PIDFileManager
+	pid  *InstanceRegistry
 }
 
 // NewDaemonManagerCommon 创建通用守护进程管理器
 func NewDaemonManagerCommon(base *DaemonManagerBase) *DaemonManagerCommon {
 	return &DaemonManagerCommon{
 		base: base,
-		pid:  NewPIDFileManager(base.pidFile),
+		pid:  NewInstanceRegistry(base.pidFile),
 	}
 }
 
-// SavePID 保存 PID
+// SavePID 保存 PID 元数据（v1 JSON，含配置文件/可执行文件/API 地址/启动时间）。
+// 三平台守护进程管理器（windows/linux/darwin）均通过该方法写入完整元数据，
+// 使 ps/status 等进程发现可直接读取实例信息，无需文件名反推。
 func (d *DaemonManagerCommon) SavePID(pid int) error {
-	return d.pid.Save(pid)
+	meta := InstanceMeta{
+		PID:        pid,
+		ConfigFile: d.base.GetConfigFile(),
+		ExecPath:   d.base.GetExecutablePath(),
+		APIAddr:    d.base.GetAPIAddress(),
+		StartedAt:  time.Now().Format(time.RFC3339),
+	}
+	return d.pid.Save(meta)
 }
 
 // ReadPID 读取 PID
 func (d *DaemonManagerCommon) ReadPID() (int, error) {
-	return d.pid.Read()
+	meta, err := d.pid.Load()
+	if err != nil {
+		return 0, err
+	}
+	return meta.PID, nil
 }
 
-// CleanupPID 清理 PID
+// CleanupPID 清理 PID 文件
 func (d *DaemonManagerCommon) CleanupPID() {
-	d.pid.Cleanup()
+	_ = d.pid.Remove()
 }
 
 // IsDaemonRunning 检查守护进程是否运行
@@ -169,8 +117,8 @@ func (d *DaemonManagerCommon) Base() *DaemonManagerBase {
 	return d.base
 }
 
-// PIDManager 获取 PID 管理器
-func (d *DaemonManagerCommon) PIDManager() *PIDFileManager {
+// PIDManager 获取 PID 元数据注册器
+func (d *DaemonManagerCommon) PIDManager() *InstanceRegistry {
 	return d.pid
 }
 

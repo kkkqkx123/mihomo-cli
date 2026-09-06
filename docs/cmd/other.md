@@ -160,5 +160,5 @@ mihomo-cli history clear
 2. 订阅更新会更新所有代理提供者的配置
 3. GeoIP 数据库用于地理位置路由规则
 4. 更新 GeoIP 数据库需要 Mihomo 配置中设置数据源
-5. 历史记录存储在 `~/.config/.mihomo-cli/history/commands.jsonl`
+5. 历史记录存储在 `<UserConfigDir>/mihomo-cli/history/commands.jsonl`
 6. 清除历史记录需要确认

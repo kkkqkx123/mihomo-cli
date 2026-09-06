@@ -1,10 +1,11 @@
 package service
 
 import (
-	"os/exec"
+	"os"
 	"path/filepath"
 	"runtime"
 
+	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/util"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
@@ -63,76 +64,20 @@ func (sf *serviceFactory) CreateServiceManager() (ServiceManager, error) {
 	}
 }
 
-// findMihomoExecutable 查找 Mihomo 可执行文件路径
+// findMihomoExecutable 查找 Mihomo 可执行文件路径（复用 config.ExecutableResolver 统一解析规则）
 func (sf *serviceFactory) findMihomoExecutable() (string, error) {
-	// 优先在 PATH 中查找
-	if exePath, err := exec.LookPath("mihomo"); err == nil {
-		// 返回绝对路径
-		if absPath, err := filepath.Abs(exePath); err == nil {
-			return absPath, nil
-		}
-		return exePath, nil
+	// 服务安装场景没有 config.toml 显式配置，走"空配置 + 允许搜索"链：
+	// LookPath("mihomo") → 平台默认候选目录（CLI 同目录、CWD、/usr/local/bin、/usr/bin）。
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
 	}
-
-	// 在当前目录和父目录查找匹配 mihomo*.exe 模式的文件
-	searchDirs := []string{".", ".."}
-
-	for _, dir := range searchDirs {
-		absDir, err := filepath.Abs(dir)
-		if err != nil {
-			continue
-		}
-
-		// 根据平台选择可执行文件模式
-		var pattern string
-		if runtime.GOOS == "windows" {
-			pattern = "mihomo*.exe"
-		} else {
-			pattern = "mihomo*"
-		}
-
-		// 查找所有匹配的文件
-		matches, err := filepath.Glob(filepath.Join(absDir, pattern))
-		if err != nil {
-			continue
-		}
-
-		if len(matches) == 0 {
-			continue
-		}
-
-		// 过滤掉 mihomo-cli（当前项目的可执行文件）
-		var filteredMatches []string
-		cliName := "mihomo-cli"
-		if runtime.GOOS == "windows" {
-			cliName = "mihomo-cli.exe"
-		}
-		for _, match := range matches {
-			if filepath.Base(match) != cliName {
-				filteredMatches = append(filteredMatches, match)
-			}
-		}
-
-		if len(filteredMatches) == 0 {
-			continue
-		}
-
-		// 优先选择简单的 mihomo
-		targetName := "mihomo"
-		if runtime.GOOS == "windows" {
-			targetName = "mihomo.exe"
-		}
-		for _, match := range filteredMatches {
-			if filepath.Base(match) == targetName {
-				return match, nil
-			}
-		}
-
-		// 如果没有找到简单的 mihomo，返回第一个匹配的文件
-		return filteredMatches[0], nil
+	resolver := config.NewExecutableResolver(cwd)
+	exePath, _, err := resolver.Resolve("", nil)
+	if err != nil {
+		return "", pkgerrors.ErrConfig("failed to determine mihomo executable path", err)
 	}
-
-	return "", pkgerrors.ErrConfig("mihomo executable not found", nil)
+	return filepath.Clean(exePath), nil
 }
 
 // SetServiceName 设置服务名称

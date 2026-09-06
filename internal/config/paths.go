@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
@@ -20,12 +19,10 @@ type Paths struct {
 
 // GetPaths 获取统一的路径配置
 func GetPaths() (*Paths, error) {
-	home, err := os.UserHomeDir()
+	baseDir, err := GetBaseDir()
 	if err != nil {
-		return nil, pkgerrors.ErrConfig("failed to get user home directory", err)
+		return nil, err
 	}
-
-	baseDir := filepath.Join(home, ".config", ".mihomo-cli")
 
 	return &Paths{
 		BaseDir:    baseDir,
@@ -36,13 +33,16 @@ func GetPaths() (*Paths, error) {
 	}, nil
 }
 
-// GetBaseDir 获取基础配置目录
+// GetBaseDir 获取基础配置目录（平台规范目录 os.UserConfigDir()/mihomo-cli）。
+// - Windows: %AppData%\Roaming\mihomo-cli
+// - macOS:   ~/Library/Application Support/mihomo-cli
+// - Linux:   $XDG_CONFIG_HOME 或 ~/.config 下的 mihomo-cli
 func GetBaseDir() (string, error) {
-	home, err := os.UserHomeDir()
+	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "", pkgerrors.ErrConfig("failed to get user home directory", err)
+		return "", pkgerrors.ErrConfig("failed to get user config directory", err)
 	}
-	return filepath.Join(home, ".config", ".mihomo-cli"), nil
+	return filepath.Join(dir, "mihomo-cli"), nil
 }
 
 // GetPIDDir 获取 PID 文件目录
@@ -89,9 +89,9 @@ func GetPIDFilePath(configFile string) (string, error) {
 		return filepath.Join(pidDir, "mihomo.pid"), nil
 	}
 
-	// 根据配置文件路径生成唯一的 hash
-	hash := generateConfigHash(configFile)
-	return filepath.Join(pidDir, fmt.Sprintf("mihomo-%s.pid", hash)), nil
+	// 根据配置文件路径生成唯一的 identity
+	identity := IdentityOf(configFile)
+	return filepath.Join(pidDir, fmt.Sprintf("mihomo-%s.pid", identity)), nil
 }
 
 // EnsureDirExists 确保目录存在，如果不存在则创建
@@ -100,30 +100,4 @@ func EnsureDirExists(dir string) error {
 		return pkgerrors.ErrConfig("failed to create directory", err)
 	}
 	return nil
-}
-
-// generateConfigHash 根据配置文件路径生成短 hash
-func generateConfigHash(configFile string) string {
-	// 使用配置文件的绝对路径作为输入
-	absPath, err := filepath.Abs(configFile)
-	if err != nil {
-		absPath = configFile
-	}
-
-	// 使用文件名作为简单的 hash（避免依赖 crypto 包）
-	// 取文件名的最后部分，去除扩展名
-	filename := filepath.Base(absPath)
-	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
-
-	// 如果名称太长，截取前 8 个字符
-	if len(nameWithoutExt) > 8 {
-		nameWithoutExt = nameWithoutExt[:8]
-	}
-
-	// 如果名称为空，使用默认
-	if nameWithoutExt == "" {
-		nameWithoutExt = "default"
-	}
-
-	return nameWithoutExt
 }

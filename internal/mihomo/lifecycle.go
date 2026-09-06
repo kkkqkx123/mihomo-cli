@@ -176,13 +176,9 @@ func (lm *LifecycleManager) Stop(ctx context.Context, pid int) error {
 			return pkgerrors.ErrService("process state not found", nil)
 		}
 
-		// 停止进程（使用守护进程管理器）
-		if lm.pm.daemonManager != nil {
-			if err := lm.pm.daemonManager.StopDaemon(pid); err != nil {
-				return pkgerrors.ErrService("failed to stop daemon", err)
-			}
-		} else {
-			return pkgerrors.ErrService("daemon manager not initialized", nil)
+		// 停止进程（委托 DaemonLauncher）
+		if err := lm.pm.StopDaemon(false); err != nil {
+			return pkgerrors.ErrService("failed to stop daemon", err)
 		}
 
 		return nil

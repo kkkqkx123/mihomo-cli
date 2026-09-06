@@ -21,13 +21,15 @@ func newProcessChecker() ProcessChecker {
 
 // IsProcessRunning 检查进程是否正在运行
 func (l *linuxProcessChecker) IsProcessRunning(pid int) bool {
-	// 在 Linux 系统上，通过 /proc/<pid> 目录检查进程是否存在
+	// 在 Linux 系统上，通过 /proc/<pid>/stat 文件检查进程是否存在
 	procPath := filepath.Join("/proc", strconv.Itoa(pid))
-
-	// 尝试读取 /proc/<pid>/stat 文件
 	statPath := filepath.Join(procPath, "stat")
 	data, err := os.ReadFile(statPath)
 	if err != nil {
+		// 权限不足（EACCES）时保守认为进程存活，与 Windows 语义对齐
+		if os.IsPermission(err) {
+			return true
+		}
 		return false
 	}
 
@@ -60,6 +62,24 @@ func (l *linuxProcessChecker) GetProcessExecutable(pid int) (string, error) {
 	}
 
 	return execPath, nil
+}
+
+// GetProcessCommandLine 获取进程完整命令行。
+// 读 /proc/<pid>/cmdline，以 \x00 切分后以空格 join（首个元素为 argv[0]）；
+// cmdline 为空（内核线程/僵尸进程）返回错误。
+func (l *linuxProcessChecker) GetProcessCommandLine(pid int) (string, error) {
+	cmdlinePath := filepath.Join("/proc", strconv.Itoa(pid), "cmdline")
+	data, err := os.ReadFile(cmdlinePath)
+	if err != nil {
+		return "", pkgerrors.ErrService("failed to read process cmdline", err)
+	}
+
+	parts := strings.Split(strings.TrimRight(string(data), "\x00"), "\x00")
+	if len(parts) == 0 || parts[0] == "" {
+		return "", pkgerrors.ErrService("empty process command line", nil)
+	}
+
+	return strings.Join(parts, " "), nil
 }
 
 // getProcessResourceUsage 获取进程资源使用情况 (Linux 实现)
