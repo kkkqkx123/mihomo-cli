@@ -1,7 +1,6 @@
 package mihomo
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,6 +152,8 @@ func GetAllMihomoPIDs() ([]int, error) {
 // StopAllMihomoProcesses 停止所有 Mihomo 进程。
 // 默认只停止 confirmed（托管且路径一致）实例；
 // includeUnmanaged=true 时才扩展到 likely（外部/未验证）实例。
+// 对 confirmed 实例优先通过 API 优雅关闭，失败再 ForceKill；
+// 对 likely 实例直接 ForceKill（无 API 信息）。
 func StopAllMihomoProcesses(includeUnmanaged bool) error {
 	processes, err := ScanMihomoProcesses()
 	if err != nil {
@@ -174,24 +175,37 @@ func StopAllMihomoProcesses(includeUnmanaged bool) error {
 
 	output.Printf("找到 %d 个 Mihomo 进程，开始停止...\n", len(targets))
 
+	// 加载配置以获取 API 密钥
+	secret := ""
+	if cliCfg, err := config.LoadFromViper(); err == nil && cliCfg != nil {
+		secret = cliCfg.API.Secret
+	}
+
 	stoppedCount := 0
 	for _, proc := range targets {
 		pid := proc.PID
-		if IsProcessRunning(pid) {
-			proc, err := os.FindProcess(pid)
-			if err != nil {
-				output.Error("  ✗ 无法停止进程 " + fmt.Sprintf("%d", pid) + ": " + err.Error())
-				continue
-			}
-
-			if err := proc.Kill(); err != nil {
-				output.Error("  ✗ 无法停止进程 " + fmt.Sprintf("%d", pid) + ": " + err.Error())
-				continue
-			}
-
-			output.Success("  ✓ 已停止进程 " + fmt.Sprintf("%d", pid))
-			stoppedCount++
+		if !IsProcessRunning(pid) {
+			continue
 		}
+
+		// 尝试 API 优雅关闭（需要端口和密钥）
+		if proc.APIPort != "" && secret != "" {
+			apiAddr := "127.0.0.1:" + proc.APIPort
+			if err := StopProcessByPID(pid, apiAddr, secret); err == nil {
+				output.Success("  ✓ 已优雅停止进程 %d", pid)
+				stoppedCount++
+				continue
+			}
+			output.Warning("  API 优雅关闭进程 %d 失败，尝试强制终止...", pid)
+		}
+
+		// 强制终止
+		if err := ForceKill(pid); err != nil {
+			output.Error("  ✗ 无法停止进程 %d: %v", pid, err)
+			continue
+		}
+		output.Success("  ✓ 已强制停止进程 %d", pid)
+		stoppedCount++
 	}
 
 	// 清理已退出进程对应的 PID 元数据文件（不误删仍在运行的实例）

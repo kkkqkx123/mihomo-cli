@@ -231,8 +231,14 @@ func (dl *DaemonLauncher) Stop(force bool) error {
 		return pkgerrors.ErrService("mihomo is not running", err)
 	}
 
-	// 获取保存的密钥
+	// 获取保存的密钥（先从内存，再从磁盘加载兜底）
 	state := dl.stateMgr.Get()
+	if state == nil {
+		// 内存状态为空（例如 ProcessHandler.Stop() 创建了新 Launcher），从磁盘加载
+		_ = dl.stateMgr.Load()
+		state = dl.stateMgr.Get()
+	}
+
 	secret := ""
 	apiAddr := dl.GetAPIAddress()
 	if state != nil {

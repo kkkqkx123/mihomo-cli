@@ -23,7 +23,8 @@ type LifecycleHook interface {
 	OnFailure(ctx context.Context, stage LifecycleStage, err error)
 }
 
-// LifecycleManager 生命周期管理器
+// LifecycleManager 生命周期管理器。
+// 负责状态追踪、进程锁和生命周期钩子；实际的守护进程操作委托给 ProcessManager/DaemonLauncher。
 type LifecycleManager struct {
 	pm         *ProcessManager
 	state      *StateManager
@@ -34,8 +35,9 @@ type LifecycleManager struct {
 	configFile string
 }
 
-// NewLifecycleManager 创建生命周期管理器
-func NewLifecycleManager(cfg *config.TomlConfig) (*LifecycleManager, error) {
+// NewLifecycleManager 创建生命周期管理器。
+// pm 为外部注入的 ProcessManager（与 ProcessHandler 共享同一实例，确保 Launcher 缓存一致）。
+func NewLifecycleManager(cfg *config.TomlConfig, pm *ProcessManager) (*LifecycleManager, error) {
 	configFile := cfg.Mihomo.ConfigFile
 
 	// 创建状态管理器
@@ -49,9 +51,6 @@ func NewLifecycleManager(cfg *config.TomlConfig) (*LifecycleManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create process lock: %w", err)
 	}
-
-	// 创建进程管理器
-	pm := NewProcessManager(cfg)
 
 	return &LifecycleManager{
 		pm:         pm,
@@ -68,7 +67,9 @@ func (lm *LifecycleManager) RegisterHook(hook LifecycleHook) {
 	lm.hooks = append(lm.hooks, hook)
 }
 
-// Start 启动进程（包含所有生命周期阶段）
+// Start 启动进程（包含所有生命周期阶段）。
+// 职责：锁管理、状态追踪、监控启动和生命周期钩子。
+// 实际的守护进程启动由 ProcessHandler 通过 DaemonLauncher 直接操作。
 func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) error {
 	// 阶段 1: PreStart
 	if err := lm.executeStage(ctx, StagePreStart, func() error {
@@ -89,27 +90,18 @@ func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) e
 		}
 	}()
 
-	// 阶段 2: Starting
+	// 阶段 2: Starting — 仅设置状态，实际启动由调用方完成
 	if err := lm.executeStage(ctx, StageStarting, func() error {
-		// 设置状态
-		if err := lm.state.SetStage(StageStarting); err != nil {
-			return err
-		}
-
-		// 启动进程
-		return lm.pm.Start()
+		return lm.state.SetStage(StageStarting)
 	}); err != nil {
 		return err
 	}
 
-	// 获取进程信息
-	pid, err := lm.pm.GetPIDFromPIDFile()
-	if err != nil {
-		return pkgerrors.ErrService("failed to get PID", err)
-	}
-	apiAddress := lm.pm.GetAPIAddress()
-	secret := lm.pm.GetSecret()
+	return nil
+}
 
+// OnStarted 进程启动成功后由 ProcessHandler 调用，更新状态并启动监控。
+func (lm *LifecycleManager) OnStarted(pid int, apiAddress, secret string) error {
 	// 更新状态
 	if err := lm.state.Update(func(state *ProcessState) {
 		state.PID = pid
@@ -123,7 +115,7 @@ func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) e
 	}
 
 	// 阶段 3: Running
-	if err := lm.executeStage(ctx, StageRunning, func() error {
+	if err := lm.executeStage(context.Background(), StageRunning, func() error {
 		// 启动监控
 		lm.monitor = NewProcessMonitor(pid, 5*time.Second)
 		if err := lm.monitor.Start(); err != nil {
@@ -131,8 +123,8 @@ func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) e
 		}
 
 		// 执行 PostStart 钩子
-		return lm.executeHooks(ctx, func(hook LifecycleHook) error {
-			return hook.OnPostStart(ctx, pid)
+		return lm.executeHooks(context.Background(), func(hook LifecycleHook) error {
+			return hook.OnPostStart(context.Background(), pid)
 		})
 	}); err != nil {
 		return err

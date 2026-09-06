@@ -4,6 +4,7 @@ package mihomo
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,13 +51,23 @@ func (ldm *LinuxDaemonManager) StartAsDaemon(ctx context.Context, cfg interface{
 	if ldm.Base().GetConfig() != nil {
 		logFile = ldm.Base().GetConfig().LogFile
 	}
-	if err := ldm.RedirectIO(cmd, logFile); err != nil {
+	closers, err := ldm.RedirectIO(cmd, logFile)
+	if err != nil {
 		return err
 	}
 
 	// 启动进程
 	if err := cmd.Start(); err != nil {
+		// 关闭父进程端文件句柄（子进程已继承副本）
+		for _, c := range closers {
+			c.Close()
+		}
 		return pkgerrors.ErrService("failed to start mihomo daemon", err)
+	}
+
+	// 子进程已继承文件句柄，关闭父进程端副本以避免泄漏
+	for _, c := range closers {
+		c.Close()
 	}
 
 	// 保存 PID
@@ -160,47 +171,47 @@ func (ldm *LinuxDaemonManager) GracefulKillDaemon(pid int) error {
 	return nil
 }
 
-// RedirectIO 重定向标准输入输出
-func (ldm *LinuxDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error {
+// RedirectIO 重定向标准输入输出。
+// 返回需要在 cmd.Start() 之后由调用方关闭的父进程端文件句柄。
+func (ldm *LinuxDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) ([]io.Closer, error) {
+	var closers []io.Closer
+
 	if logFile != "" {
 		// 确保日志目录存在
 		logDir := filepath.Dir(logFile)
 		if err := os.MkdirAll(logDir, 0755); err != nil {
-			return pkgerrors.ErrConfig("failed to create log directory", err)
+			return nil, pkgerrors.ErrConfig("failed to create log directory", err)
 		}
 
 		// 重定向到日志文件
 		logFH, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			return pkgerrors.ErrConfig("failed to open log file", err)
+			return nil, pkgerrors.ErrConfig("failed to open log file", err)
 		}
 
 		cmd.Stdout = logFH
 		cmd.Stderr = logFH
-		// 注意: 不关闭文件句柄，因为子进程需要继承这个句柄
-		// 当子进程启动后，这个句柄会自动被子进程继承
-		// 父进程退出时，子进程仍然持有这个句柄的引用
+		closers = append(closers, logFH)
 	} else {
 		// 重定向到 /dev/null
 		devNull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
 		if err != nil {
-			return pkgerrors.ErrConfig("failed to open /dev/null", err)
+			return nil, pkgerrors.ErrConfig("failed to open /dev/null", err)
 		}
-		defer devNull.Close()
-
 		cmd.Stdout = devNull
 		cmd.Stderr = devNull
+		closers = append(closers, devNull)
 	}
 
 	// 重定向 stdin 到 /dev/null
 	devNull, err := os.OpenFile("/dev/null", os.O_RDONLY, 0)
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to open /dev/null for stdin", err)
+		return nil, pkgerrors.ErrConfig("failed to open /dev/null for stdin", err)
 	}
-	defer devNull.Close()
 	cmd.Stdin = devNull
+	closers = append(closers, devNull)
 
-	return nil
+	return closers, nil
 }
 
 // GetDaemonManager 获取守护进程管理器（工厂函数）

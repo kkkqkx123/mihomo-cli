@@ -35,7 +35,10 @@ type StartResult struct {
 	PID        int
 }
 
-// Start 启动 Mihomo 内核（守护进程模式）
+// Start 启动 Mihomo 内核（守护进程模式）。
+// 职责分工：ProcessHandler 管理业务逻辑（清理/备份/健康检查），
+// LifecycleManager 管理生命周期（锁/状态/监控/钩子），
+// DaemonLauncher 管理实际的进程操作。
 func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	// 检查是否启用自动启动
 	if !cfg.Mihomo.Enabled {
@@ -52,6 +55,18 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	if pid, err := launcher.GetRunningPID(); err == nil && pid > 0 {
 		return nil, pkgerrors.ErrService(fmt.Sprintf("mihomo is already running (PID: %d), use 'mihomo-cli stop' to stop it first", pid), nil)
 	}
+
+	// 创建共享的 ProcessManager 和 LifecycleManager
+	pm := NewProcessManager(cfg, ph.configPath)
+	pm.SetLauncher(launcher)
+
+	lm, err := NewLifecycleManager(cfg, pm)
+	if err != nil {
+		return nil, pkgerrors.ErrService("failed to create lifecycle manager", err)
+	}
+	lm.RegisterHook(&DefaultLifecycleHooks{})
+
+	// === 业务逻辑：前置检查 ===
 
 	// 启动前配置检查 - 检查是否启用了高风险配置（TUN/TProxy）
 	hasTUN := false
@@ -102,15 +117,28 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		}
 	}
 
-	// 启动内核（守护进程模式）
+	// === 生命周期：锁 + 状态 ===
+	ctx := context.Background()
+	if err := lm.Start(ctx, cfg); err != nil {
+		return nil, err
+	}
+
+	// === 实际启动守护进程 ===
 	if err := launcher.Start(); err != nil {
+		_ = lm.state.SetStage(StageFailed)
 		return nil, pkgerrors.ErrService("failed to start mihomo daemon", err)
 	}
 
 	// 获取状态
 	isRunning, pid, apiAddr, secret := launcher.GetStatus()
 	if !isRunning {
+		_ = lm.state.SetStage(StageFailed)
 		return nil, pkgerrors.ErrService("daemon started but status check failed", nil)
+	}
+
+	// 通知 LifecycleManager 启动成功（更新状态 + 启动监控 + 执行钩子）
+	if err := lm.OnStarted(pid, apiAddr, secret); err != nil {
+		output.Warning("lifecycle post-start notification failed: " + err.Error())
 	}
 
 	result := &StartResult{
@@ -119,7 +147,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 		PID:        pid,
 	}
 
-	// 获取健康检查超时时间
+	// === 业务逻辑：健康检查 ===
 	healthCheckTimeout := cfg.Mihomo.HealthCheckTimeout
 	if healthCheckTimeout <= 0 {
 		healthCheckTimeout = 5 // 默认 5 秒
@@ -202,7 +230,10 @@ type StopResult struct {
 	PID int
 }
 
-// Stop 停止 Mihomo 内核
+// Stop 停止 Mihomo 内核。
+// 职责分工：ProcessHandler 管理业务逻辑（系统配置清理），
+// LifecycleManager 管理状态追踪和钩子，
+// DaemonLauncher 管理实际的进程停止。
 func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig string, force bool, includeUnmanaged bool, args []string) (*StopResult, error) {
 	// 如果指定了 --all，停止所有进程
 	if stopAll {
@@ -237,9 +268,25 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig 
 		}
 	}
 
-	// 停止进程
-	if err := launcher.Stop(force); err != nil {
-		return nil, err
+	// 创建 LifecycleManager 用于状态追踪和钩子
+	pm := NewProcessManager(cfg, ph.configPath)
+	pm.SetLauncher(launcher)
+
+	lm, err := NewLifecycleManager(cfg, pm)
+	if err != nil {
+		// 降级：不使用 LifecycleManager，直接停止
+		if stopErr := launcher.Stop(force); stopErr != nil {
+			return nil, stopErr
+		}
+	} else {
+		lm.RegisterHook(&DefaultLifecycleHooks{})
+		// 通过 LifecycleManager 停止（状态追踪 + 钩子 + 实际停止）
+		if err := lm.Stop(context.Background(), pid); err != nil {
+			// 降级：直接停止
+			if stopErr := launcher.Stop(force); stopErr != nil {
+				return nil, stopErr
+			}
+		}
 	}
 
 	// 检查系统配置状态并尝试清理

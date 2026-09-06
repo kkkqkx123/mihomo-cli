@@ -1,6 +1,7 @@
 package mihomo
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,9 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
+
+// ErrAlreadyLocked 表示进程锁已被其他进程持有（非陈旧锁）。
+var ErrAlreadyLocked = errors.New("process is already running")
 
 // ProcessLock 进程锁（使用系统级文件锁）
 type ProcessLock struct {
@@ -93,7 +97,7 @@ func (pl *ProcessLock) handleLockError(err error) error {
 			// 重试获取锁
 			return pl.Acquire()
 		}
-		return pkgerrors.ErrService(fmt.Sprintf("process is already running (PID: %d)", pid), nil)
+		return fmt.Errorf("%w (PID: %d)", ErrAlreadyLocked, pid)
 	}
 	return pkgerrors.ErrService("failed to acquire lock", err)
 }
@@ -161,8 +165,8 @@ func (pl *ProcessLock) TryAcquire(timeout time.Duration) error {
 			return nil
 		}
 
-		// 检查是否是"已锁定"错误
-		if !isAlreadyLockedError(err) {
+		// 检查是否是"已锁定"错误（通过自定义哨兵错误判断，避免脆弱的字符串匹配）
+		if !errors.Is(err, ErrAlreadyLocked) {
 			return err
 		}
 
@@ -174,15 +178,6 @@ func (pl *ProcessLock) TryAcquire(timeout time.Duration) error {
 		// 等待一段时间后重试
 		time.Sleep(100 * time.Millisecond)
 	}
-}
-
-// isAlreadyLockedError 检查是否是"已锁定"错误
-func isAlreadyLockedError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	return len(errStr) > 20 && errStr[:20] == "process is already"
 }
 
 // WithLock 使用锁执行函数

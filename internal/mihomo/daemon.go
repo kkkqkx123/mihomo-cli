@@ -2,6 +2,7 @@ package mihomo
 
 import (
 	"context"
+	"io"
 	"os/exec"
 )
 
@@ -19,8 +20,9 @@ type DaemonManager interface {
 	// GetDaemonPID 获取守护进程 PID
 	GetDaemonPID() (int, error)
 
-	// RedirectIO 重定向标准输入输出
-	RedirectIO(cmd *exec.Cmd, logFile string) error
+	// RedirectIO 重定向标准输入输出。
+	// 返回需要在 cmd.Start() 之后由调用方关闭的父进程端文件句柄。
+	RedirectIO(cmd *exec.Cmd, logFile string) ([]io.Closer, error)
 
 	// CreateProcessGroup 创建进程组
 	CreateProcessGroup(cmd *exec.Cmd) error

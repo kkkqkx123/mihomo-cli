@@ -4,6 +4,7 @@ package mihomo
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,13 +51,23 @@ func (ddm *DarwinDaemonManager) StartAsDaemon(ctx context.Context, cfg interface
 	if ddm.Base().GetConfig() != nil {
 		logFile = ddm.Base().GetConfig().LogFile
 	}
-	if err := ddm.RedirectIO(cmd, logFile); err != nil {
+	closers, err := ddm.RedirectIO(cmd, logFile)
+	if err != nil {
 		return err
 	}
 
 	// 启动进程
 	if err := cmd.Start(); err != nil {
+		// 关闭父进程端文件句柄（子进程已继承副本）
+		for _, c := range closers {
+			c.Close()
+		}
 		return pkgerrors.ErrService("failed to start mihomo daemon", err)
+	}
+
+	// 子进程已继承文件句柄，关闭父进程端副本以避免泄漏
+	for _, c := range closers {
+		c.Close()
 	}
 
 	// 保存 PID

@@ -7,19 +7,22 @@ import (
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
-// ProcessManager Mihomo 进程管理器（DaemonLauncher 的薄包装，供 LifecycleManager 使用）
+// ProcessManager Mihomo 进程管理器（DaemonLauncher 的薄包装，供 LifecycleManager 使用）。
+// configPath 为 config.toml 路径，用于解析内核相对路径的基准目录。
 type ProcessManager struct {
-	config   *config.TomlConfig
-	pidFile  string          // PID 文件路径
-	launcher *DaemonLauncher // 启动/停止的唯一实现
+	config     *config.TomlConfig
+	configPath string          // config.toml 路径
+	pidFile    string          // PID 文件路径
+	launcher   *DaemonLauncher // 缓存的启动器实例（Start 后赋值，Stop 复用）
 }
 
 // NewProcessManager 创建进程管理器
-func NewProcessManager(cfg *config.TomlConfig) *ProcessManager {
+func NewProcessManager(cfg *config.TomlConfig, configPath string) *ProcessManager {
 	pidFile, _ := getPIDFilePath(cfg.Mihomo.ConfigFile)
 	return &ProcessManager{
-		config:  cfg,
-		pidFile: pidFile,
+		config:     cfg,
+		configPath: configPath,
+		pidFile:    pidFile,
 	}
 }
 
@@ -39,6 +42,16 @@ func (pm *ProcessManager) Start() error {
 	}
 	pm.launcher = launcher
 	return nil
+}
+
+// SetLauncher 设置缓存的启动器实例（由外部注入，Start/Stop 共享同一实例）
+func (pm *ProcessManager) SetLauncher(launcher *DaemonLauncher) {
+	pm.launcher = launcher
+}
+
+// GetLauncher 获取缓存的启动器实例
+func (pm *ProcessManager) GetLauncher() *DaemonLauncher {
+	return pm.launcher
 }
 
 // StopDaemon 停止守护进程（转发给 DaemonLauncher）
