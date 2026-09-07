@@ -33,7 +33,6 @@ func NewLinuxDaemonManager(
 
 // StartAsDaemon 以守护进程方式启动
 func (ldm *LinuxDaemonManager) StartAsDaemon(ctx context.Context, cfg interface{}) error {
-	// 构建命令
 	cmd := exec.Command(ldm.Base().GetExecutablePath(), "-f", ldm.Base().GetConfigFile())
 
 	// 设置工作目录
@@ -195,14 +194,23 @@ func (ldm *LinuxDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) ([]io.C
 		cmd.Stderr = logFH
 		closers = append(closers, logFH)
 	} else {
-		// 重定向到 /dev/null
-		devNull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
+		// 重定向到临时日志文件（便于诊断启动失败）
+		tempLog := filepath.Join(os.TempDir(), "mihomo-cli-daemon.log")
+		logFH, err := os.OpenFile(tempLog, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			return nil, pkgerrors.ErrConfig("failed to open /dev/null", err)
+			// 降级到 /dev/null
+			devNull, nullErr := os.OpenFile("/dev/null", os.O_RDWR, 0)
+			if nullErr != nil {
+				return nil, pkgerrors.ErrConfig("failed to open /dev/null", nullErr)
+			}
+			cmd.Stdout = devNull
+			cmd.Stderr = devNull
+			closers = append(closers, devNull)
+		} else {
+			cmd.Stdout = logFH
+			cmd.Stderr = logFH
+			closers = append(closers, logFH)
 		}
-		cmd.Stdout = devNull
-		cmd.Stderr = devNull
-		closers = append(closers, devNull)
 	}
 
 	// 重定向 stdin 到 /dev/null

@@ -19,7 +19,7 @@ func newProcessChecker() ProcessChecker {
 	return &linuxProcessChecker{}
 }
 
-// IsProcessRunning 检查进程是否正在运行
+// IsProcessRunning 检查进程是否正在运行（区分僵尸进程）
 func (l *linuxProcessChecker) IsProcessRunning(pid int) bool {
 	// 在 Linux 系统上，通过 /proc/<pid>/stat 文件检查进程是否存在
 	procPath := filepath.Join("/proc", strconv.Itoa(pid))
@@ -33,8 +33,27 @@ func (l *linuxProcessChecker) IsProcessRunning(pid int) bool {
 		return false
 	}
 
-	// 如果文件存在且不为空，进程正在运行
-	return len(data) > 0
+	if len(data) == 0 {
+		return false
+	}
+
+	// 解析 /proc/<pid>/stat 判断是否为僵尸进程
+	// 格式: pid (comm) state ppid ...
+	// comm 可能包含空格和括号，需定位最后一个 ')' 后的字符
+	content := string(data)
+	lastParen := strings.LastIndex(content, ")")
+	if lastParen == -1 || lastParen+2 >= len(content) {
+		// 无法解析，保守认为存活
+		return true
+	}
+	state := content[lastParen+2]
+
+	// 'Z' = Zombie（僵尸进程），进程已退出但未被父进程回收
+	if state == 'Z' {
+		return false
+	}
+
+	return true
 }
 
 // GetProcessExecutable 获取进程的可执行文件路径

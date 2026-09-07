@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -306,17 +305,21 @@ func (d *DefaultLifecycleHooks) OnPreStart(ctx context.Context, cfg *config.Toml
 	// 检查 API 端口是否被占用
 	apiAddress := cfg.Mihomo.API.ExternalController
 	if apiAddress != "" {
-		// 尝试解析地址
-		parts := strings.Split(apiAddress, ":")
-		if len(parts) == 2 {
-			port := parts[1]
-			// 尝试绑定端口检查是否被占用
-			ln, err := net.Listen("tcp", ":"+port)
-			if err != nil {
-				return pkgerrors.ErrConfig("API port "+port+" is already in use", nil)
-			}
-			ln.Close()
+		host, port, err := net.SplitHostPort(apiAddress)
+		if err != nil {
+			host = apiAddress
+			port = "9090"
 		}
+		// 尝试绑定端口检查是否被占用
+		ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
+		if err != nil {
+			msg := fmt.Sprintf("API port %s is already in use", net.JoinHostPort(host, port))
+			if occupyingPID := FindProcessByPort(host, port); occupyingPID > 0 {
+				msg = fmt.Sprintf("API port %s is already in use by process %d", net.JoinHostPort(host, port), occupyingPID)
+			}
+			return pkgerrors.ErrConfig(msg+", stop the conflicting process or change [mihomo.api] external_controller in config.toml", nil)
+		}
+		ln.Close()
 	}
 
 	// 执行启动前检查

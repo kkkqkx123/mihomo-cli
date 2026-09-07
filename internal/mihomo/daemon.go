@@ -58,11 +58,11 @@ type HealthCheckConfig struct {
 
 // DaemonManagerBase 守护进程管理器基类
 type DaemonManagerBase struct {
-	config    *DaemonConfig
-	pidFile   string
-	secret    string
-	apiAddr   string
-	execPath  string
+	config     *DaemonConfig
+	pidFile    string
+	secret     string
+	apiAddr    string
+	execPath   string
 	configFile string
 }
 

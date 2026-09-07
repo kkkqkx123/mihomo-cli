@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,6 +90,46 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 			if strings.Contains(lowerContent, "tproxy-port:") {
 				hasTProxy = true
 			}
+
+		// 检测配置是否使用了需要地理数据库的规则（GEOIP/GEOSITE）
+		needsGeoDB := strings.Contains(lowerContent, "geosite:") ||
+			strings.Contains(lowerContent, "geoip,") ||
+			strings.Contains(lowerContent, "geoip:")
+		if needsGeoDB {
+			// 检查地理数据库文件是否存在
+			homeDir, _ := os.UserHomeDir()
+			mihomoDir := filepath.Join(homeDir, ".config", "mihomo")
+			hasMMDB := fileExists(filepath.Join(mihomoDir, "geoip.metadb")) ||
+				fileExists(filepath.Join(mihomoDir, "Country.mmdb")) ||
+				fileExists(filepath.Join(mihomoDir, "geoip.db"))
+			hasGeoSite := fileExists(filepath.Join(mihomoDir, "GeoSite.dat"))
+
+			if !hasMMDB || !hasGeoSite {
+				output.PrintEmptyLine()
+				output.Warning("Config uses GEOIP/GEOSITE rules but geo database files are missing")
+				if !hasMMDB {
+					output.Printf("  Missing: %s/geoip.metadb\n", mihomoDir)
+				}
+				if !hasGeoSite {
+					output.Printf("  Missing: %s/GeoSite.dat\n", mihomoDir)
+				}
+				output.Println("")
+				output.Println("Stripping GEOIP/GEOSITE rules from config to allow basic startup")
+				output.Println("Download geo databases later to enable GEOIP/GEOSITE rules:")
+				output.Printf("  curl -L -o %s/geoip.metadb https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb\n", mihomoDir)
+				output.Printf("  curl -L -o %s/GeoSite.dat https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat\n", mihomoDir)
+				output.PrintEmptyLine()
+
+				// 生成去除 GEOIP/GEOSITE 规则的临时配置文件
+				strippedConfig, stripErr := stripGeoRules(cfg.Mihomo.ConfigFile)
+				if stripErr != nil {
+					output.Warning("failed to strip geo rules: " + stripErr.Error())
+				} else {
+					cfg.Mihomo.ConfigFile = strippedConfig
+					output.Info("Using stripped config: %s", strippedConfig)
+				}
+			}
+		}
 		}
 	}
 
@@ -172,7 +214,52 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	for {
 		select {
 		case <-checkCtx.Done():
-			// 健康检查超时，尝试停止守护进程
+			// 健康检查超时，执行诊断并尝试停止守护进程
+			output.PrintEmptyLine()
+			output.Warning("Health check timeout, performing diagnostics...")
+
+			// 诊断 1: 检查进程状态
+			if pid > 0 {
+				if !IsProcessRunning(pid) {
+					output.Error("Process %d has exited", pid)
+				} else if isZombieProcess(pid) {
+					output.Error("Process %d is a zombie (crashed but not reaped)", pid)
+					output.Info("Hint: the mihomo process likely crashed during startup, check mihomo logs for errors")
+				} else {
+					output.Info("Process %d is still running but API is not responding", pid)
+				}
+			}
+
+			// 诊断 2: 检查端口占用
+			if apiAddr != "" {
+				host, port := parseHostPort(apiAddr)
+				if occupyingPID := FindProcessByPort(host, port); occupyingPID > 0 {
+					output.Error("Port %s is occupied by process %d", apiAddr, occupyingPID)
+				}
+			}
+
+			// 诊断 3: 读取 mihomo 日志
+			logRead := false
+			// 优先读取配置的日志文件
+			if cfg.Mihomo.Log.File != "" {
+				if logContent, err := readLastLines(cfg.Mihomo.Log.File, 20); err == nil && logContent != "" {
+					output.PrintEmptyLine()
+					output.PrintSection("Mihomo Log (last 20 lines)")
+					output.Printf("%s\n", logContent)
+					logRead = true
+				}
+			}
+			// 降级读取临时日志文件
+			if !logRead {
+				tempLog := filepath.Join(os.TempDir(), "mihomo-cli-daemon.log")
+				if logContent, err := readLastLines(tempLog, 20); err == nil && logContent != "" {
+					output.PrintEmptyLine()
+					output.PrintSection("Mihomo Log (last 20 lines)")
+					output.Printf("%s\n", logContent)
+				}
+			}
+
+			// 尝试停止守护进程
 			if pid > 0 {
 				_ = launcher.Stop(true)
 			}
@@ -465,4 +552,184 @@ func (ph *ProcessHandler) checkAndCleanupAfterStop(_ *config.TomlConfig) error {
 	}
 
 	return nil
+}
+
+// isZombieProcess 检查进程是否为僵尸进程
+func isZombieProcess(pid int) bool {
+	statPath := filepath.Join("/proc", strconv.Itoa(pid), "stat")
+	data, err := os.ReadFile(statPath)
+	if err != nil {
+		return false
+	}
+	content := string(data)
+	lastParen := strings.LastIndex(content, ")")
+	if lastParen == -1 || lastParen+2 >= len(content) {
+		return false
+	}
+	return content[lastParen+2] == 'Z'
+}
+
+// parseHostPort 从 host:port 字符串中解析出 host 和 port
+func parseHostPort(addr string) (string, string) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr, "9090"
+	}
+	return host, port
+}
+
+// fileExists 检查文件是否存在
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// stripGeoRules 生成去除 GEOIP/GEOSITE 规则的临时配置文件
+func stripGeoRules(configPath string) (string, error) {
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var stripped []string
+	inRules := false
+	inNameServerPolicy := false
+	inFallbackFilter := false
+	skipNameServerPolicyValue := false
+	geoipInjected := false
+	blockBaseIndent := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		currentIndent := len(line) - len(strings.TrimLeft(line, " \t"))
+
+		// 跟踪 rules: 块
+		if trimmed == "rules:" {
+			inRules = true
+			inNameServerPolicy = false
+			inFallbackFilter = false
+			stripped = append(stripped, line)
+			continue
+		}
+
+		// 跟踪 fallback-filter: 块
+		if strings.HasPrefix(trimmed, "fallback-filter:") {
+			inFallbackFilter = true
+			inRules = false
+			inNameServerPolicy = false
+			blockBaseIndent = currentIndent
+			stripped = append(stripped, line)
+			continue
+		}
+
+		// 在 fallback-filter 块中，替换 geoip 配置为 geoip: false
+		if inFallbackFilter {
+			if trimmed != "" && currentIndent <= blockBaseIndent && !strings.HasPrefix(trimmed, "#") {
+				inFallbackFilter = false
+				geoipInjected = false
+			} else if trimmed == "geoip: true" || strings.HasPrefix(trimmed, "geoip-code:") {
+				if !geoipInjected {
+					// 替换为 geoip: false 禁用 GEOIP
+					indent := strings.Repeat(" ", currentIndent)
+					stripped = append(stripped, indent+"geoip: false")
+					geoipInjected = true
+				}
+				continue
+			}
+		}
+
+		// 跟踪 nameserver-policy: 块
+		if strings.HasPrefix(trimmed, "nameserver-policy:") {
+			inNameServerPolicy = true
+			inRules = false
+			inFallbackFilter = false
+			blockBaseIndent = currentIndent
+			stripped = append(stripped, line)
+			continue
+		}
+
+		// 在 nameserver-policy 块中，跳过 geosite: 相关的条目
+		if inNameServerPolicy {
+			if trimmed != "" && currentIndent <= blockBaseIndent && !strings.HasPrefix(trimmed, "#") {
+				inNameServerPolicy = false
+				skipNameServerPolicyValue = false
+			} else if strings.Contains(trimmed, "geosite:") {
+				skipNameServerPolicyValue = true
+				continue
+			} else if skipNameServerPolicyValue {
+				if strings.HasPrefix(trimmed, "-") {
+					continue
+				}
+				skipNameServerPolicyValue = false
+			}
+		}
+
+		// 在 rules 块中，跳过 GEOIP/GEOSITE 行
+		if inRules {
+			upper := strings.ToUpper(trimmed)
+			if strings.HasPrefix(upper, "- GEOIP,") || strings.HasPrefix(upper, "- GEOSITE,") {
+				continue
+			}
+			if trimmed != "" && !strings.HasPrefix(trimmed, " ") && !strings.HasPrefix(trimmed, "\t") && !strings.HasPrefix(trimmed, "-") {
+				inRules = false
+			}
+		}
+
+		stripped = append(stripped, line)
+	}
+
+	// 写入临时文件
+	tmpFile, err := os.CreateTemp("", "mihomo-config-*.yaml")
+	if err != nil {
+		return "", err
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.WriteString(strings.Join(stripped, "\n")); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", err
+	}
+
+	return tmpFile.Name(), nil
+}
+
+// readLastLines 读取文件最后 N 行
+func readLastLines(filePath string, n int) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	fileSize := stat.Size()
+	if fileSize == 0 {
+		return "", nil
+	}
+
+	// 读取文件末尾（最多 8KB）
+	readSize := int64(8192)
+	if readSize > fileSize {
+		readSize = fileSize
+	}
+
+	buf := make([]byte, readSize)
+	_, err = file.ReadAt(buf, fileSize-readSize)
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(string(buf), "\n")
+	if len(lines) <= n {
+		return strings.TrimSpace(string(buf)), nil
+	}
+
+	// 返回最后 n 行（跳过第一个可能不完整的行）
+	result := strings.Join(lines[len(lines)-n:], "\n")
+	return strings.TrimSpace(result), nil
 }
