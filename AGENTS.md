@@ -78,7 +78,7 @@ mihomo-go/
 │   ├── monitor/           # Monitoring functionality (Planned)
 │   └── sysproxy/          # System proxy management
 ├── pkg/types/             # Common type definitions(include error type)
-├── mihomo-core/           # Mihomo core submodule (tracks feat/add-shutdown-api)
+├── mihomo/                # Mihomo core submodule (tracks feat/add-shutdown-api)
 ├── main.go                # Program entry point
 ├── go.mod                 # Go module definition
 └── README.md              # Project description
@@ -175,5 +175,5 @@ mihomo-go/
 
 ### Mihomo References
 
-* `mihomo-core/`: Mihomo core as a git submodule tracking `kkkqkx123/mihomo` on the `feat/add-shutdown-api` branch (adds the `/shutdown` API), actively synced with upstream `MetaCubeX/mihomo`.
+* `mihomo/`: Mihomo core as a git submodule tracking `kkkqkx123/mihomo` on the `feat/add-shutdown-api` branch (adds the `/shutdown` API), actively synced with upstream `MetaCubeX/mihomo`.
 
