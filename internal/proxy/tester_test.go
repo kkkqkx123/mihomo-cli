@@ -13,8 +13,11 @@ import (
 
 // MockAPIClient is a mock implementation of the API client for testing
 type MockAPIClient struct {
-	TestDelayFunc func(ctx context.Context, name string, testURL string, timeout int) (uint16, error)
-	GetProxyFunc  func(ctx context.Context, name string) (*types.ProxyInfo, error)
+	TestDelayFunc        func(ctx context.Context, name string, testURL string, timeout int) (uint16, error)
+	GetProxyFunc         func(ctx context.Context, name string) (*types.ProxyInfo, error)
+	GroupDelayFunc       func(ctx context.Context, groupName string, testURL string, timeout int) (map[string]uint16, error)
+	ListProvidersFunc    func(ctx context.Context) (map[string]*types.ProviderInfo, error)
+	TestProviderProxyFunc func(ctx context.Context, providerName, proxyName string, testURL string, timeout int) (uint16, error)
 }
 
 func (m *MockAPIClient) TestDelay(ctx context.Context, name string, testURL string, timeout int) (uint16, error) {
@@ -29,6 +32,27 @@ func (m *MockAPIClient) GetProxy(ctx context.Context, name string) (*types.Proxy
 		return m.GetProxyFunc(ctx, name)
 	}
 	return nil, nil
+}
+
+func (m *MockAPIClient) GroupDelay(ctx context.Context, groupName string, testURL string, timeout int) (map[string]uint16, error) {
+	if m.GroupDelayFunc != nil {
+		return m.GroupDelayFunc(ctx, groupName, testURL, timeout)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockAPIClient) ListProviders(ctx context.Context) (map[string]*types.ProviderInfo, error) {
+	if m.ListProvidersFunc != nil {
+		return m.ListProvidersFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockAPIClient) TestProviderProxy(ctx context.Context, providerName, proxyName string, testURL string, timeout int) (uint16, error) {
+	if m.TestProviderProxyFunc != nil {
+		return m.TestProviderProxyFunc(ctx, providerName, proxyName, testURL, timeout)
+	}
+	return 0, nil
 }
 
 // TestNewDelayTester tests the creation of a new DelayTester

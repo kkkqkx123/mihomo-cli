@@ -8,6 +8,9 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/pkg/types"
 )
 
+// GroupDelayResponse 组延迟测试响应
+type GroupDelayResponse map[string]uint16
+
 // ListProxies 获取所有代理信息
 func (c *Client) ListProxies(ctx context.Context) (map[string]*types.ProxyInfo, error) {
 	var result types.ProxiesResponse
@@ -108,4 +111,64 @@ func (c *Client) UnfixProxy(ctx context.Context, group string) error {
 	}
 
 	return nil
+}
+
+// GroupDelay 测试代理组内所有节点的延迟（内核原生批量测速）
+// 返回 map[节点名]延迟值
+func (c *Client) GroupDelay(ctx context.Context, groupName string, testURL string, timeout int) (map[string]uint16, error) {
+	encodedName := url.PathEscape(groupName)
+
+	queryParams := make(map[string]string)
+	if testURL != "" {
+		queryParams["url"] = testURL
+	}
+	if timeout <= 0 {
+		timeout = 5000
+	}
+	queryParams["timeout"] = strconv.Itoa(timeout)
+
+	var result GroupDelayResponse
+	err := c.Get(ctx, "/group/"+encodedName+"/delay", queryParams, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// GetProviderProxy 获取指定 provider 中的单个代理节点
+func (c *Client) GetProviderProxy(ctx context.Context, providerName, proxyName string) (*types.ProxyInfo, error) {
+	encodedProvider := url.PathEscape(providerName)
+	encodedProxy := url.PathEscape(proxyName)
+
+	var result types.ProxyInfo
+	err := c.Get(ctx, "/providers/proxies/"+encodedProvider+"/"+encodedProxy, nil, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// TestProviderProxy 测试指定 provider 中的单个代理节点延迟
+func (c *Client) TestProviderProxy(ctx context.Context, providerName, proxyName string, testURL string, timeout int) (uint16, error) {
+	encodedProvider := url.PathEscape(providerName)
+	encodedProxy := url.PathEscape(proxyName)
+
+	queryParams := make(map[string]string)
+	if testURL != "" {
+		queryParams["url"] = testURL
+	}
+	if timeout <= 0 {
+		timeout = 5000
+	}
+	queryParams["timeout"] = strconv.Itoa(timeout)
+
+	var result types.DelayResponse
+	err := c.Get(ctx, "/providers/proxies/"+encodedProvider+"/"+encodedProxy+"/healthcheck", queryParams, &result)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.Delay, nil
 }

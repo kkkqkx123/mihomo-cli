@@ -152,14 +152,25 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 			tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 		}
 
+		// 构建 provider 节点映射，用于识别 provider 节点
+		if err := tester.BuildProviderMapping(cmd.Context()); err != nil {
+			output.Warning("获取 provider 信息失败，provider 节点将无法测速: %v", err)
+		}
+
 		// 收集需要测试的节点
 		var nodeNames []string
-		for name, proxyInfo := range proxies {
-			// 只测试单独的代理节点，不测试代理组
-			if len(proxyInfo.All) == 0 {
-				// 排除逻辑节点
-				if shouldIncludeProxyForTest(name, proxyInfo) {
-					nodeNames = append(nodeNames, name)
+		if groupFilter != "" {
+			// 指定了代理组：测试该组内的所有节点（包括 provider 节点）
+			if group, exists := proxies[groupFilter]; exists {
+				nodeNames = group.All
+			}
+		} else {
+			// 未指定代理组：测试所有叶子节点
+			for name, proxyInfo := range proxies {
+				if len(proxyInfo.All) == 0 {
+					if shouldIncludeProxyForTest(name, proxyInfo) {
+						nodeNames = append(nodeNames, name)
+					}
 				}
 			}
 		}
@@ -208,10 +219,25 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 				if proxyInfo, exists := proxies[result.Name]; exists {
 					proxyInfo.Delay = result.Delay
 					proxyInfo.Alive = true
+				} else {
+					// provider 节点不在 proxies map 中，创建条目
+					proxies[result.Name] = &types.ProxyInfo{
+						Name:  result.Name,
+						Type:  "Provider",
+						Alive: true,
+						Delay: result.Delay,
+					}
 				}
 			} else {
 				if proxyInfo, exists := proxies[result.Name]; exists {
 					proxyInfo.Alive = false
+				} else {
+					// provider 节点测试失败，也创建条目
+					proxies[result.Name] = &types.ProxyInfo{
+						Name:  result.Name,
+						Type:  "Provider",
+						Alive: false,
+					}
 				}
 			}
 		}
@@ -396,6 +422,11 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 		tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
 	}
 
+	// 构建 provider 节点映射
+	if err := tester.BuildProviderMapping(cmd.Context()); err != nil {
+		output.Warning("获取 provider 信息失败，provider 节点将无法测速: %v", err)
+	}
+
 	var results []types.DelayResult
 
 	// 如果指定了节点名称，测试单个节点
@@ -414,14 +445,20 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if !found {
-			// 节点不在组内：将可用节点列表并入错误信息，避免先打印再返回错误造成重复输出
 			hint := ""
 			if len(proxyGroup.All) > 0 {
 				hint = fmt.Sprintf("，可用节点: %s", strings.Join(proxyGroup.All, ", "))
 			}
 			return errors.NewValidationError("节点 '%s' 不在代理组 '%s' 中%s", nodeName, groupName, hint)
 		}
-		result := tester.TestSingle(cmd.Context(), nodeName)
+
+		// 根据节点类型选择测试方式
+		var result types.DelayResult
+		if providerName := tester.GetProviderName(nodeName); providerName != "" {
+			result = tester.TestProviderProxy(cmd.Context(), providerName, nodeName)
+		} else {
+			result = tester.TestSingle(cmd.Context(), nodeName)
+		}
 		results = []types.DelayResult{result}
 	} else {
 		// 获取代理组信息以确定节点数量
@@ -448,6 +485,7 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 		}
 
 		// 测试代理组中所有节点
+		// TestGroup 优先使用内核原生批量测速，失败则回退到逐个测试
 		results, err = tester.TestGroup(cmd.Context(), groupName)
 		if err != nil {
 			return errors.WrapAPIError("failed to test delay", err)
@@ -522,6 +560,11 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 		tester.SetConcurrent(concurrent)
 	} else {
 		tester.SetConcurrent(viper.GetInt("proxy.concurrent"))
+	}
+
+	// 构建 provider 节点映射
+	if err := tester.BuildProviderMapping(cmd.Context()); err != nil {
+		output.Warning("获取 provider 信息失败，provider 节点将无法测速: %v", err)
 	}
 
 	// 如果需要显示进度条

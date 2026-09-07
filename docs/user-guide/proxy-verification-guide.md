@@ -154,15 +154,29 @@ API 地址: http://127.0.0.1:9090
 ```
 
 **方式三：测试延迟后手动选择**
+
 ```bash
-# 测试所有节点延迟
+# 测试代理组中所有节点（优先使用内核原生批量测速）
 .\mihomo-cli.exe proxy test PROXY
 
-# 测试单个节点延迟
+# 测试单个节点（支持 Provider 节点）
 .\mihomo-cli.exe proxy test PROXY "香港-优化-Gemini"
 
 # 自定义测试参数
 .\mihomo-cli.exe proxy test PROXY --url https://www.google.com/generate_204 --timeout 10000 --concurrent 20 --progress
+```
+
+**方式四：在列表中测试延迟**
+
+```bash
+# 测试所有节点延迟并显示在列表中
+.\mihomo-cli.exe proxy list --test-delay
+
+# 测试指定代理组的节点延迟
+.\mihomo-cli.exe proxy list PROXY --test-delay
+
+# 带进度条和排序
+.\mihomo-cli.exe proxy list PROXY --test-delay --progress --sort delay
 ```
 
 **输出示例：**
@@ -316,6 +330,12 @@ rules:
 # 列出指定代理组
 .\mihomo-cli.exe proxy list PROXY
 
+# 测试所有节点延迟并显示在列表中
+.\mihomo-cli.exe proxy list --test-delay
+
+# 测试指定代理组的节点延迟
+.\mihomo-cli.exe proxy list PROXY --test-delay
+
 # 切换代理
 .\mihomo-cli.exe proxy switch PROXY "节点名称"
 
@@ -445,6 +465,28 @@ Write-Host "代理启动完成！"
 - 延迟超过 500ms 的节点
 - 状态为 ✗（不可用）
 - 流量即将耗尽的节点
+
+## 延迟测试机制
+
+### 测试方式
+
+1. **内核原生批量测速**：`proxy test <group>` 优先使用 Mihomo 内核的 `/group/{name}/delay` 端点，由内核在服务端并发测试所有节点。
+2. **逐个测试**：如果内核原生批量测速失败，回退到通过 `/proxies/{name}/delay` 端点逐个测试。
+3. **Provider 节点测试**：对于订阅 Provider 中的节点，使用 `/providers/proxies/{provider}/{node}/healthcheck` 端点进行测试。
+
+### 节点发现
+
+- `proxy list --test-delay` 会自动发现所有可测试的节点，包括订阅 Provider 中的节点
+- 当指定代理组时（如 `proxy list Proxy --test-delay`），只测试该组内的节点
+- 未指定代理组时，测试所有顶层叶子节点
+
+### 测速结果分类
+
+- **优秀**：延迟 < 100ms（绿色）
+- **良好**：延迟 100-300ms（黄色）
+- **较差**：延迟 >= 300ms（红色）
+- **超时**：测试超时或节点不可用（红色）
+- **未知**：延迟为 0（灰色）
 
 ## 附录
 

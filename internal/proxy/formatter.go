@@ -32,7 +32,7 @@ func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, ou
 			if outputFormat == "json" {
 				return formatProxyJSON(map[string]*types.ProxyInfo{groupFilter: proxy})
 			}
-			return formatProxyTableWithSort(map[string]*types.ProxyInfo{groupFilter: proxy}, true, filterOpts.SortBy)
+			return formatProxyTableWithSort(map[string]*types.ProxyInfo{groupFilter: proxy}, true, filterOpts.SortBy, proxies)
 		}
 		return pkgerrors.ErrInvalidArg("proxy group '"+groupFilter+"' does not exist", nil)
 	}
@@ -44,7 +44,7 @@ func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, ou
 	if outputFormat == "json" {
 		return formatProxyJSON(filteredProxies)
 	}
-	return formatProxyTableWithSort(filteredProxies, false, filterOpts.SortBy)
+	return formatProxyTableWithSort(filteredProxies, false, filterOpts.SortBy, proxies)
 }
 
 // formatProxyJSON 以 JSON 格式输出代理列表
@@ -53,7 +53,8 @@ func formatProxyJSON(proxies map[string]*types.ProxyInfo) error {
 }
 
 // formatProxyTableWithSort 以表格格式输出代理列表（带排序）
-func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGroup bool, sortBy string) error {
+// allProxies 为完整代理映射，用于查找子节点的延迟信息
+func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGroup bool, sortBy string, allProxies map[string]*types.ProxyInfo) error {
 	// 创建表格
 	table := tablewriter.NewTable(output.GetGlobalStdout(),
 		tablewriter.WithHeader([]string{"名称", "类型", "当前", "节点数", "延迟"}),
@@ -106,12 +107,16 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 				// 如果只显示一个代理组，显示所有节点
 				if showOnlyOneGroup {
 					for _, nodeName := range proxy.All {
+						nodeDelay := "-"
+						if nodeInfo, ok := allProxies[nodeName]; ok {
+							nodeDelay = formatDelayWithColor(nodeInfo.Delay, nodeInfo.Alive)
+						}
 						if err := table.Append([]string{
 							"  └ " + nodeName,
 							"-",
 							"",
 							"",
-							"",
+							nodeDelay,
 						}); err != nil {
 							return err
 						}
@@ -155,12 +160,16 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 			// 如果只显示一个代理组，显示所有节点
 			if showOnlyOneGroup {
 				for _, nodeName := range proxy.All {
+					nodeDelay := "-"
+					if nodeInfo, ok := allProxies[nodeName]; ok {
+						nodeDelay = formatDelayWithColor(nodeInfo.Delay, nodeInfo.Alive)
+					}
 					if err := table.Append([]string{
 						"  └ " + nodeName,
 						"-",
 						"",
 						"",
-						"",
+						nodeDelay,
 					}); err != nil {
 						return err
 					}
