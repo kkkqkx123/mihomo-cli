@@ -33,6 +33,7 @@ func NewGeoIPCmd() *cobra.Command {
 
 	cmd.AddCommand(newGeoIPUpdateCmd())
 	cmd.AddCommand(newGeoIPStatusCmd())
+	cmd.AddCommand(newGeoSiteCmd())
 
 	return cmd
 }
@@ -121,6 +122,145 @@ func runGeoIPStatus(cmd *cobra.Command, args []string) error {
 		output.Println("  - GeoIP.dat")
 		output.PrintEmptyLine()
 		output.Println("提示: 使用 'mihomo-cli geoip update' 命令下载 GeoIP 数据库")
+	}
+
+	return nil
+}
+
+// newGeoSiteCmd 创建 GeoSite 子命令
+func newGeoSiteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "geosite",
+		Short: "管理 GeoSite 数据库",
+		Long:  `管理 GeoSite 地理位置数据库，包括下载、更新和状态查询。`,
+	}
+
+	cmd.AddCommand(newGeoSiteUpdateCmd())
+	cmd.AddCommand(newGeoSiteStatusCmd())
+
+	return cmd
+}
+
+// newGeoSiteUpdateCmd 创建更新 GeoSite 命令
+func newGeoSiteUpdateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update",
+		Short: "更新 GeoSite 数据库",
+		Long:  `下载或更新 GeoSite 地理位置数据库文件。`,
+		Example: `  mihomo-cli geoip geosite update
+  mihomo-cli geoip geosite update -o json`,
+		RunE: runGeoSiteUpdate,
+	}
+}
+
+// runGeoSiteUpdate 执行更新 GeoSite 命令
+func runGeoSiteUpdate(cmd *cobra.Command, args []string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("无法获取用户目录: %w", err)
+	}
+
+	configDir := filepath.Join(homeDir, ".config", "mihomo")
+	geoSitePath := filepath.Join(configDir, "GeoSite.dat")
+
+	// 检查是否已存在
+	if _, err := os.Stat(geoSitePath); err == nil {
+		output.Success(fmt.Sprintf("GeoSite 数据库已存在: %s", geoSitePath))
+		return nil
+	}
+
+	// 下载 GeoSite 数据库
+	output.Info("正在下载 GeoSite 数据库...")
+
+	// 使用 mihomo API 更新
+	client := api.NewClientWithTimeout(
+		viper.GetString("api.address"),
+		viper.GetString("api.secret"),
+		viper.GetInt("api.timeout"),
+	)
+
+	if err := client.UpdateGeo(cmd.Context()); err != nil {
+		return errors.WrapAPIError("更新 GeoSite 数据库失败", err)
+	}
+
+	// 检查下载结果
+	if _, err := os.Stat(geoSitePath); err != nil {
+		return fmt.Errorf("GeoSite 数据库下载失败，请手动下载: curl -L -o %s https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat", geoSitePath)
+	}
+
+	if outputFmt == "json" {
+		return output.PrintJSON(map[string]string{
+			"message": "GeoSite 数据库更新成功",
+			"action":  "update",
+			"path":    geoSitePath,
+		})
+	}
+
+	output.Success("GeoSite 数据库更新成功")
+	output.PrintKeyValue("文件路径", geoSitePath)
+
+	return nil
+}
+
+// newGeoSiteStatusCmd 创建查询 GeoSite 状态命令
+func newGeoSiteStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "查询 GeoSite 数据库状态",
+		Long:  `检查 GeoSite 数据库文件的存在性、大小和最后修改时间。`,
+		Example: `  mihomo-cli geoip geosite status
+  mihomo-cli geoip geosite status -o json`,
+		RunE: runGeoSiteStatus,
+	}
+}
+
+// runGeoSiteStatus 执行查询 GeoSite 状态命令
+func runGeoSiteStatus(cmd *cobra.Command, args []string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("无法获取用户目录: %w", err)
+	}
+
+	configDir := filepath.Join(homeDir, ".config", "mihomo")
+	geoSitePath := filepath.Join(configDir, "GeoSite.dat")
+
+	type GeoSiteInfo struct {
+		Exists    bool      `json:"exists"`
+		FilePath  string    `json:"file_path"`
+		FileSize  int64     `json:"file_size"`
+		ModTime   time.Time `json:"mod_time"`
+		FileName  string    `json:"file_name"`
+		Directory string    `json:"directory"`
+	}
+
+	info := &GeoSiteInfo{
+		Directory: configDir,
+		FileName:  "GeoSite.dat",
+	}
+
+	if fileInfo, err := os.Stat(geoSitePath); err == nil {
+		info.Exists = true
+		info.FilePath = geoSitePath
+		info.FileSize = fileInfo.Size()
+		info.ModTime = fileInfo.ModTime()
+	}
+
+	if outputFmt == "json" {
+		return output.PrintJSON(info)
+	}
+
+	if info.Exists {
+		output.Printf("GeoSite 数据库状态: %s 已安装\n\n", output.StatusOK())
+		output.PrintKeyValue("文件路径", info.FilePath)
+		output.PrintKeyValue("文件名", info.FileName)
+		output.Printf("文件大小: %.2f MB\n", float64(info.FileSize)/1024/1024)
+		output.PrintKeyValue("最后更新", info.ModTime.Format("2006-01-02 15:04:05"))
+		output.PrintKeyValue("存储目录", info.Directory)
+	} else {
+		output.Printf("GeoSite 数据库状态: %s 未安装\n\n", output.StatusError())
+		output.PrintKeyValue("预期存储目录", info.Directory)
+		output.PrintEmptyLine()
+		output.Println("提示: 使用 'mihomo-cli geoip geosite update' 命令下载 GeoSite 数据库")
 	}
 
 	return nil
