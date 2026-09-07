@@ -120,13 +120,15 @@ func (ddm *DarwinDaemonManager) GetDaemonPID() (int, error) {
 
 // CreateProcessGroup 创建进程组
 func (ddm *DarwinDaemonManager) CreateProcessGroup(cmd *exec.Cmd) error {
-	// macOS 使用 Setsid 和 Setpgid 创建独立进程组和会话
-	// Setsid: 创建新会话，使进程脱离控制终端
+	// macOS 使用 Setpgid 创建独立进程组
 	// Setpgid: 创建新进程组，使进程成为进程组组长
-	// 这确保了进程完全独立于父进程，不会受到终端关闭的影响
+	// 这确保了进程不会受到终端关闭的影响（SIGHUP 不会传递到新进程组）
+	//
+	// 注意：不使用 Setsid，因为在某些受限环境中
+	// Setsid + Setpgid 组合会导致 EPERM 错误。
+	// Setpgid 足以让子进程脱离父进程的进程组，满足 daemon 需求。
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:  true, // 创建新会话
-		Setpgid: true, // 创建新进程组
+		Setpgid: true,
 	}
 	return nil
 }
@@ -171,47 +173,47 @@ func (ddm *DarwinDaemonManager) GracefulKillDaemon(pid int) error {
 	return nil
 }
 
-// RedirectIO 重定向标准输入输出
-func (ddm *DarwinDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) error {
+// RedirectIO 重定向标准输入输出。
+// 返回需要在 cmd.Start() 之后由调用方关闭的父进程端文件句柄。
+func (ddm *DarwinDaemonManager) RedirectIO(cmd *exec.Cmd, logFile string) ([]io.Closer, error) {
+	var closers []io.Closer
+
 	if logFile != "" {
 		// 确保日志目录存在
 		logDir := filepath.Dir(logFile)
 		if err := os.MkdirAll(logDir, 0755); err != nil {
-			return pkgerrors.ErrConfig("failed to create log directory", err)
+			return nil, pkgerrors.ErrConfig("failed to create log directory", err)
 		}
 
 		// 重定向到日志文件
 		logFH, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			return pkgerrors.ErrConfig("failed to open log file", err)
+			return nil, pkgerrors.ErrConfig("failed to open log file", err)
 		}
 
 		cmd.Stdout = logFH
 		cmd.Stderr = logFH
-		// 注意: 不关闭文件句柄，因为子进程需要继承这个句柄
-		// 当子进程启动后，这个句柄会自动被子进程继承
-		// 父进程退出时，子进程仍然持有这个句柄的引用
+		closers = append(closers, logFH)
 	} else {
 		// 重定向到 /dev/null
 		devNull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
 		if err != nil {
-			return pkgerrors.ErrConfig("failed to open /dev/null", err)
+			return nil, pkgerrors.ErrConfig("failed to open /dev/null", err)
 		}
-		defer devNull.Close()
-
 		cmd.Stdout = devNull
 		cmd.Stderr = devNull
+		closers = append(closers, devNull)
 	}
 
 	// 重定向 stdin 到 /dev/null
 	devNull, err := os.OpenFile("/dev/null", os.O_RDONLY, 0)
 	if err != nil {
-		return pkgerrors.ErrConfig("failed to open /dev/null for stdin", err)
+		return nil, pkgerrors.ErrConfig("failed to open /dev/null for stdin", err)
 	}
-	defer devNull.Close()
 	cmd.Stdin = devNull
+	closers = append(closers, devNull)
 
-	return nil
+	return closers, nil
 }
 
 // GetDaemonManager 获取守护进程管理器（工厂函数）

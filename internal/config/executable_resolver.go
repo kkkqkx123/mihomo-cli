@@ -102,6 +102,12 @@ func (r *ExecutableResolver) resolveExplicit(explicit string) (string, error) {
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(r.baseDir, p)
 	}
+	// 确保返回绝对路径（filepath.Join 不会将相对路径转为绝对路径）
+	if !filepath.IsAbs(p) {
+		if abs, err := filepath.Abs(p); err == nil {
+			p = abs
+		}
+	}
 	p = filepath.Clean(p)
 
 	candidates := []string{p}

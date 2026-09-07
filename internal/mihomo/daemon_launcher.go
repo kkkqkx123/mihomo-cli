@@ -74,7 +74,14 @@ func (dl *DaemonLauncher) GetWorkDir() string {
 	if execPath == "" {
 		return ""
 	}
-	return filepath.Dir(execPath)
+	dir := filepath.Dir(execPath)
+	// 确保返回绝对路径
+	if !filepath.IsAbs(dir) {
+		if abs, err := filepath.Abs(dir); err == nil {
+			return abs
+		}
+	}
+	return dir
 }
 
 // GetAPIAddress 获取 API 地址

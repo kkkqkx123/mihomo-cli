@@ -120,13 +120,15 @@ func (ldm *LinuxDaemonManager) GetDaemonPID() (int, error) {
 
 // CreateProcessGroup 创建进程组
 func (ldm *LinuxDaemonManager) CreateProcessGroup(cmd *exec.Cmd) error {
-	// Linux 使用 Setsid 和 Setpgid 创建独立进程组和会话
-	// Setsid: 创建新会话，使进程脱离控制终端
+	// Linux 使用 Setpgid 创建独立进程组
 	// Setpgid: 创建新进程组，使进程成为进程组组长
-	// 这确保了进程完全独立于父进程，不会受到终端关闭的影响
+	// 这确保了进程不会受到终端关闭的影响（SIGHUP 不会传递到新进程组）
+	//
+	// 注意：不使用 Setsid，因为在某些受限环境（容器、沙箱）中
+	// Setsid + Setpgid 组合会导致 EPERM 错误。
+	// Setpgid 足以让子进程脱离父进程的进程组，满足 daemon 需求。
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:  true, // 创建新会话
-		Setpgid: true, // 创建新进程组
+		Setpgid: true,
 	}
 	return nil
 }

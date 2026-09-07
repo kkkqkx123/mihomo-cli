@@ -324,7 +324,27 @@ func (ph *ProcessHandler) Status(cfg *config.TomlConfig) (*StatusResult, error) 
 }
 
 // checkAndCleanupBeforeStart 启动前检查并清理残留配置
-func (ph *ProcessHandler) checkAndCleanupBeforeStart(_ *config.TomlConfig) error {
+func (ph *ProcessHandler) checkAndCleanupBeforeStart(cfg *config.TomlConfig) error {
+	// 清理过期的 State 文件（stage=failed 或 pid=0），避免残留状态影响启动
+	if cfg.Mihomo.ConfigFile != "" {
+		pathResolver, prErr := config.NewPathResolver()
+		if prErr == nil {
+			stateFile := pathResolver.GetStateFilePath(cfg.Mihomo.ConfigFile)
+			if stateFile != "" {
+				data, readErr := os.ReadFile(stateFile)
+				if readErr == nil {
+					var state ProcessState
+					if json.Unmarshal(data, &state) == nil {
+						if state.Stage == StageFailed || state.PID == 0 {
+							os.Remove(stateFile)
+							output.Info("Cleaned up stale state file (stage=%s)", state.Stage)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	scm, err := system.NewSystemConfigManager()
 	if err != nil {
 		return err
