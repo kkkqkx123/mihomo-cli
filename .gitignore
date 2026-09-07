@@ -3,7 +3,18 @@
 go.sum
 
 scripts/config.toml
-test-mihomo-config.yaml
 CONFIG-BACKUP
 
 repomix-output.xml
+
+# 构建产物目录
+build/
+
+# mihomo 运行时文件
+cache.db
+*.metadb
+*.mmdb
+profiles/
+
+# 测试配置文件（含敏感订阅信息）
+test-mihomo-config.yaml
