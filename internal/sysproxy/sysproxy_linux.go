@@ -109,12 +109,21 @@ func (sp *linuxSysProxy) Enable(server, bypassList string) error {
 // Disable disables the system proxy
 func (sp *linuxSysProxy) Disable() error {
 	// Delete systemd environment.d config
-	if err := removeProxyConfig(ProxyEnvFile); err != nil {
+	if err := removeProxyConfig(ProxyEnvFile); err != nil && !os.IsNotExist(err) {
+		if os.IsPermission(err) {
+			return fmt.Errorf("permission denied: %w\n"+
+				"To fix this, run: sudo mihomo-cli sysproxy set off", err)
+		}
 		return err
 	}
 
 	// Remove proxy config from /etc/environment
 	if err := removeFromEtcEnvironment(); err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("permission denied: %w\n"+
+				"To fix this, run: sudo mihomo-cli sysproxy set off\n"+
+				"Or manually edit /etc/environment to remove proxy settings", err)
+		}
 		return pkgerrors.ErrService("failed to remove proxy from /etc/environment", err)
 	}
 

@@ -41,7 +41,8 @@ type StartResult struct {
 // 职责分工：ProcessHandler 管理业务逻辑（清理/备份/健康检查），
 // LifecycleManager 管理生命周期（锁/状态/监控/钩子），
 // DaemonLauncher 管理实际的进程操作。
-func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
+// force 参数为 true 时跳过清理检查，允许强制启动。
+func (ph *ProcessHandler) Start(cfg *config.TomlConfig, force bool) (*StartResult, error) {
 	// 检查是否启用自动启动
 	if !cfg.Mihomo.Enabled {
 		return nil, pkgerrors.ErrConfig("mihomo auto-start is disabled in config.toml", nil)
@@ -134,9 +135,13 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig) (*StartResult, error) {
 	}
 
 	// 启动前检查并清理残留配置（确保系统状态干净）
-	output.Info("Checking for residual configuration from abnormal exit...")
-	if err := ph.checkAndCleanupBeforeStart(cfg); err != nil {
-		return nil, pkgerrors.ErrService("failed to cleanup residual configuration", err)
+	if !force {
+		output.Info("Checking for residual configuration from abnormal exit...")
+		if err := ph.checkAndCleanupBeforeStart(cfg); err != nil {
+			return nil, pkgerrors.ErrService("failed to cleanup residual configuration", err)
+		}
+	} else {
+		output.Warning("Skipping residual cleanup check (force mode)")
 	}
 
 	// 启动前备份系统配置
@@ -453,10 +458,17 @@ func (ph *ProcessHandler) checkAndCleanupBeforeStart(cfg *config.TomlConfig) err
 		output.Info("Cleaning up residual configuration before start...")
 		if err := scm.CleanupAll(); err != nil {
 			output.Warning("Automatic cleanup failed: " + err.Error())
-			output.Println("Manual cleanup may be required")
-			return fmt.Errorf("failed to cleanup residual configuration: %w", err)
+			output.Println("")
+			output.Println("Manual cleanup options:")
+			output.Println("  1. Run with sudo: sudo mihomo-cli sysproxy set off")
+			output.Println("  2. Or manually edit /etc/environment to remove proxy settings")
+			output.Println("  3. Or run: sudo mihomo-cli system cleanup")
+			output.Println("")
+			output.Println("Continuing startup despite cleanup failure...")
+			// 清理失败不阻止启动，允许优雅降级
+		} else {
+			output.Success("Automatic cleanup completed, system is now clean")
 		}
-		output.Success("Automatic cleanup completed, system is now clean")
 	}
 
 	return nil

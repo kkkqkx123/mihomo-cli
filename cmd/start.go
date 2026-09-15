@@ -15,6 +15,7 @@ var stopAll bool
 var stopConfig string
 var stopForce bool
 var stopIncludeUnmanaged bool
+var startForce bool
 
 var startCmd = &cobra.Command{
 	Use:   "start",
@@ -63,6 +64,9 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(statusCmd)
 
+	// start 命令的标志
+	startCmd.Flags().BoolVarP(&startForce, "force", "f", false, "强制启动，跳过清理检查")
+
 	// stop 命令的标志
 	stopCmd.Flags().BoolVarP(&stopAll, "all", "a", false, "停止所有 Mihomo 进程")
 	stopCmd.Flags().StringVarP(&stopConfig, "config", "c", "", "指定配置文件路径")
@@ -87,7 +91,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// 启动内核（守护进程模式或传统模式）
 	output.Info("启动 Mihomo 进程...")
-	result, err := handler.Start(cfg)
+	result, err := handler.Start(cfg, startForce)
 	if err != nil {
 		return pkgerrors.ErrService("启动 Mihomo 失败", err)
 	}
