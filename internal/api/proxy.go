@@ -11,6 +11,17 @@ import (
 // GroupDelayResponse 组延迟测试响应
 type GroupDelayResponse map[string]uint16
 
+// fillDelayFromHistory 用最近一条延迟历史回填节点的 Delay 字段
+func fillDelayFromHistory(proxy *types.ProxyInfo) {
+	if proxy == nil || len(proxy.History) == 0 {
+		return
+	}
+	lastHistory := proxy.History[len(proxy.History)-1]
+	if lastHistory.Delay > 0 {
+		proxy.Delay = uint16(lastHistory.Delay)
+	}
+}
+
 // ListProxies 获取所有代理信息
 func (c *Client) ListProxies(ctx context.Context) (map[string]*types.ProxyInfo, error) {
 	var result types.ProxiesResponse
@@ -20,15 +31,8 @@ func (c *Client) ListProxies(ctx context.Context) (map[string]*types.ProxyInfo, 
 		return nil, err
 	}
 
-	// 根据 history 填充 Delay 字段
 	for _, proxy := range result.Proxies {
-		if proxy != nil && len(proxy.History) > 0 {
-			// 使用最后一条记录的 delay 值
-			lastHistory := proxy.History[len(proxy.History)-1]
-			if lastHistory.Delay > 0 {
-				proxy.Delay = uint16(lastHistory.Delay)
-			}
-		}
+		fillDelayFromHistory(proxy)
 	}
 
 	return result.Proxies, nil
@@ -46,13 +50,7 @@ func (c *Client) GetProxy(ctx context.Context, name string) (*types.ProxyInfo, e
 		return nil, err
 	}
 
-	// 根据 history 填充 Delay 字段
-	if len(result.History) > 0 {
-		lastHistory := result.History[len(result.History)-1]
-		if lastHistory.Delay > 0 {
-			result.Delay = uint16(lastHistory.Delay)
-		}
-	}
+	fillDelayFromHistory(&result)
 
 	return &result, nil
 }
@@ -134,20 +132,6 @@ func (c *Client) GroupDelay(ctx context.Context, groupName string, testURL strin
 	}
 
 	return result, nil
-}
-
-// GetProviderProxy 获取指定 provider 中的单个代理节点
-func (c *Client) GetProviderProxy(ctx context.Context, providerName, proxyName string) (*types.ProxyInfo, error) {
-	encodedProvider := url.PathEscape(providerName)
-	encodedProxy := url.PathEscape(proxyName)
-
-	var result types.ProxyInfo
-	err := c.Get(ctx, "/providers/proxies/"+encodedProvider+"/"+encodedProxy, nil, &result)
-	if err != nil {
-		return nil, err
-	}
-
-	return &result, nil
 }
 
 // TestProviderProxy 测试指定 provider 中的单个代理节点延迟

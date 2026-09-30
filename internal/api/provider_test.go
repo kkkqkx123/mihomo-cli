@@ -107,7 +107,6 @@ func TestListRuleProviders(t *testing.T) {
 	}
 }
 
-
 func TestListProviders(t *testing.T) {
 	// 创建测试服务器
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +127,7 @@ func TestListProviders(t *testing.T) {
 					Name:        "test-provider",
 					Type:        "file",
 					VehicleType: "HTTP",
-					Proxies: []types.ProviderProxyInfo{
+					Proxies: []*types.ProxyInfo{
 						{
 							Name:  "proxy1",
 							Type:  "ss",
@@ -238,5 +237,78 @@ func TestUpdateProviderWithSpecialChars(t *testing.T) {
 	err := client.UpdateProvider(context.Background(), "test provider")
 	if err != nil {
 		t.Fatalf("UpdateProvider failed: %v", err)
+	}
+}
+
+func TestListProviderProxyMap(t *testing.T) {
+	// 创建测试服务器
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/providers/proxies" {
+			t.Errorf("Expected path /providers/proxies, got %s", r.URL.Path)
+		}
+
+		response := types.ProvidersResponse{
+			Providers: map[string]*types.ProviderInfo{
+				"subscription": {
+					Name:        "subscription",
+					Type:        "http",
+					VehicleType: "HTTP",
+					Proxies: []*types.ProxyInfo{
+						{
+							Name:         "node1",
+							Type:         "ss",
+							ProviderName: "subscription",
+							Alive:        true,
+							History: []types.DelayHistory{
+								{Time: "2024-01-01T00:00:00Z", Delay: 100},
+								{Time: "2024-01-01T00:01:00Z", Delay: 245},
+							},
+						},
+						{
+							Name:  "node2",
+							Type:  "vmess",
+							Alive: false,
+						},
+					},
+				},
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-secret")
+
+	index, err := client.ListProviderProxyMap(context.Background())
+	if err != nil {
+		t.Fatalf("ListProviderProxyMap failed: %v", err)
+	}
+
+	if len(index) != 2 {
+		t.Fatalf("Expected 2 indexed proxies, got %d", len(index))
+	}
+
+	node, exists := index["node1"]
+	if !exists {
+		t.Fatal("Expected node 'node1' in index")
+	}
+	if node.ProviderName != "subscription" {
+		t.Errorf("Expected provider name 'subscription', got %s", node.ProviderName)
+	}
+	if node.Delay != 245 {
+		t.Errorf("Expected delay backfilled from last history entry 245, got %d", node.Delay)
+	}
+	if !node.Alive {
+		t.Error("Expected node1 to be alive")
+	}
+
+	node2, exists := index["node2"]
+	if !exists {
+		t.Fatal("Expected node 'node2' in index")
+	}
+	if node2.Delay != 0 {
+		t.Errorf("Expected delay 0 for node without history, got %d", node2.Delay)
 	}
 }

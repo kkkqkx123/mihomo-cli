@@ -127,6 +127,36 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 		SortBy:         sortBy,
 	}
 
+	// provider 节点不在 /proxies 注册表中，组内子节点补全与组行延迟依赖 provider 索引
+	providerIndex := map[string]*types.ProxyInfo{}
+	hasGroups := false
+	for _, proxyInfo := range proxies {
+		if len(proxyInfo.All) > 0 {
+			hasGroups = true
+			break
+		}
+	}
+	if hasGroups {
+		providerIndex, err = client.ListProviderProxyMap(cmd.Context())
+		if err != nil {
+			return errors.WrapAPIError("failed to get provider proxies", err)
+		}
+	}
+
+	// 组过滤模式：补全不在 /proxies 中的 provider 子节点
+	if groupFilter != "" {
+		if group, exists := proxies[groupFilter]; exists {
+			for _, name := range group.All {
+				if _, present := proxies[name]; present {
+					continue
+				}
+				if node, ok := providerIndex[name]; ok {
+					proxies[name] = node
+				}
+			}
+		}
+	}
+
 	// 如果需要测试延迟
 	if testDelay {
 		tester := proxy.NewDelayTester(client)
@@ -196,55 +226,68 @@ func runProxyList(cmd *cobra.Command, args []string) error {
 		}
 
 		// 分批测速
-		var results []types.DelayResult
 		if waitTest {
 			// 等待测速完成
-			results, err = testNodesInBatches(tester, nodeNames, batchSize, cmd.Context())
+			results, err := testNodesInBatches(tester, nodeNames, batchSize, cmd.Context())
 			if err != nil {
 				return errors.WrapAPIError("failed to test delay", err)
 			}
+
+			// 更新代理信息的延迟数据
+			for _, result := range results {
+				if result.Error == nil && result.Delay > 0 {
+					if proxyInfo, exists := proxies[result.Name]; exists {
+						proxyInfo.Delay = result.Delay
+						proxyInfo.Alive = true
+					} else {
+						// provider 节点不在 proxies map 中，创建条目
+						proxies[result.Name] = &types.ProxyInfo{
+							Name:  result.Name,
+							Type:  "Provider",
+							Alive: true,
+							Delay: result.Delay,
+						}
+					}
+				} else {
+					if proxyInfo, exists := proxies[result.Name]; exists {
+						proxyInfo.Alive = false
+					} else {
+						// provider 节点测试失败，也创建条目
+						proxies[result.Name] = &types.ProxyInfo{
+							Name:  result.Name,
+							Type:  "Provider",
+							Alive: false,
+						}
+					}
+				}
+			}
+
+			if showProgress && len(nodeNames) > 0 {
+				output.Println()
+			}
 		} else {
-			// 异步测速：启动后台 goroutine，立即返回
+			// 异步测速：启动后台 goroutine，不等待结果
 			output.Info("后台测速已启动，结果将不会显示在当前列表中")
 			go func() {
 				testNodesInBatches(tester, nodeNames, batchSize, context.Background())
 			}()
-			// 不等待结果，直接返回
-			return proxy.FormatProxyList(proxies, groupFilter, outputFmt, filterOpts)
 		}
+	}
 
-		// 更新代理信息的延迟数据
-		for _, result := range results {
-			if result.Error == nil && result.Delay > 0 {
-				if proxyInfo, exists := proxies[result.Name]; exists {
-					proxyInfo.Delay = result.Delay
-					proxyInfo.Alive = true
-				} else {
-					// provider 节点不在 proxies map 中，创建条目
-					proxies[result.Name] = &types.ProxyInfo{
-						Name:  result.Name,
-						Type:  "Provider",
-						Alive: true,
-						Delay: result.Delay,
-					}
-				}
-			} else {
-				if proxyInfo, exists := proxies[result.Name]; exists {
-					proxyInfo.Alive = false
-				} else {
-					// provider 节点测试失败，也创建条目
-					proxies[result.Name] = &types.ProxyInfo{
-						Name:  result.Name,
-						Type:  "Provider",
-						Alive: false,
-					}
-				}
-			}
+	// 组行延迟：组自身不产生延迟记录，取当前选中节点的延迟
+	for _, proxyInfo := range proxies {
+		if len(proxyInfo.All) == 0 || proxyInfo.Now == "" {
+			continue
 		}
-
-		if showProgress && len(nodeNames) > 0 {
-			output.Println()
+		node := proxies[proxyInfo.Now]
+		if node == nil {
+			node = providerIndex[proxyInfo.Now]
 		}
+		if node == nil {
+			continue
+		}
+		proxyInfo.Delay = node.Delay
+		proxyInfo.Alive = node.Alive
 	}
 
 	// 格式化输出
@@ -403,11 +446,11 @@ func runProxyTest(cmd *cobra.Command, args []string) error {
 	// 创建延迟测试器
 	tester := proxy.NewDelayTester(client)
 
-	// 优先使用命令行参数，其次使用配置文件
+	// 优先级：命令行参数 > 配置文件 > 内置默认值
 	if testURL != "" {
 		tester.SetTestURL(testURL)
-	} else {
-		tester.SetTestURL(viper.GetString("proxy.test_url"))
+	} else if cfgTestURL := viper.GetString("proxy.test_url"); cfgTestURL != "" {
+		tester.SetTestURL(cfgTestURL)
 	}
 
 	if testTimeout > 0 {
@@ -543,11 +586,11 @@ func runProxyAuto(cmd *cobra.Command, args []string) error {
 	// 创建延迟测试器
 	tester := proxy.NewDelayTester(client)
 
-	// 优先使用命令行参数，其次使用配置文件
+	// 优先级：命令行参数 > 配置文件 > 内置默认值
 	if testURL != "" {
 		tester.SetTestURL(testURL)
-	} else {
-		tester.SetTestURL(viper.GetString("proxy.test_url"))
+	} else if cfgTestURL := viper.GetString("proxy.test_url"); cfgTestURL != "" {
+		tester.SetTestURL(cfgTestURL)
 	}
 
 	if testTimeout > 0 {
@@ -674,41 +717,61 @@ func runProxyCurrent(cmd *cobra.Command, args []string) error {
 		return errors.WrapAPIError("failed to get proxy group info", err)
 	}
 
-	// 如果需要测试延迟
-	if testDelay && proxyGroup.Now != "" {
-		tester := proxy.NewDelayTester(client)
-
-		// 设置测速参数
-		// 优先级：命令行参数 > 配置文件 > 默认值
-		if testURL != "" {
-			tester.SetTestURL(testURL)
-		} else if cfgTestURL := viper.GetString("proxy.test_url"); cfgTestURL != "" {
-			tester.SetTestURL(cfgTestURL)
+	// 当前节点可能来自 provider，不在 /proxies 注册表中，统一从 provider 索引解析
+	if proxyGroup.Now != "" {
+		providerIndex, err := client.ListProviderProxyMap(cmd.Context())
+		if err != nil {
+			return errors.WrapAPIError("failed to get provider proxies", err)
 		}
-		// 否则使用 DelayTester 的默认值
 
-		if testTimeout > 0 {
-			tester.SetTimeout(testTimeout)
+		node := providerIndex[proxyGroup.Now]
+		if node == nil {
+			// 不属于任何 provider 的节点只在 /proxies 下
+			node, err = client.GetProxy(cmd.Context(), proxyGroup.Now)
+			if err != nil {
+				return errors.WrapAPIError("failed to get current node info", err)
+			}
+		}
+		providerName := node.ProviderName
+
+		// 如果需要测试延迟
+		if testDelay {
+			tester := proxy.NewDelayTester(client)
+
+			// 设置测速参数
+			// 优先级：命令行参数 > 配置文件 > 默认值
+			if testURL != "" {
+				tester.SetTestURL(testURL)
+			} else if cfgTestURL := viper.GetString("proxy.test_url"); cfgTestURL != "" {
+				tester.SetTestURL(cfgTestURL)
+			}
+			// 否则使用 DelayTester 的默认值
+
+			if testTimeout > 0 {
+				tester.SetTimeout(testTimeout)
+			} else {
+				tester.SetTimeout(viper.GetInt("proxy.timeout"))
+			}
+
+			// provider 节点经 provider 接口测速，其余节点走 /proxies 接口
+			var result types.DelayResult
+			if providerName != "" {
+				result = tester.TestProviderProxy(cmd.Context(), providerName, proxyGroup.Now)
+			} else {
+				result = tester.TestSingle(cmd.Context(), proxyGroup.Now)
+			}
+
+			if result.Error == nil && result.Delay > 0 {
+				proxyGroup.Delay = result.Delay
+				proxyGroup.Alive = true
+			} else {
+				proxyGroup.Delay = 0
+				proxyGroup.Alive = false
+			}
 		} else {
-			tester.SetTimeout(viper.GetInt("proxy.timeout"))
-		}
-
-		// 测试当前节点的延迟
-		result := tester.TestSingle(cmd.Context(), proxyGroup.Now)
-
-		// 更新代理信息
-		if result.Error == nil && result.Delay > 0 {
-			proxyGroup.Delay = result.Delay
-			proxyGroup.Alive = true
-		} else {
-			proxyGroup.Alive = false
-		}
-	} else if proxyGroup.Now != "" && proxyGroup.Delay == 0 {
-		// 如果不测试延迟且没有延迟数据，尝试获取当前节点的历史延迟
-		currentNode, err := client.GetProxy(cmd.Context(), proxyGroup.Now)
-		if err == nil && currentNode.Delay > 0 {
-			proxyGroup.Delay = currentNode.Delay
-			proxyGroup.Alive = currentNode.Alive
+			// 始终以当前节点的数据为准，组自身没有延迟记录
+			proxyGroup.Delay = node.Delay
+			proxyGroup.Alive = node.Alive
 		}
 	}
 

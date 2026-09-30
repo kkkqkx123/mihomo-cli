@@ -2,16 +2,16 @@ package types
 
 // ProxyInfo 代理信息
 type ProxyInfo struct {
-	Name     string         `json:"name"`
-	Type     string         `json:"type"`
-	UDP      bool           `json:"udp"`
-	XUDP     bool           `json:"xudp"`
-	History  []DelayHistory `json:"history"`
-	Alive    bool           `json:"alive"`
-	Now      string         `json:"now,omitempty"`
-	All      []string       `json:"all,omitempty"`
-	Provider string         `json:"provider,omitempty"`
-	Delay    uint16         `json:"delay"`
+	Name         string         `json:"name"`
+	Type         string         `json:"type"`
+	UDP          bool           `json:"udp"`
+	XUDP         bool           `json:"xudp"`
+	History      []DelayHistory `json:"history"`
+	Alive        bool           `json:"alive"`
+	Now          string         `json:"now,omitempty"`
+	All          []string       `json:"all,omitempty"`
+	ProviderName string         `json:"provider-name,omitempty"`
+	Delay        uint16         `json:"delay"`
 }
 
 // DelayHistory 延迟历史

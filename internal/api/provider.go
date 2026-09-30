@@ -15,7 +15,32 @@ func (c *Client) ListProviders(ctx context.Context) (map[string]*types.ProviderI
 		// 直接透传 HTTP 层 APIError，避免双重包装导致错误码丢失
 		return nil, err
 	}
+	for _, provider := range result.Providers {
+		for _, proxy := range provider.Proxies {
+			fillDelayFromHistory(proxy)
+		}
+	}
 	return result.Providers, nil
+}
+
+// ListProviderProxyMap 获取全部 provider 节点并按节点名索引
+// provider 节点不在 /proxies 注册表中，组内子节点补全与当前节点查询依赖该索引
+func (c *Client) ListProviderProxyMap(ctx context.Context) (map[string]*types.ProxyInfo, error) {
+	providers, err := c.ListProviders(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	index := make(map[string]*types.ProxyInfo)
+	for _, provider := range providers {
+		for _, proxy := range provider.Proxies {
+			if proxy == nil {
+				continue
+			}
+			index[proxy.Name] = proxy
+		}
+	}
+	return index, nil
 }
 
 // UpdateProvider 更新指定代理提供者的订阅

@@ -30,7 +30,14 @@ func FormatProxyList(proxies map[string]*types.ProxyInfo, groupFilter string, ou
 	if groupFilter != "" {
 		if proxy, exists := proxies[groupFilter]; exists {
 			if outputFormat == "json" {
-				return formatProxyJSON(map[string]*types.ProxyInfo{groupFilter: proxy})
+				// 输出组本身与组内子节点，与不过滤时的扁平结构一致
+				result := map[string]*types.ProxyInfo{groupFilter: proxy}
+				for _, name := range proxy.All {
+					if node, ok := proxies[name]; ok {
+						result[name] = node
+					}
+				}
+				return formatProxyJSON(result)
 			}
 			return formatProxyTableWithSort(map[string]*types.ProxyInfo{groupFilter: proxy}, true, filterOpts.SortBy, proxies)
 		}

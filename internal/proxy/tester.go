@@ -201,7 +201,8 @@ func (t *DelayTester) TestGroup(ctx context.Context, groupName string) ([]types.
 }
 
 // BuildProviderMapping 构建 provider 节点映射
-// 从所有 provider 中收集节点名到 provider 名的映射
+// 依据节点自带的 ProviderName（内核 provider-name 字段）建立节点名到 provider 名的映射，
+// 非 provider 节点不入映射，测速时走 /proxies 接口
 func (t *DelayTester) BuildProviderMapping(ctx context.Context) error {
 	providers, err := t.client.ListProviders(ctx)
 	if err != nil {
@@ -209,9 +210,12 @@ func (t *DelayTester) BuildProviderMapping(ctx context.Context) error {
 	}
 
 	t.providers = make(ProviderProxyMapping)
-	for providerName, provider := range providers {
+	for _, provider := range providers {
 		for _, p := range provider.Proxies {
-			t.providers[p.Name] = providerName
+			if p.ProviderName == "" {
+				continue
+			}
+			t.providers[p.Name] = p.ProviderName
 		}
 	}
 	return nil
