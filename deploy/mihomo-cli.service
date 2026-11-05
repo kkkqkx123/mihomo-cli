@@ -1,0 +1,13 @@
+[Unit]
+Description=Mihomo proxy core (managed by mihomo-cli)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@BIN@/mihomo-cli --toml @TOML@ start
+ExecStop=@BIN@/mihomo-cli --toml @TOML@ stop
+
+[Install]
+WantedBy=@TARGET@

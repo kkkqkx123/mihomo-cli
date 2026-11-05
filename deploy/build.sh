@@ -9,8 +9,8 @@
 #           源码默认值 "1.10.0" 的问题，与 mihomo/Makefile 行为一致）
 #       * mihomo-cli: main.version / main.commit（main 包变量，
 #         经 cmd.Execute 传入；直接注入 cmd 包变量会被运行时覆写）
-#   - 输出到 ./build/，内核固定为 build/mihomo(.exe)，
-#     与 config.toml 中 [mihomo] executable = "./build/mihomo" 保持一致。
+#   - 输出到 ./build/，内核固定为 build/mihomo(.exe)。
+#     如需本地联调，在 TOML 中用绝对路径指向该产物，或将其放入 PATH。
 #
 # 环境变量：
 #   MIHOMO_TAGS   内核构建标签（默认 with_gvisor，同 mihomo/Makefile）
