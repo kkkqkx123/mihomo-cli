@@ -26,20 +26,6 @@ Mihomo CLI is a non-interactive management tool for the Mihomo proxy core. This 
 
 ## Technology Stack
 
-### Programming Language
-
-* **Go 1.26.1**: Primary development language.
-
-### Core Dependencies
-
-* **github.com/spf13/cobra v1.10.2**: CLI framework for building the command structure.
-
-* **github.com/spf13/viper v1.21.0**: Configuration management supporting config files and environment variables.
-
-* **github.com/fatih/color v1.18.0**: Colored terminal output.
-
-* **github.com/olekukonko/tablewriter v0.0.5**: Table formatting output.
-
 ### Project Architecture
 
 * Modular design following standard Go project structures.
@@ -91,26 +77,29 @@ mihomo-go/
 ### Usage
 
 ```bash
+# build
+./scripts/build.sh
+
 # Initialize configuration
-.\mihomo-cli.exe config init
+./mihomo-cli config init
 
 # Query current mode
-.\mihomo-cli.exe mode get
+./mihomo-cli mode get
 
 # List proxies
-.\mihomo-cli.exe proxy list
+./mihomo-cli proxy list
 
 # Switch proxy node
-.\mihomo-cli.exe proxy switch Proxy NodeName
+./mihomo-cli proxy switch Proxy NodeName
 
 # Test latency
-.\mihomo-cli.exe proxy test Proxy
+./mihomo-cli proxy test Proxy
 
 # Auto-select fastest node
-.\mihomo-cli.exe proxy auto Proxy
+./mihomo-cli proxy auto Proxy
 
 # JSON format output
-.\mihomo-cli.exe proxy list -o json
+./mihomo-cli proxy list -o json
 ```
 
 ***
