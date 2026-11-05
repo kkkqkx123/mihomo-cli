@@ -327,7 +327,7 @@ type StopResult struct {
 // 职责分工：ProcessHandler 管理业务逻辑（系统配置清理），
 // LifecycleManager 管理状态追踪和钩子，
 // DaemonLauncher 管理实际的进程停止。
-func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, stopConfig string, force bool, includeUnmanaged bool, args []string) (*StopResult, error) {
+func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, force bool, includeUnmanaged bool, args []string) (*StopResult, error) {
 	// 如果指定了 --all，停止所有进程
 	if stopAll {
 		return nil, StopAllMihomoProcesses(includeUnmanaged)

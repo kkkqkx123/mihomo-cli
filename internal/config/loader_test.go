@@ -11,9 +11,6 @@ func TestNewLoader(t *testing.T) {
 	if loader == nil {
 		t.Fatal("NewLoader() returned nil")
 	}
-	if loader.v == nil {
-		t.Error("NewLoader() viper instance is nil")
-	}
 }
 
 func TestLoader_Load(t *testing.T) {

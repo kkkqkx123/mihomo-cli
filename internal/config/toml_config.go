@@ -117,40 +117,40 @@ func GenerateRandomSecret() (string, error) {
 }
 
 // FindTomlConfigPath 查找 TOML 配置文件路径
-// 优先级：1. 指定路径 2. 当前目录 3. 用户配置目录
-func FindTomlConfigPath(customPath string) string {
-	// 1. 如果指定了路径，直接使用
+// 仅支持显式路径与用户配置目录，不探测当前目录
+func FindTomlConfigPath(customPath string) (string, error) {
 	if customPath != "" {
-		if _, err := os.Stat(customPath); err == nil {
-			return customPath
+		abs, err := filepath.Abs(customPath)
+		if err != nil {
+			return "", pkgerrors.ErrConfig("invalid toml config path: "+customPath, err)
 		}
-	}
-
-	// 2. 当前目录的 config.toml
-	currentDirConfig := "config.toml"
-	if _, err := os.Stat(currentDirConfig); err == nil {
-		return currentDirConfig
-	}
-
-	// 3. 用户配置目录（平台规范目录）
-	if baseDir, err := GetBaseDir(); err == nil {
-		userConfig := filepath.Join(baseDir, "config.toml")
-		if _, err := os.Stat(userConfig); err == nil {
-			return userConfig
+		if _, err := os.Stat(abs); err != nil {
+			return "", pkgerrors.ErrConfig("toml config file not found: "+abs, err)
 		}
+		return abs, nil
 	}
 
-	// 默认返回当前目录路径（即使不存在，LoadTomlConfig 会返回默认配置）
-	return currentDirConfig
+	baseDir, err := GetBaseDir()
+	if err != nil {
+		return "", pkgerrors.ErrConfig("failed to get user config directory", err)
+	}
+	userConfig := filepath.Join(baseDir, "config.toml")
+	if _, err := os.Stat(userConfig); err != nil {
+		return "", pkgerrors.ErrConfig("toml config file not found: "+userConfig+" (specify with --toml)", err)
+	}
+	return userConfig, nil
 }
 
-// LoadTomlConfig 加载 TOML 配置文件
+// LoadTomlConfig 加载 TOML 配置文件，路径必须显式存在
 func LoadTomlConfig(path string) (*TomlConfig, error) {
 	var config TomlConfig
 
-	// 如果文件不存在，返回默认配置
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return GetDefaultTomlConfig(), nil
+	if path == "" {
+		return nil, pkgerrors.ErrConfig("toml config path is required (specify with --toml)", nil)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		return nil, pkgerrors.ErrConfig("toml config file not found: "+path, err)
 	}
 
 	// 读取配置文件

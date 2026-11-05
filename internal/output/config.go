@@ -6,9 +6,9 @@ import (
 
 // OutputConfig 输出配置
 type OutputConfig struct {
-	File   string `mapstructure:"file"`   // 输出文件路径
-	Mode   string `mapstructure:"mode"`   // 输出模式: console/file/both
-	Append bool   `mapstructure:"append"` // 是否追加模式
+	File   string `mapstructure:"file" yaml:"file"`     // 输出文件路径
+	Mode   string `mapstructure:"mode" yaml:"mode"`     // 输出模式: console/file/both
+	Append bool   `mapstructure:"append" yaml:"append"` // 是否追加模式
 }
 
 // Validate 验证配置

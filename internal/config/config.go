@@ -12,25 +12,25 @@ import (
 
 // CLIConfig CLI 工具配置
 type CLIConfig struct {
-	API    APIConfig         `mapstructure:"api"`
-	Proxy  ProxyConfig       `mapstructure:"proxy"`
-	Output output.OutputConfig `mapstructure:"output"` // 输出配置
+	API    APIConfig          `mapstructure:"api" yaml:"api"`
+	Proxy  ProxyConfig        `mapstructure:"proxy" yaml:"proxy"`
+	Output output.OutputConfig `mapstructure:"output" yaml:"output"` // 输出配置
 }
 
 // APIConfig API 连接配置
 type APIConfig struct {
-	Address string `mapstructure:"address"` // API 地址，如 http://127.0.0.1:9090
-	Secret  string `mapstructure:"secret"`  // API 密钥
-	Timeout int    `mapstructure:"timeout"` // 请求超时（秒）
+	Address string `mapstructure:"address" yaml:"address"` // API 地址，如 http://127.0.0.1:9090
+	Secret  string `mapstructure:"secret" yaml:"secret"`   // API 密钥
+	Timeout int    `mapstructure:"timeout" yaml:"timeout"`  // 请求超时（秒）
 }
 
 // ProxyConfig 代理测试配置
 type ProxyConfig struct {
-	TestURL    string `mapstructure:"test_url"`    // 测试 URL
-	Timeout    int    `mapstructure:"timeout"`     // 测速超时时间（毫秒）
-	Concurrent int    `mapstructure:"concurrent"`  // 并发测试数
-	BatchSize  int    `mapstructure:"batch_size"`  // 每批次测试的节点数
-	MaxNodes   int    `mapstructure:"max_nodes"`   // 最大测试节点数
+	TestURL    string `mapstructure:"test_url" yaml:"test_url"`       // 测试 URL
+	Timeout    int    `mapstructure:"timeout" yaml:"timeout"`         // 测速超时时间（毫秒）
+	Concurrent int    `mapstructure:"concurrent" yaml:"concurrent"`   // 并发测试数
+	BatchSize  int    `mapstructure:"batch_size" yaml:"batch_size"`   // 每批次测试的节点数
+	MaxNodes   int    `mapstructure:"max_nodes" yaml:"max_nodes"`     // 最大测试节点数
 }
 
 // Validate 验证配置
@@ -98,6 +98,21 @@ func (p *ProxyConfig) Validate() error {
 	// 并发数范围：1到100
 	if p.Concurrent != 0 && (p.Concurrent < 1 || p.Concurrent > 100) {
 		return errors.ErrConfig("proxy concurrent must be between 1 and 100", nil)
+	}
+
+	// 每批次节点数范围：1到10000，零值表示使用默认值
+	if p.BatchSize != 0 && (p.BatchSize < 1 || p.BatchSize > 10000) {
+		return errors.ErrConfig("proxy batch_size must be between 1 and 10000", nil)
+	}
+
+	// 最大节点数范围：1到10000，零值表示使用默认值
+	if p.MaxNodes != 0 && (p.MaxNodes < 1 || p.MaxNodes > 10000) {
+		return errors.ErrConfig("proxy max_nodes must be between 1 and 10000", nil)
+	}
+
+	// 测试地址非空时要求为 HTTP 地址
+	if p.TestURL != "" && !strings.HasPrefix(p.TestURL, "http://") && !strings.HasPrefix(p.TestURL, "https://") {
+		return errors.ErrConfig("proxy test_url must start with http:// or https://", nil)
 	}
 
 	return nil

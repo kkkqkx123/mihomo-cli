@@ -1,7 +1,6 @@
 package service
 
 import (
-	"os"
 	"path/filepath"
 	"runtime"
 
@@ -66,13 +65,8 @@ func (sf *serviceFactory) CreateServiceManager() (ServiceManager, error) {
 
 // findMihomoExecutable 查找 Mihomo 可执行文件路径（复用 config.ExecutableResolver 统一解析规则）
 func (sf *serviceFactory) findMihomoExecutable() (string, error) {
-	// 服务安装场景没有 config.toml 显式配置，走"空配置 + 允许搜索"链：
-	// LookPath("mihomo") → 平台默认候选目录（CLI 同目录、CWD、/usr/local/bin、/usr/bin）。
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = ""
-	}
-	resolver := config.NewExecutableResolver(cwd)
+	// 服务安装场景没有 config.toml 显式配置，走空配置加允许搜索链
+	resolver := config.NewExecutableResolver("")
 	exePath, _, err := resolver.Resolve("", nil)
 	if err != nil {
 		return "", pkgerrors.ErrConfig("failed to determine mihomo executable path", err)

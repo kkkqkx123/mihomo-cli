@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,6 +15,7 @@ import (
 
 var (
 	cfgFile   string
+	tomlFile  string
 	outputFmt string
 	apiURL    string
 	secret    string
@@ -50,8 +52,8 @@ var rootCmd = &cobra.Command{
 
 // preRun 命令执行前的初始化
 func preRun(cmd *cobra.Command, args []string) error {
-	// 初始化配置
-	initConfig()
+	// 初始化配置，只执行一次
+	initConfig(cmd)
 
 	// 设置输出格式
 	output.SetGlobalFormat(outputFmt)
@@ -62,9 +64,18 @@ func preRun(cmd *cobra.Command, args []string) error {
 		return pkgerrors.ErrService("初始化配置管理器失败", err)
 	}
 
+	// 校验运行时配置，配置类命令豁免以便修复坏配置
+	cfg, err := config.LoadFromViper()
+	if err != nil {
+		if isConfigCommand(cmd) {
+			cfg = config.GetDefaultConfig()
+		} else {
+			return err
+		}
+	}
+
 	// 初始化输出流（从配置文件读取）
-	cfg, err := cfgManager.LoadCLIConfigFromViper()
-	if err == nil && cfg.Output.Mode != "console" && cfg.Output.Mode != "" {
+	if cfg.Output.Mode != "console" && cfg.Output.Mode != "" {
 		streamOutput, err = output.InitStreamOutput(cfg.Output.File, cfg.Output.Mode, cfg.Output.Append)
 		if err != nil {
 			return pkgerrors.ErrService("初始化输出流失败", err)
@@ -127,8 +138,6 @@ func Execute(ver, com string) error {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	// 添加子命令
 	rootCmd.AddCommand(NewModeCmd())
 	rootCmd.AddCommand(NewProxyCmd())
@@ -146,7 +155,8 @@ func init() {
 	rootCmd.AddCommand(NewHistoryCmd())
 
 	// 全局标志
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "配置文件路径 (默认: <UserConfigDir>/mihomo-cli/config.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "CLI 配置文件路径 (默认: <UserConfigDir>/mihomo-cli/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&tomlFile, "toml", "", "TOML 配置文件路径 (默认: <UserConfigDir>/mihomo-cli/config.toml)")
 	rootCmd.PersistentFlags().StringVarP(&outputFmt, "output", "o", "table", "输出格式 (table/json)")
 	rootCmd.PersistentFlags().StringVar(&apiURL, "api", "", "API 地址 (覆盖配置文件)")
 	rootCmd.PersistentFlags().StringVar(&secret, "secret", "", "API 密钥 (覆盖配置文件)")
@@ -154,7 +164,7 @@ func init() {
 }
 
 // initConfig 初始化配置
-func initConfig() {
+func initConfig(cmd *cobra.Command) {
 	// 创建配置管理器
 	cfgManager, err := config.NewConfigManager()
 	if err != nil {
@@ -165,14 +175,44 @@ func initConfig() {
 	// 初始化 Viper 配置
 	cfgManager.InitViperConfig(cfgFile)
 
-	// 命令行参数优先级高于配置文件
-	if apiURL != "" {
+	// 命令行参数优先级高于配置文件，仅在显式传参时覆盖
+	if isFlagChanged(cmd, "api") {
 		viper.Set("api.address", apiURL)
 	}
-	if secret != "" {
+	if isFlagChanged(cmd, "secret") {
 		viper.Set("api.secret", secret)
 	}
-	if timeout != 0 {
+	if isFlagChanged(cmd, "timeout") {
 		viper.Set("api.timeout", timeout)
 	}
+}
+
+// isFlagChanged 判断指定持久化标志是否被显式使用
+func isFlagChanged(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	if f := cmd.Flags().Lookup(name); f != nil && f.Changed {
+		return true
+	}
+	if f := cmd.PersistentFlags().Lookup(name); f != nil && f.Changed {
+		return true
+	}
+	if f := cmd.InheritedFlags().Lookup(name); f != nil && f.Changed {
+		return true
+	}
+	if root := cmd.Root(); root != nil && root != cmd {
+		if f := root.PersistentFlags().Lookup(name); f != nil && f.Changed {
+			return true
+		}
+	}
+	return false
+}
+
+// isConfigCommand 判断是否为配置修复类命令
+func isConfigCommand(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	return strings.HasPrefix(cmd.CommandPath(), "mihomo-cli config")
 }

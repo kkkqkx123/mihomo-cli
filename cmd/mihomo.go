@@ -172,20 +172,26 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 			output.Warning("高风险配置警告: %v", err)
 		}
 	} else {
-		// 如果没有指定配置文件路径，尝试从配置中获取
-		tomlConfigPath := config.FindTomlConfigPath("")
+		// 未指定重载路径时，仅从显式 --toml 或用户目录 TOML 获取
+		tomlConfigPath, err := config.FindTomlConfigPath(tomlFile)
+		if err != nil {
+			return pkgerrors.ErrConfig("查找 TOML 配置失败，请使用 --path 显式指定 Mihomo 配置", err)
+		}
 		tomlCfg, err := config.LoadTomlConfig(tomlConfigPath)
 		if err != nil {
 			return pkgerrors.ErrConfig("加载配置失败", err)
 		}
 		actualConfigPath = tomlCfg.Mihomo.ConfigFile
+		if actualConfigPath == "" {
+			return pkgerrors.ErrConfig("TOML 未配置 Mihomo 文件，请使用 --path 显式指定", nil)
+		}
 	}
 
 	// 在重载前备份当前配置
 	if actualConfigPath != "" {
 		output.Println("重载前备份当前配置...")
-		backupHandler := config.NewBackupHandler(actualConfigPath)
-		backupInfo, err := backupHandler.CreateBackup("", "pre-reload")
+		backupHandler := config.NewBackupHandler(tomlFile)
+		backupInfo, err := backupHandler.CreateBackup(actualConfigPath, "pre-reload")
 		if err != nil {
 			output.Warning("备份失败: %v", err)
 			output.Warning("继续重载，不创建备份...")
@@ -329,8 +335,8 @@ func newMihomoEditCmd() *cobra.Command {
 
 // runMihomoEdit 执行配置文件编辑
 func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, noReload bool) error {
-	// 确定配置文件路径
-	configPath, err := config.FindConfigPath(mihomoConfigPath)
+	// 确定配置文件路径，仅支持显式路径与用户标准路径
+	configPath, err := config.FindConfigPath(mihomoConfigPath, tomlFile)
 	if err != nil {
 		return err
 	}

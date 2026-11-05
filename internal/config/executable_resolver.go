@@ -38,20 +38,15 @@ func defaultExecutableName() string {
 //     相对路径以 baseDir（config.toml 所在目录）为基准；Windows 上自动补全 .exe；
 //     文件不存在则报错（不回退搜索，便于定位配置错误）。
 //  2. 配置为空且允许搜索：exec.LookPath("mihomo")（Windows 上 Go 按 PATHEXT 自动补 .exe）。
-//  3. 仍未命中：平台默认候选目录探测（CLI 同目录 → 进程 CWD → /usr/local/bin、/usr/bin）。
+//  3. 仍未命中：平台默认候选目录探测（CLI 同目录 → /usr/local/bin、/usr/bin）。
 //  4. 全部失败：返回聚合错误（列出已尝试的路径与原因）。
 type ExecutableResolver struct {
-	baseDir string // 相对路径基准目录；空则取进程 CWD
+	baseDir string // 相对路径基准目录，为空时相对路径必须报错而非相对当前目录解析
 }
 
 // NewExecutableResolver 创建可执行文件解析器。
-// baseDir 为 config.toml 所在目录；传入空串时相对路径以进程 CWD 为基准。
+// baseDir 为 config.toml 所在目录；传入空串表示无基准目录，相对路径将直接报错。
 func NewExecutableResolver(baseDir string) *ExecutableResolver {
-	if baseDir == "" {
-		if cwd, err := os.Getwd(); err == nil {
-			baseDir = cwd
-		}
-	}
 	return &ExecutableResolver{baseDir: baseDir}
 }
 
@@ -100,13 +95,10 @@ func (r *ExecutableResolver) Resolve(explicit string, search *bool) (string, Res
 func (r *ExecutableResolver) resolveExplicit(explicit string) (string, error) {
 	p := explicit
 	if !filepath.IsAbs(p) {
-		p = filepath.Join(r.baseDir, p)
-	}
-	// 确保返回绝对路径（filepath.Join 不会将相对路径转为绝对路径）
-	if !filepath.IsAbs(p) {
-		if abs, err := filepath.Abs(p); err == nil {
-			p = abs
+		if r.baseDir == "" {
+			return "", pkgerrors.ErrConfig("relative executable path requires config directory context: "+explicit, nil)
 		}
+		p = filepath.Join(r.baseDir, p)
 	}
 	p = filepath.Clean(p)
 
@@ -137,15 +129,12 @@ func (r *ExecutableResolver) probePlatformCandidates() (string, bool) {
 	return "", false
 }
 
-// platformCandidatePaths 平台默认候选目录列表（按优先级排列）
+// platformCandidatePaths 平台默认候选目录列表（按优先级排列，不包含当前目录）
 func (r *ExecutableResolver) platformCandidatePaths() []string {
 	dirs := []string{}
 
 	if exe, err := os.Executable(); err == nil {
 		dirs = append(dirs, filepath.Dir(exe))
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		dirs = append(dirs, cwd)
 	}
 	if runtime.GOOS != "windows" {
 		dirs = append(dirs, "/usr/local/bin", "/usr/bin")

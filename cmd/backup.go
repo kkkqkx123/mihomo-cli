@@ -53,7 +53,7 @@ func newBackupCreateCmd() *cobra.Command {
 
 // runBackupCreate 执行创建备份
 func runBackupCreate(mihomoConfigPath, note string) error {
-	handler := config.NewBackupHandler("")
+	handler := config.NewBackupHandler(tomlFile)
 
 	// 创建备份
 	info, err := handler.CreateBackup(mihomoConfigPath, note)
@@ -94,7 +94,7 @@ func newBackupListCmd() *cobra.Command {
 
 // runBackupList 执行列出备份
 func runBackupList(mihomoConfigPath string) error {
-	handler := config.NewBackupHandler("")
+	handler := config.NewBackupHandler(tomlFile)
 
 	// 获取备份列表
 	backups, err := handler.ListBackups(mihomoConfigPath)
@@ -156,7 +156,7 @@ func newBackupRestoreCmd() *cobra.Command {
 
 // runBackupRestore 执行恢复备份
 func runBackupRestore(ctx context.Context, mihomoConfigPath, backupRef string, noReload bool) error {
-	handler := config.NewBackupHandler("")
+	handler := config.NewBackupHandler(tomlFile)
 
 	// 创建 API 客户端用于重载配置
 	var client *api.Client
@@ -222,7 +222,7 @@ func newBackupDeleteCmd() *cobra.Command {
 
 // runBackupDelete 执行删除备份
 func runBackupDelete(mihomoConfigPath string, args []string, deleteAll bool, keep, olderThan int) error {
-	handler := config.NewBackupHandler("")
+	handler := config.NewBackupHandler(tomlFile)
 
 	// 删除备份
 	result, err := handler.DeleteBackup(mihomoConfigPath, args, deleteAll, keep, olderThan)
@@ -287,7 +287,7 @@ func newBackupPruneCmd() *cobra.Command {
 
 // runBackupPrune 执行清理备份
 func runBackupPrune(mihomoConfigPath string, keep, olderThan int, dryRun bool) error {
-	handler := config.NewBackupHandler("")
+	handler := config.NewBackupHandler(tomlFile)
 
 	// 清理备份
 	result, err := handler.PruneBackups(mihomoConfigPath, keep, olderThan, dryRun)

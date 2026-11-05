@@ -4,51 +4,40 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kkkqkx123/mihomo-cli/internal/output"
-	"github.com/kkkqkx123/mihomo-cli/pkg/errors"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
+
+	"github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
 // Loader 配置加载器
 type Loader struct {
-	v *viper.Viper
 }
 
 // NewLoader 创建配置加载器
 func NewLoader() *Loader {
-	return &Loader{
-		v: viper.New(),
-	}
+	return &Loader{}
 }
 
 // Load 从指定路径加载配置
 func (l *Loader) Load(configPath string) (*CLIConfig, error) {
-	output.Info("加载配置文件: %s", configPath)
-
-	// 设置配置文件路径
-	l.v.SetConfigFile(configPath)
-
-	// 读取配置文件
-	if err := l.v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			return nil, errors.ErrConfig("config file not found", nil)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, errors.ErrConfig("config file not found", err)
 		}
 		return nil, errors.ErrConfig("failed to read config file", err)
 	}
 
-	// 解析配置到结构体
 	cfg := &CLIConfig{}
-	if err := l.v.Unmarshal(cfg); err != nil {
+	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, errors.ErrConfig("failed to unmarshal config", err)
 	}
 
-	// 验证配置
-	output.Info("验证配置...")
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	output.Success("配置加载成功")
 	return cfg, nil
 }
 
@@ -77,27 +66,10 @@ func LoadFromViper() (*CLIConfig, error) {
 
 // Save 保存配置到指定路径
 func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
-	output.Info("保存配置到: %s", configPath)
-
 	// 验证配置
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-
-	// 设置 API 配置
-	l.v.Set("api.address", cfg.API.Address)
-	l.v.Set("api.secret", cfg.API.Secret)
-	l.v.Set("api.timeout", cfg.API.Timeout)
-
-	// 设置 Proxy 配置
-	l.v.Set("proxy.test_url", cfg.Proxy.TestURL)
-	l.v.Set("proxy.timeout", cfg.Proxy.Timeout)
-	l.v.Set("proxy.concurrent", cfg.Proxy.Concurrent)
-
-	// 设置 Output 配置
-	l.v.Set("output.file", cfg.Output.File)
-	l.v.Set("output.mode", cfg.Output.Mode)
-	l.v.Set("output.append", cfg.Output.Append)
 
 	// 确保目录存在
 	configDir := filepath.Dir(configPath)
@@ -105,15 +77,34 @@ func (l *Loader) Save(cfg *CLIConfig, configPath string) error {
 		return errors.ErrConfig("failed to create config directory", err)
 	}
 
-	// 设置输出文件
-	l.v.SetConfigFile(configPath)
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return errors.ErrConfig("failed to marshal config", err)
+	}
 
-	// 写入配置文件
-	if err := l.v.WriteConfig(); err != nil {
+	tmpFile, err := os.CreateTemp(configDir, ".config-*.tmp")
+	if err != nil {
+		return errors.ErrConfig("failed to create temp config file", err)
+	}
+	tmpName := tmpFile.Name()
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpName)
+		return errors.ErrConfig("failed to write config file", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpName)
+		return errors.ErrConfig("failed to write config file", err)
+	}
+	if err := os.Chmod(tmpName, 0600); err != nil {
+		os.Remove(tmpName)
+		return errors.ErrConfig("failed to write config file", err)
+	}
+	if err := os.Rename(tmpName, configPath); err != nil {
+		os.Remove(tmpName)
 		return errors.ErrConfig("failed to write config file", err)
 	}
 
-	output.Success("配置保存成功")
 	return nil
 }
 

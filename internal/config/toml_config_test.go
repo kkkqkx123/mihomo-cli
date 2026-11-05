@@ -69,17 +69,12 @@ func TestLoadTomlConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.toml")
 
-	// 测试加载不存在的文件 - 应返回默认配置
-	cfg, err := LoadTomlConfig(configPath)
-	if err != nil {
-		t.Fatalf("LoadTomlConfig() for non-existent file error: %v", err)
+	// 缺失文件必须报错，不再回退默认配置
+	if _, err := LoadTomlConfig(configPath); err == nil {
+		t.Fatal("LoadTomlConfig() for non-existent file should fail")
 	}
-	if cfg == nil {
-		t.Fatal("LoadTomlConfig() returned nil for non-existent file")
-	}
-	// 验证返回的是默认配置
-	if cfg.API.Address != "http://127.0.0.1:9090" {
-		t.Errorf("LoadTomlConfig() for non-existent file should return default config")
+	if _, err := LoadTomlConfig(""); err == nil {
+		t.Fatal("LoadTomlConfig() for empty path should fail")
 	}
 
 	// 创建有效的 TOML 配置文件
@@ -109,7 +104,7 @@ file = "/var/log/mihomo.log"
 		t.Fatalf("Failed to create test TOML file: %v", err)
 	}
 
-	cfg, err = LoadTomlConfig(configPath)
+	cfg, err := LoadTomlConfig(configPath)
 	if err != nil {
 		t.Fatalf("LoadTomlConfig() error: %v", err)
 	}

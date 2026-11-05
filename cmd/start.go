@@ -12,7 +12,6 @@ import (
 )
 
 var stopAll bool
-var stopConfig string
 var stopForce bool
 var stopIncludeUnmanaged bool
 var startForce bool
@@ -23,7 +22,7 @@ var startCmd = &cobra.Command{
 	Long: `启动 Mihomo 内核并自动生成随机密钥。
 
 该命令会：
-1. 读取 config.toml 配置文件（优先当前目录）
+1. 读取 config.toml 配置文件（默认用户目录，可用 --toml 显式指定）
 2. 自动生成 SHA256 随机密钥
 3. 以守护进程模式启动 Mihomo 内核（独立进程）
 4. 等待并验证内核启动成功
@@ -69,15 +68,17 @@ func init() {
 
 	// stop 命令的标志
 	stopCmd.Flags().BoolVarP(&stopAll, "all", "a", false, "停止所有 Mihomo 进程")
-	stopCmd.Flags().StringVarP(&stopConfig, "config", "c", "", "指定配置文件路径")
 	stopCmd.Flags().BoolVarP(&stopForce, "force", "F", false, "强制关闭进程（不通过 API）")
 	stopCmd.Flags().BoolVar(&stopIncludeUnmanaged, "include-unmanaged", false, "配合 --all 使用：同时停止未托管（外部启动/未验证）的 Mihomo 进程")
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
-	// 查找配置文件路径
+	// 查找配置文件路径，仅支持显式 --toml 与用户目录
 	output.Info("查找配置文件...")
-	configPath := config.FindTomlConfigPath(cfgFile)
+	configPath, err := config.FindTomlConfigPath(tomlFile)
+	if err != nil {
+		return pkgerrors.ErrConfig("查找 TOML 配置失败", err)
+	}
 
 	// 加载配置
 	output.Info("加载配置: %s", configPath)
@@ -120,9 +121,12 @@ func runStart(cmd *cobra.Command, args []string) error {
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
-	// 查找配置文件路径
+	// 查找配置文件路径，仅支持显式 --toml 与用户目录
 	output.Info("查找配置文件...")
-	configPath := config.FindTomlConfigPath(cfgFile)
+	configPath, err := config.FindTomlConfigPath(tomlFile)
+	if err != nil {
+		return pkgerrors.ErrConfig("查找 TOML 配置失败", err)
+	}
 
 	// 加载配置
 	output.Info("加载配置: %s", configPath)
@@ -136,7 +140,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 	// 停止内核
 	output.Info("停止 Mihomo 进程...")
-	result, err := handler.Stop(cfg, stopAll, stopConfig, stopForce, stopIncludeUnmanaged, args)
+	result, err := handler.Stop(cfg, stopAll, stopForce, stopIncludeUnmanaged, args)
 	if err != nil {
 		return pkgerrors.ErrService("停止 Mihomo 失败", err)
 	}
@@ -149,9 +153,12 @@ func runStop(cmd *cobra.Command, args []string) error {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	// 查找配置文件路径
+	// 查找配置文件路径，仅支持显式 --toml 与用户目录
 	output.Info("查找配置文件...")
-	configPath := config.FindTomlConfigPath(cfgFile)
+	configPath, err := config.FindTomlConfigPath(tomlFile)
+	if err != nil {
+		return pkgerrors.ErrConfig("查找 TOML 配置失败", err)
+	}
 
 	// 加载配置
 	output.Info("加载配置: %s", configPath)

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/spf13/viper"
 )
 
@@ -34,7 +36,7 @@ func (cm *ConfigManager) LoadTomlConfig(configPath string) (*TomlConfig, error) 
 }
 
 // FindTomlConfigPath 查找 TOML 配置文件路径
-func (cm *ConfigManager) FindTomlConfigPath(configFile string) string {
+func (cm *ConfigManager) FindTomlConfigPath(configFile string) (string, error) {
 	return FindTomlConfigPath(configFile)
 }
 
@@ -65,17 +67,18 @@ func (cm *ConfigManager) EnsureBaseDirs() error {
 
 // InitViperConfig 初始化 Viper 配置
 func (cm *ConfigManager) InitViperConfig(cfgFile string) {
-	// 设置默认值
-	viper.SetDefault("api.address", "http://127.0.0.1:9090")
-	viper.SetDefault("api.secret", "")
-	viper.SetDefault("api.timeout", 10)
-	
-	// 代理测速相关默认值
-	viper.SetDefault("proxy.test_url", "")
-	viper.SetDefault("proxy.timeout", 10000)
-	viper.SetDefault("proxy.concurrent", 10)
-	viper.SetDefault("proxy.batch_size", 100)
-	viper.SetDefault("proxy.max_nodes", 500)
+	defaults := GetDefaultConfig()
+	viper.SetDefault("api.address", defaults.API.Address)
+	viper.SetDefault("api.secret", defaults.API.Secret)
+	viper.SetDefault("api.timeout", defaults.API.Timeout)
+	viper.SetDefault("proxy.test_url", defaults.Proxy.TestURL)
+	viper.SetDefault("proxy.timeout", defaults.Proxy.Timeout)
+	viper.SetDefault("proxy.concurrent", defaults.Proxy.Concurrent)
+	viper.SetDefault("proxy.batch_size", defaults.Proxy.BatchSize)
+	viper.SetDefault("proxy.max_nodes", defaults.Proxy.MaxNodes)
+	viper.SetDefault("output.file", defaults.Output.File)
+	viper.SetDefault("output.mode", defaults.Output.Mode)
+	viper.SetDefault("output.append", defaults.Output.Append)
 
 	if cfgFile != "" {
 		// 使用指定的配置文件
@@ -87,8 +90,9 @@ func (cm *ConfigManager) InitViperConfig(cfgFile string) {
 		viper.SetConfigName("config")
 	}
 
-	// 支持环境变量
+	// 支持环境变量，嵌套键中的点号映射为下划线
 	viper.SetEnvPrefix("MIHOMO")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	// 读取配置文件（如果存在）

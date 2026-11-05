@@ -1,0 +1,23 @@
+# 示例 TOML 配置（演示用，不会被自动加载）
+
+[api]
+address = "http://127.0.0.1:9090"
+secret = ""
+timeout = 10
+
+[mihomo]
+enabled = true
+executable = ""
+config_file = ""
+auto_generate_secret = true
+health_check_timeout = 5
+
+[mihomo.api]
+external_controller = "127.0.0.1:9090"
+external_controller_tls = ""
+external_controller_unix = ""
+external_controller_pipe = ""
+
+[mihomo.log]
+level = "info"
+file = ""

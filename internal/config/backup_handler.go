@@ -12,17 +12,17 @@ import (
 
 // BackupHandler 备份管理处理器
 type BackupHandler struct {
-	configPath string
-	backupDir  string
+	tomlPath  string
+	backupDir string
 }
 
-// NewBackupHandler 创建备份处理器
-func NewBackupHandler(configPath string) *BackupHandler {
+// NewBackupHandler 创建备份处理器，tomlPath 为显式 TOML 路径，可为空表示使用用户目录
+func NewBackupHandler(tomlPath string) *BackupHandler {
 	backupDir, _ := GetBackupDir()
 
 	return &BackupHandler{
-		configPath: configPath,
-		backupDir:  backupDir,
+		tomlPath:  tomlPath,
+		backupDir: backupDir,
 	}
 }
 
@@ -31,50 +31,48 @@ func (bh *BackupHandler) SetBackupDir(dir string) {
 	bh.backupDir = dir
 }
 
-// FindConfigPath 查找 Mihomo 配置文件路径
-func FindConfigPath(mihomoConfigPath string) (string, error) {
+// FindConfigPath 查找 Mihomo 配置文件路径，不探测当前目录
+// 优先级为显式 Mihomo 路径高于 TOML 中配置的文件高于用户标准路径
+func FindConfigPath(mihomoConfigPath, tomlConfigPath string) (string, error) {
 	if mihomoConfigPath != "" {
-		// 检查文件是否存在
-		if _, err := os.Stat(mihomoConfigPath); os.IsNotExist(err) {
-			return "", fmt.Errorf("配置文件不存在: %s", mihomoConfigPath)
+		abs, err := filepath.Abs(mihomoConfigPath)
+		if err != nil {
+			return "", fmt.Errorf("无效的配置文件路径: %s: %w", mihomoConfigPath, err)
 		}
-		return mihomoConfigPath, nil
+		if _, err := os.Stat(abs); err != nil {
+			return "", fmt.Errorf("配置文件不存在: %s", abs)
+		}
+		return abs, nil
 	}
 
-	// 使用 FindTomlConfigPath 查找配置文件
-	tomlConfigPath := FindTomlConfigPath("")
-	tomlCfg, err := LoadTomlConfig(tomlConfigPath)
-	if err == nil && tomlCfg.Mihomo.ConfigFile != "" {
-		if _, err := os.Stat(tomlCfg.Mihomo.ConfigFile); err == nil {
-			return tomlCfg.Mihomo.ConfigFile, nil
+	if resolved, err := FindTomlConfigPath(tomlConfigPath); err == nil {
+		if tomlCfg, err := LoadTomlConfig(resolved); err == nil && tomlCfg.Mihomo.ConfigFile != "" {
+			abs, err := filepath.Abs(tomlCfg.Mihomo.ConfigFile)
+			if err == nil {
+				if _, err := os.Stat(abs); err == nil {
+					return abs, nil
+				}
+			}
 		}
 	}
 
-	// 尝试从标准位置查找
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("获取用户目录失败: %w", err)
 	}
 
-	// 只检查标准路径，保持一致性
-	candidatePaths := []string{
-		filepath.Join(home, ".config", "mihomo", "config.yaml"),
-		"./config.yaml",
+	standardPath := filepath.Join(home, ".config", "mihomo", "config.yaml")
+	if _, err := os.Stat(standardPath); err == nil {
+		return standardPath, nil
 	}
 
-	for _, p := range candidatePaths {
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-	}
-
-	return "", fmt.Errorf("未找到 Mihomo 配置文件，请使用 --path 参数指定路径或配置 config.toml")
+	return "", fmt.Errorf("未找到 Mihomo 配置文件，请使用 --path 参数指定路径或用 --toml 指定 TOML")
 }
 
 // CreateBackup 创建备份
 func (bh *BackupHandler) CreateBackup(mihomoConfigPath, note string) (*BackupInfo, error) {
 	// 确定配置文件路径
-	configPath, err := FindConfigPath(mihomoConfigPath)
+	configPath, err := FindConfigPath(mihomoConfigPath, bh.tomlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +92,7 @@ func (bh *BackupHandler) CreateBackup(mihomoConfigPath, note string) (*BackupInf
 // ListBackups 列出所有备份
 func (bh *BackupHandler) ListBackups(mihomoConfigPath string) ([]*BackupInfo, error) {
 	// 确定配置文件路径
-	configPath, err := FindConfigPath(mihomoConfigPath)
+	configPath, err := FindConfigPath(mihomoConfigPath, bh.tomlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +117,7 @@ func (bh *BackupHandler) RestoreBackup(ctx context.Context, mihomoConfigPath, ba
 // RestoreBackupWithClient 恢复备份（指定 API 客户端）
 func (bh *BackupHandler) RestoreBackupWithClient(ctx context.Context, mihomoConfigPath, backupRef string, noReload bool, client *api.Client) (*RestoreResult, error) {
 	// 确定配置文件路径
-	configPath, err := FindConfigPath(mihomoConfigPath)
+	configPath, err := FindConfigPath(mihomoConfigPath, bh.tomlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +187,7 @@ type RestoreResult struct {
 // DeleteBackup 删除备份
 func (bh *BackupHandler) DeleteBackup(mihomoConfigPath string, args []string, deleteAll bool, keep, olderThan int) (*DeleteResult, error) {
 	// 确定配置文件路径
-	configPath, err := FindConfigPath(mihomoConfigPath)
+	configPath, err := FindConfigPath(mihomoConfigPath, bh.tomlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +272,7 @@ type DeleteResult struct {
 // PruneBackups 清理旧备份
 func (bh *BackupHandler) PruneBackups(mihomoConfigPath string, keep, olderThan int, dryRun bool) (*PruneResult, error) {
 	// 确定配置文件路径
-	configPath, err := FindConfigPath(mihomoConfigPath)
+	configPath, err := FindConfigPath(mihomoConfigPath, bh.tomlPath)
 	if err != nil {
 		return nil, err
 	}

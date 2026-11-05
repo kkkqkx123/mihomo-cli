@@ -1,4 +1,7 @@
-# Mihomo 测试配置文件
+# Mihomo 配置文件示例
+# 生产位置为 ~/.config/mihomo/config.yaml，无需加旗即为默认生效文件。
+# 仓库根不再放置真实配置文件，另需指定路径时使用 --path 显式传入。
+# CLI 自身配置位于 <UserConfigDir>/mihomo-cli/config.yaml，TOML 位于 <UserConfigDir>/mihomo-cli/config.toml，两者与本文件位置无关。
 
 # 基础配置
 mixed-port: 7890
