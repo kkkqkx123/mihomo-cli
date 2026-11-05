@@ -90,6 +90,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return pkgerrors.ErrConfig("加载配置失败", err)
 	}
+	config.NormalizeTomlConfigPaths(configPath, cfg)
 
 	// 创建进程处理器
 	handler := mihomo.NewProcessHandler(configPath)
@@ -142,6 +143,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return pkgerrors.ErrConfig("加载配置失败", err)
 	}
+	config.NormalizeTomlConfigPaths(configPath, cfg)
 
 	// 创建进程处理器
 	handler := mihomo.NewProcessHandler(configPath)

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -27,8 +28,12 @@ func init() {
 }
 
 // effectiveCLIConfigPath 返回本次运行生效的 CLI 配置路径
+// 显式 --config 相对路径以调用时工作目录为基准，此处归一化为绝对路径展示与读写，避免相对值在日志中含糊。
 func effectiveCLIConfigPath(cfgManager *config.ConfigManager) string {
 	if cfgFile != "" {
+		if abs, err := filepath.Abs(cfgFile); err == nil {
+			return abs
+		}
 		return cfgFile
 	}
 	return cfgManager.GetDefaultCLIConfigPath()

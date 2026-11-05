@@ -125,7 +125,7 @@ func newMihomoReloadCmd() *cobra.Command {
 		Use:   "reload",
 		Short: "重载 Mihomo 配置文件",
 		Long: `重新加载完整的 Mihomo 配置文件。
-如果不指定路径，则重载当前配置文件。`,
+未指定 --path 时，若 TOML 配置了 mihomo.config_file 则重载该文件（相对路径以 TOML 所在目录为基准），否则让内核重载其启动时配置；不探测当前目录。显式 --path 必须为绝对路径，发往内核前会在本地校验存在性与语法。`,
 		Example: `  mihomo-cli mihomo reload
   mihomo-cli mihomo reload --path /path/to/config.yaml
   mihomo-cli mihomo reload --force`,
@@ -134,7 +134,7 @@ func newMihomoReloadCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&configPath, "path", "p", "", "配置文件路径")
+	cmd.Flags().StringVarP(&configPath, "path", "p", "", "Mihomo 配置文件绝对路径（显式指定时必须为绝对路径）")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "强制重载，忽略部分错误")
 
 	return cmd
@@ -175,13 +175,12 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 		// 未指定路径时，优先使用 TOML 中显式配置的 Mihomo 文件；
 		// 默认部署已不再把 Mihomo 文件写入 TOML，此时把空路径交给 Mihomo，
 		// 由内核重载自己启动时使用的当前配置文件。
+		// TOML 内相对路径以 TOML 所在目录为基准，不随工作目录漂移。
 		if tomlConfigPath, err := config.FindTomlConfigPath(tomlFile); err == nil {
 			if tomlCfg, err := config.LoadTomlConfig(tomlConfigPath); err == nil && tomlCfg.Mihomo.ConfigFile != "" {
-				actualConfigPath = tomlCfg.Mihomo.ConfigFile
-				if !filepath.IsAbs(actualConfigPath) {
-					if abs, err := filepath.Abs(actualConfigPath); err == nil {
-						actualConfigPath = abs
-					}
+				actualConfigPath = config.ResolveTomlRelativePath(tomlConfigPath, tomlCfg.Mihomo.ConfigFile)
+				if _, err := os.Stat(actualConfigPath); err != nil {
+					return pkgerrors.ErrConfig("TOML 引用的 Mihomo 文件不存在: "+actualConfigPath+"，请用 --path 显式指定", err)
 				}
 			}
 		}
@@ -319,7 +318,7 @@ func newMihomoEditCmd() *cobra.Command {
 		Use:   "edit <key> <value>",
 		Short: "编辑 Mihomo 配置文件",
 		Long: `编辑 Mihomo 配置文件并自动重载。
-修改配置文件后会自动调用 reload 命令使配置生效。`,
+修改配置文件后会自动调用 reload 命令使配置生效。寻址顺序为显式 --mihomo-config 高于 TOML 内 mihomo.config_file（相对路径以 TOML 所在目录为基准）高于用户标准路径，不探测当前目录。`,
 		Example: `  mihomo-cli mihomo edit mode rule
   mihomo-cli mihomo edit allow-lan true
   mihomo-cli mihomo edit tun.enable true --no-reload`,
@@ -330,14 +329,14 @@ func newMihomoEditCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&noReload, "no-reload", false, "仅修改文件，不触发重载")
-	cmd.Flags().StringVarP(&mihomoConfigPath, "mihomo-config", "m", "", "Mihomo 配置文件路径")
+	cmd.Flags().StringVarP(&mihomoConfigPath, "mihomo-config", "m", "", "Mihomo 配置文件路径（相对路径以调用时工作目录为基准）")
 
 	return cmd
 }
 
 // runMihomoEdit 执行配置文件编辑
 func runMihomoEdit(ctx context.Context, key, valueStr, mihomoConfigPath string, noReload bool) error {
-	// 确定配置文件路径，仅支持显式路径与用户标准路径
+	// 确定配置文件路径，顺序为显式路径高于 TOML 内配置高于用户标准路径，不探测当前目录
 	configPath, err := config.FindConfigPath(mihomoConfigPath, tomlFile)
 	if err != nil {
 		return err

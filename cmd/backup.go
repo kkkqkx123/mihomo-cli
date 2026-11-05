@@ -61,8 +61,13 @@ func runBackupCreate(mihomoConfigPath, note string) error {
 		return pkgerrors.ErrConfig("创建备份失败", err)
 	}
 
+	resolvedConfigPath, resolveErr := config.FindConfigPath(mihomoConfigPath, tomlFile)
+	if resolveErr != nil {
+		resolvedConfigPath = mihomoConfigPath
+	}
+
 	output.Success("备份创建成功")
-	output.PrintKeyValue("配置文件", mihomoConfigPath)
+	output.PrintKeyValue("配置文件", resolvedConfigPath)
 	output.PrintKeyValue("备份文件", info.Path)
 	output.PrintKeyValue("文件大小", config.FormatSize(info.Size))
 	if note != "" {

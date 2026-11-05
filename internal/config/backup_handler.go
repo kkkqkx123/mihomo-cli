@@ -47,11 +47,9 @@ func FindConfigPath(mihomoConfigPath, tomlConfigPath string) (string, error) {
 
 	if resolved, err := FindTomlConfigPath(tomlConfigPath); err == nil {
 		if tomlCfg, err := LoadTomlConfig(resolved); err == nil && tomlCfg.Mihomo.ConfigFile != "" {
-			abs, err := filepath.Abs(tomlCfg.Mihomo.ConfigFile)
-			if err == nil {
-				if _, err := os.Stat(abs); err == nil {
-					return abs, nil
-				}
+			abs := ResolveTomlRelativePath(resolved, tomlCfg.Mihomo.ConfigFile)
+			if _, err := os.Stat(abs); err == nil {
+				return abs, nil
 			}
 		}
 	}

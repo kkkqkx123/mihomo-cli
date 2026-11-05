@@ -98,6 +98,39 @@ func FindTomlConfigPath(customPath string) (string, error) {
 	return userConfig, nil
 }
 
+// ResolveTomlRelativePath 将 TOML 文件内的相对路径以 TOML 所在目录为基准解析。
+// 绝对路径直接清理后返回；TOML 路径为空时回退到相对当前目录解析。
+// 调用方在读取 TOML 引用的内核文件前必须经此函数归一化，避免含义随工作目录漂移。
+func ResolveTomlRelativePath(tomlPath, p string) string {
+	if p == "" {
+		return ""
+	}
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	if tomlPath != "" {
+		if dir := filepath.Dir(tomlPath); dir != "" {
+			return filepath.Clean(filepath.Join(dir, p))
+		}
+	}
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return p
+	}
+	return abs
+}
+
+// NormalizeTomlConfigPaths 将 TOML 内相对引用的内核配置文件改写为绝对路径。
+// 相对基准为 TOML 文件所在目录，与内核可执行文件解析器的基准保持一致。
+func NormalizeTomlConfigPaths(tomlPath string, cfg *TomlConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Mihomo.ConfigFile != "" {
+		cfg.Mihomo.ConfigFile = ResolveTomlRelativePath(tomlPath, cfg.Mihomo.ConfigFile)
+	}
+}
+
 // LoadTomlConfig 加载 TOML 配置文件，路径必须显式存在
 func LoadTomlConfig(path string) (*TomlConfig, error) {
 	var config TomlConfig
