@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -82,6 +83,10 @@ func runSysproxyGet(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		output.Info("  状态: 已禁用")
+		if os.Getenv("HTTP_PROXY") != "" || os.Getenv("http_proxy") != "" || os.Getenv("HTTPS_PROXY") != "" || os.Getenv("https_proxy") != "" {
+			output.Info("当前 Shell 仍导出了代理环境变量，仅影响当前终端，不属于本工具管理的系统配置")
+			output.Println("如需清除当前终端代理，执行: unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY")
+		}
 	}
 
 	return nil
@@ -119,6 +124,7 @@ func runSysproxySet(cmd *cobra.Command, args []string) error {
 			return pkgerrors.ErrService("禁用系统代理失败", err)
 		}
 		output.Success("系统代理已禁用")
+		output.Info("当前 Shell 已导出的代理环境变量不受影响，如需清除请手动执行: unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY")
 
 	default:
 		return pkgerrors.ErrInvalidArg("invalid parameter: "+action+", please use 'on' or 'off'", nil)

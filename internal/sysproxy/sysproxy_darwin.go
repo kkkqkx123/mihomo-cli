@@ -29,34 +29,17 @@ func newPlatformSysProxy() SysProxy {
 	return &darwinSysProxy{}
 }
 
-// GetStatus gets the proxy status
+// GetStatus gets the proxy status from managed persistent config files.
+// Process environment variables are deliberately ignored: they describe the
+// current shell only, not the managed system state, and must not be treated
+// as residual configuration left by this tool.
 func (sp *darwinSysProxy) GetStatus() (*ProxySettings, error) {
 	settings := &ProxySettings{}
 
-	// First read environment variables
-	if httpProxy := os.Getenv("HTTP_PROXY"); httpProxy != "" {
-		settings.Enabled = true
-		settings.Server = httpProxy
-	} else if httpProxy := os.Getenv("http_proxy"); httpProxy != "" {
-		settings.Enabled = true
-		settings.Server = httpProxy
+	if data, err := os.ReadFile(ProxyPlistFile); err == nil {
+		parseDarwinProxyConfig(string(data), settings)
 	}
 
-	if noProxy := os.Getenv("NO_PROXY"); noProxy != "" {
-		settings.BypassList = noProxy
-	} else if noProxy := os.Getenv("no_proxy"); noProxy != "" {
-		settings.BypassList = noProxy
-	}
-
-	// If environment variables are empty, try reading config files
-	if !settings.Enabled {
-		// Try reading /etc/profile.d/proxy.sh
-		if data, err := os.ReadFile(ProxyPlistFile); err == nil {
-			parseDarwinProxyConfig(string(data), settings)
-		}
-	}
-
-	// Still empty, try reading /etc/environment
 	if !settings.Enabled {
 		if data, err := os.ReadFile(ProxyEnvFileFallback); err == nil {
 			parseProxyConfig(string(data), settings)
@@ -159,6 +142,7 @@ func removeFromEtcEnvironment() error {
 
 	lines := strings.Split(string(data), "\n")
 	var newLines []string
+	removed := false
 	proxyKeys := map[string]bool{
 		"HTTP_PROXY":  true,
 		"HTTPS_PROXY": true,
@@ -173,14 +157,19 @@ func removeFromEtcEnvironment() error {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) >= 1 {
 			key := strings.TrimSpace(parts[0])
-			// Also handle "export KEY=value" format
+		// Also handle "export KEY=value" format
 			key = strings.TrimPrefix(key, "export ")
 			key = strings.TrimSpace(key)
 			if proxyKeys[key] {
+				removed = true
 				continue
 			}
 		}
 		newLines = append(newLines, line)
+	}
+
+	if !removed {
+		return nil
 	}
 
 	// Write back to file

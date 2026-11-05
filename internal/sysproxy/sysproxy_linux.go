@@ -27,34 +27,17 @@ func newPlatformSysProxy() SysProxy {
 	return &linuxSysProxy{}
 }
 
-// GetStatus gets the proxy status
+// GetStatus gets the proxy status from managed persistent config files.
+// Process environment variables are deliberately ignored: they describe the
+// current shell only, not the managed system state, and must not be treated
+// as residual configuration left by this tool.
 func (sp *linuxSysProxy) GetStatus() (*ProxySettings, error) {
 	settings := &ProxySettings{}
 
-	// First read environment variables
-	if httpProxy := os.Getenv("HTTP_PROXY"); httpProxy != "" {
-		settings.Enabled = true
-		settings.Server = httpProxy
-	} else if httpProxy := os.Getenv("http_proxy"); httpProxy != "" {
-		settings.Enabled = true
-		settings.Server = httpProxy
+	if data, err := os.ReadFile(ProxyEnvFile); err == nil {
+		parseProxyConfig(string(data), settings)
 	}
 
-	if noProxy := os.Getenv("NO_PROXY"); noProxy != "" {
-		settings.BypassList = noProxy
-	} else if noProxy := os.Getenv("no_proxy"); noProxy != "" {
-		settings.BypassList = noProxy
-	}
-
-	// If environment variables are empty, try reading config files
-	if !settings.Enabled {
-		// Try reading systemd environment.d config
-		if data, err := os.ReadFile(ProxyEnvFile); err == nil {
-			parseProxyConfig(string(data), settings)
-		}
-	}
-
-	// Still empty, try reading /etc/environment
 	if !settings.Enabled {
 		if data, err := os.ReadFile(ProxyEnvFileFallback); err == nil {
 			parseProxyConfig(string(data), settings)
@@ -176,17 +159,22 @@ func removeFromEtcEnvironment() error {
 		"NO_PROXY":    true,
 		"no_proxy":    true,
 	}
-
+	removed := false
 	for _, line := range lines {
 		// Skip proxy related lines
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) >= 1 {
 			key := strings.TrimSpace(parts[0])
 			if proxyKeys[key] {
+				removed = true
 				continue
 			}
 		}
 		newLines = append(newLines, line)
+	}
+
+	if !removed {
+		return nil
 	}
 
 	// Write back to file

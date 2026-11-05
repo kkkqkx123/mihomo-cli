@@ -15,6 +15,7 @@ import (
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	"github.com/kkkqkx123/mihomo-cli/internal/system"
+	"github.com/kkkqkx123/mihomo-cli/internal/util"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
 )
 
@@ -454,6 +455,14 @@ func (ph *ProcessHandler) checkAndCleanupBeforeStart(cfg *config.TomlConfig) err
 			output.Printf("  - %s (severity: %s)\n", problem.Description, problem.Severity)
 		}
 
+		if !util.IsAdmin() {
+			output.Info("Skipping automatic cleanup: system configuration cleanup requires administrator privileges")
+		output.Println("To clean up, run: sudo mihomo-cli system cleanup")
+		output.Println("")
+		output.Println("Continuing startup without cleanup...")
+			return nil
+		}
+
 		// 尝试自动清理
 		output.Info("Cleaning up residual configuration before start...")
 		if err := scm.CleanupAll(); err != nil {
@@ -551,6 +560,12 @@ func (ph *ProcessHandler) checkAndCleanupAfterStop(_ *config.TomlConfig) error {
 		output.Warning("Detected %d residual configuration issues", len(problems))
 		for _, problem := range problems {
 			output.Printf("  - %s (severity: %s)\n", problem.Description, problem.Severity)
+		}
+
+		if !util.IsAdmin() {
+			output.Info("Skipping automatic cleanup: system configuration cleanup requires administrator privileges")
+		output.Println("To clean up, run: sudo mihomo-cli system cleanup")
+		return nil
 		}
 
 		// 尝试自动清理
