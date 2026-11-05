@@ -59,6 +59,37 @@ GeoIP 数据库状态: ✗ 未安装
 mihomo-cli geoip status -o json
 ```
 
+
+## GeoSite 数据库管理
+
+`geoip` 命令下还提供 `geosite` 子命令，用于管理 GeoSite 数据库文件（`GeoSite.dat`）：
+
+### 更新 GeoSite 数据库
+
+```bash
+mihomo-cli geoip geosite update
+```
+
+### 查询 GeoSite 数据库状态
+
+```bash
+mihomo-cli geoip geosite status
+```
+
+**输出示例（已安装）：**
+
+```
+GeoSite 数据库状态: ✓ 已安装
+
+文件路径: ~/.config/mihomo/GeoSite.dat
+文件名: GeoSite.dat
+文件大小: 12.34 MB
+最后更新: 2026-11-05 18:00:00
+存储目录: ~/.config/mihomo
+```
+
+GeoSite 数据库文件同样存放在 Mihomo 配置目录，文件名为 `GeoSite.dat`。
+
 ## 文件存储位置
 
 GeoIP 数据库文件存放在 Mihomo 配置目录：
@@ -82,4 +113,4 @@ GeoIP 数据库文件存放在 Mihomo 配置目录：
 
 ## 相关文档
 
-- [GeoIP 工作机制分析](../../docs/mihomo-core/geoip-mechanism.md)
+- [GeoIP 工作机制分析](../mihomo-core/geoip-mechanism.md)

@@ -6,7 +6,7 @@
 
 ### 1. 配置文件
 
-确保 `config.toml` 配置正确：
+确保用户配置目录下的 `config.toml`（默认 `<UserConfigDir>/mihomo-cli/config.toml`，也可用 `--toml` 显式指定）配置正确：
 
 ```toml
 [api]
@@ -18,8 +18,10 @@ timeout = 10
 enabled = true
 executable = "E:\\server\\mihomo\\mihomo-windows-amd64.exe"
 config_file = "E:\\project\\mihomo-go\\test-mihomo-config.yaml"
-auto_generate_secret = true
+health_check_timeout = 5
 ```
+
+说明：`executable` 与 `config_file` 留空时，CLI 会从 PATH 查找 `mihomo`，并由内核使用默认配置文件（`~/.config/mihomo/config.yaml`）。`auto_generate_secret` 已移除，CLI 不再自动写入密钥。
 
 确保 `test-mihomo-config.yaml` 配置正确：
 
@@ -76,8 +78,8 @@ API 地址: http://127.0.0.1:9090
 
 **说明：**
 - 内核会在后台运行
-- 自动生成随机密钥用于 API 认证
-- CLI 工具会自动更新配置文件中的密钥（auto_generate_secret = true 时）
+- 密钥来自配置文件中的 [api].secret（为空时内核不启用 API 认证）
+- 启动输出会显示当前密钥；CLI 不再自动写入密钥，如需认证请执行 `mihomo-cli config set api.secret <密钥>`
 
 ### 步骤 2：配置 API 密钥
 

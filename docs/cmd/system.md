@@ -257,7 +257,7 @@ mihomo-cli recovery execute
 
 **选项：**
 - `-a, --auto` - 仅自动恢复可自动处理的问题
-- `-c, --component` - 指定组件（sysproxy, tun, route）
+- `--component` - 指定组件（sysproxy, tun, route）
 - `-F, --force` - 强制执行高风险操作（跳过确认）
 - `-p, --problem` - 指定要修复的问题类型
 
@@ -308,7 +308,7 @@ mihomo-cli operation query
 ```
 
 **选项：**
-- `-c, --component` - 过滤组件（sysproxy, tun, route, snapshot）
+- `--component` - 过滤组件（sysproxy, tun, route, snapshot）
 - `-l, --limit` - 限制返回数量（默认 20）
 - `--since` - 起始时间（格式：2006-01-02）
 

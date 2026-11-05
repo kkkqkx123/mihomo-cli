@@ -4,6 +4,8 @@
 
 Mihomo CLI 使用 PID 文件实现跨进程状态管理。由于 CLI 是无状态的（每次执行都是新进程），需要通过持久化的 PID 文件来跟踪 Mihomo 内核进程。
 
+PID 文件**不是**运行状态的唯一真相来源：`status` 命令以 API 探测与本机进程扫描为准，PID 文件主要用于托管实例识别、启停定位与重复启动防护。
+
 ## 为什么需要 PID 文件
 
 ### 核心原因
@@ -19,10 +21,11 @@ CLI 设计为无状态工具，每次命令执行都是独立的进程，无法�
 
 - ✅ `start` 命令：检测重复启动
 - ✅ `stop` 命令：定位要停止的进程
-- ✅ `status` 命令：查询运行状态
+- ✅ `status` 命令：识别 CLI 托管实例（进程扫描的补充信息）
+- ✅ `ps` 命令：识别 CLI 托管实例
 - ✅ `cleanup` 命令：清理残留文件
 - ✅ 健康检查超时：停止已启动的进程
-- ✅ 信号处理：用户按 Ctrl+C 时停止进程
+- ❌ 信号处理：CLI 不注册全局信号处理器；`Ctrl+C` 只终止当前 CLI 进程，不会停止已守护化的内核或删除 PID 文件，残留由 `cleanup` 处理
 
 ## 存储路径
 
@@ -36,11 +39,13 @@ CLI 设计为无状态工具，每次命令执行都是独立的进程，无法�
 
 ```
 <UserConfigDir>/mihomo-cli/
-├── mihomo.pid           # 默认配置（未指定配置文件）
+├── mihomo.pid             # 默认配置（未指定配置文件）
 ├── mihomo-{identity}.pid  # 指定配置文件的实例（PID 元数据 v1）
-├── state-{identity}.json  # 运行状态文件
-├── lock-{identity}        # 并发启动锁文件
-└── backups/             # 配置备份目录
+├── state-{identity}.json   # 运行状态文件
+├── lock-{identity}         # 并发启动锁文件
+├── backups/               # 配置备份目录
+├── data/                  # 数据目录（审计日志、快照等）
+└── history/               # 命令历史目录
 ```
 
 ### 路径生成规则
@@ -63,7 +68,7 @@ func IdentityOf(configFile string) string {
     if configFile == "" {
         return DefaultIdentity // "default"
     }
-    abs := filepath.Clean(mustAbs(configFile))
+    abs := identityAbsPath(configFile)
     sum := sha256.Sum256([]byte(abs))
     return hex.EncodeToString(sum[:])[:12]
 }
@@ -129,7 +134,6 @@ func (d *DaemonManagerCommon) SavePID(pid int) error {
 3. 如果进程不存在，返回错误
 
 ```go
-// ProcessManager.GetPIDFromPIDFile（内部经 InstanceRegistry.Load）
 meta, err := NewInstanceRegistry(pm.pidFile).Load()
 if err != nil {
     return 0, err
@@ -149,33 +153,24 @@ return meta.PID, nil
 
 1. **正常停止**：`stop` 命令执行成功后
    ```go
-   os.Remove(pm.pidFile)
+   os.Remove(pm.pidFile) // 实际由 DaemonLauncher.Stop / StopDaemon 调用 CleanupPID
    ```
 
-2. **进程退出**：进程监控 goroutine 检测到进程退出
-   ```go
-   go func() {
-       pm.cmd.Wait()
-       os.Remove(pm.pidFile)
-   }()
-   ```
-
-3. **健康检查超时**：启动超时清理
+2. **健康检查超时**：启动超时清理
    ```go
    if pid, err := pm.GetPIDFromPIDFile(); err == nil {
-       StopProcessByPID(pid)
-       // PID 文件会在进程退出时被监控 goroutine 删除
+       // ProcessHandler.Start 调用 launcher.Stop(true)
+       // 由 DaemonLauncher.Stop / StopDaemon 清理 PID 文件
    }
    ```
 
-4. **信号中断**：用户按 Ctrl+C
-   ```go
-   if pid, err := pm.GetPIDFromPIDFile(); err == nil {
-       StopProcessByPID(pid)
-   }
-   ```
+3. **手动清理**：`cleanup` 命令
 
-5. **手动清理**：`cleanup` 命令
+4. **停止所有进程**：`stop --all` 会扫描实例并在进程退出后清理对应 PID 文件
+
+**不会自动删除的情况**：
+- 进程崩溃、被外部杀死、系统重启：PID 文件残留，需通过 `cleanup` 或 `stop --all` 清理
+- CLI 进程被 `Ctrl+C` 终止：不会触发内核停止或 PID 文件删除
 
 ## 格式版本（锁定 v1）
 
@@ -199,81 +194,101 @@ return meta.PID, nil
 ### start 命令
 
 **用途**：
-1. 检测重复启动
-2. 保存新进程的 PID
+1. 检测重复启动（`launcher.GetRunningPID()`：先读状态文件，再读 PID 文件）
+2. 通过进程锁避免并发启动
+3. 启动成功后保存新进程的 PID 元数据
 
 **流程**：
 ```
-1. 读取 PID 文件
+1. 读取状态 / PID 文件
 2. 如果存在且进程运行 → 拒绝启动
-3. 启动进程
-4. 保存新 PID
-5. 启动后台监控（进程退出时删除 PID）
+3. 获取进程锁
+4. 启动进程
+5. SavePID 保存元数据
+6. 启动生命周期监控
 ```
 
 **相关代码**：
-- `process_handler.go:Start()` - 重复启动检测
-- `manager.go:Start()` - 保存 PID
+- `process_handler.go:Start()` - 业务流程与健康检查
+- `daemon_launcher.go:Start()` - 创建守护进程管理器并启动
+- `daemon_common.go:SavePID()` - 写入 PID 元数据
 
 ### stop 命令
 
 **用途**：
-1. 定位要停止的进程
-2. 删除 PID 文件
+1. 默认定位当前配置对应的实例（`launcher.GetRunningPID()`）
+2. 通过 API 优雅关闭，失败时强制终止
+3. 清理 PID 文件与状态文件
 
 **流程**：
 ```
-1. 读取 PID 文件
+1. 读取状态 / PID 文件
 2. 如果不存在或进程不运行 → 返回错误
 3. 通过 PID 停止进程
-4. 删除 PID 文件
+4. 清理 PID 文件与状态文件
 ```
 
+传入 PID 参数时，先校验该进程正在运行；`--all` 则扫描所有托管与外部实例并清理对应 PID 文件。
+
 **相关代码**：
-- `process_handler.go:Stop()` - 读取 PID 并停止进程
+- `process_handler.go:Stop()` - 业务流程
+- `daemon_launcher.go:Stop()` / `StopDaemon()` - 实际停止与 PID 文件清理
 
 ### status 命令
 
 **用途**：
-1. 查询进程运行状态
+1. 查询内核运行状态与 API 可达性
+2. 识别本机内核进程及其管理方式
 
 **流程**：
 ```
-1. 读取 PID 文件
-2. 如果不存在 → 返回"未运行"
-3. 验证进程是否存在
-4. 返回运行状态和 PID
+1. 探测 API（GetVersion）
+2. 解析 API 地址，仅对本机地址执行进程补充
+3. 通过监听端口查找 PID，失败时静默扫描进程
+4. 根据 PID 文件元数据判断是否为 CLI 托管实例
+5. 输出状态、PID、管理方式、进程数等
 ```
 
+**注意**：`status` 不把 PID 文件当作真相来源；PID 文件仅用于在进程扫描阶段识别 CLI 托管实例。
+
 **相关代码**：
-- `process_handler.go:Status()` - 查询状态
+- `status.go:QueryStatus()` - 核心查询
+- `discovery.go` / `scanner.go` - 托管与外部实例扫描
 
 ### cleanup 命令
 
 **用途**：
-1. 清理所有残留的 PID 文件
+1. 清理所有残留的 PID 元数据文件
 
 **流程**：
 ```
 1. 扫描 <UserConfigDir>/mihomo-cli/ 目录
 2. 遍历所有 .pid 文件
-3. 验证进程是否存在
-4. 删除无效的 PID 文件：
-   - 进程不存在的
-   - 文件损坏的
+3. 解析 v1 元数据；损坏文件直接删除
+4. 验证进程是否存在，删除进程不存在的 PID 文件
 ```
 
 **相关代码**：
 - `scanner.go:CleanupPIDFiles()` - 清理残留文件
 
+### ps 命令
+
+**用途**：
+1. 列出所有 Mihomo 进程（托管 + 外部）
+
+托管实例来自 PID 目录元数据，外部实例来自全进程表枚举；PID 文件用于识别托管实例与读取元数据。
+
+**相关代码**：
+- `discovery.go:ScanMihomoProcesses()` - 两源合并扫描
+
 ## 异常处理
 
 ### 残留文件产生原因
 
-1. **进程崩溃**：进程异常退出，监控 goroutine 未执行
+1. **进程崩溃**：进程异常退出，无自动清理
 2. **系统重启**：系统重启，PID 文件保留但进程已退出
 3. **进程被外部杀死**：任务管理器、第三方工具
-4. **启动超时**：健康检查超时，进程已启动但未响应
+4. **启动超时**：健康检查超时，进程已启动但未响应，随后由 `launcher.Stop(true)` 清理
 5. **文件系统错误**：写入 PID 失败，但进程已启动
 
 ### 清理策略
@@ -281,6 +296,11 @@ return meta.PID, nil
 **手动清理**：
 ```bash
 mihomo-cli cleanup
+```
+
+**批量清理**：
+```bash
+mihomo-cli stop --all
 ```
 
 **自动清理**：
@@ -294,20 +314,20 @@ mihomo-cli cleanup
 2. 进程真实运行
 
 ```go
-func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
-    pid, err := pm.ReadPID()
-    if err != nil {
-        return 0, err
-    }
-
-    // 关键：验证进程是否真实存在
-    if !IsProcessRunning(pid) {
-        return 0, pkgerrors.ErrService("process ... is not running", nil)
-    }
-
-    return pid, nil
+meta, err := NewInstanceRegistry(pm.pidFile).Load()
+if err != nil {
+    return 0, err
 }
+
+// 关键：验证进程是否真实存在
+if !IsProcessRunning(meta.PID) {
+    return 0, pkgerrors.ErrService("process ... is not running", nil)
+}
+
+return meta.PID, nil
 ```
+
+**防误杀**：解析失败或版本不符的文件一律跳过并提示，绝不按错误 PID 执行 kill，避免 PID 复用导致误杀。
 
 ## Windows 进程检测
 
@@ -316,19 +336,20 @@ func (pm *ProcessManager) GetPIDFromPIDFile() (int, error) {
 使用 Windows API 检查进程是否存在：
 
 ```go
-func isProcessRunningWindows(pid int) bool {
-    // 使用 PROCESS_QUERY_INFORMATION 权限打开进程
-    handle, _, _ := procOpenProcess.Call(
-        uintptr(PROCESS_QUERY_INFORMATION),
-        0,
-        uintptr(pid),
-    )
-    if handle == 0 {
-        return false
+handle, err := windows.OpenProcess(
+    windows.PROCESS_QUERY_INFORMATION,
+    false,
+    uint32(pid),
+)
+if err != nil {
+    // 权限不足（ERROR_ACCESS_DENIED）时保守认为进程仍在运行
+    if errno, ok := err.(windows.Errno); ok && errno == windows.ERROR_ACCESS_DENIED {
+        return true
     }
-    procCloseHandle.Call(handle)
-    return true
+    return false
 }
+_ = windows.CloseHandle(handle)
+return true
 ```
 
 ### 为什么不使用 `os.Process.Signal`
@@ -356,9 +377,10 @@ func isProcessRunningWindows(pid int) bool {
 - 所有者：读写执行
 - 组和他人：读执行
 
-**文件权限**：`0644`（rw-r--r--）
-- 所有者：读写
-- 组和他人：只读
+**文件权限**：
+- PID 文件：`0644`（rw-r--r--）
+- 状态文件：`0600`（rw-------）
+- 锁文件：`0644`（rw-r--r--）
 
 ## 故障排查
 
@@ -368,6 +390,7 @@ func isProcessRunningWindows(pid int) bool {
 1. PID 文件损坏
 2. PID 文件不存在
 3. 配置文件路径变化导致 PID 文件不匹配
+4. `status` 以 API / 进程扫描为准，PID 文件缺失不影响进程识别
 
 **解决方法**：
 ```bash
@@ -407,8 +430,8 @@ mihomo-cli stop --all
 mihomo-cli cleanup
 mihomo-cli stop
 
-# 方法3：手动通过 PID 停止
-mihomo-cli stop <PID>
+# 方法3：强制停止
+mihomo-cli stop -F
 ```
 
 ## 相关文件
@@ -419,11 +442,17 @@ mihomo-cli stop <PID>
 - `internal/mihomo/instance.go` - `InstanceMeta` / `InstanceRegistry`（PID 元数据 v1 读写，原子写）
 - `internal/mihomo/daemon_common.go` - `DaemonManagerCommon.SavePID`（启动后写入完整元数据）
 - `internal/mihomo/daemon_launcher.go` - `DaemonLauncher` 读取/清理 PID 文件
-- `internal/mihomo/manager.go` - `ProcessManager.GetPIDFromPIDFile`（status 等场景）
+- `internal/mihomo/daemon_linux.go` / `daemon_darwin.go` / `daemon_windows.go` - 各平台守护进程管理器
+- `internal/mihomo/manager.go` - `ProcessManager.GetPIDFromPIDFile`
+- `internal/mihomo/lifecycle.go` - 生命周期阶段与状态追踪
+- `internal/mihomo/state.go` - 状态文件读写
+- `internal/mihomo/lock.go` - 进程锁文件
 - `internal/mihomo/discovery.go` - 两源进程发现（managed + external 合并、验证分级）
 - `internal/mihomo/scanner.go` - 实例扫描（`ps`）、残留文件清理（`cleanup`）
+- `internal/mihomo/status.go` - `status` 查询（API + 进程扫描，PID 文件仅作托管识别）
+- `internal/mihomo/process_windows.go` - Windows 进程检测
 - `internal/mihomo/process_list_*.go` - 全进程枚举（windows/linux/darwin）
-- `cmd/ps.go` / `cmd/cleanup.go` / `cmd/start.go` - ps / cleanup / start+stop+status 命令
+- `cmd/start.go` / `cmd/cleanup.go` / `cmd/ps.go` - start+stop+status / cleanup / ps 命令
 
 ## 参考资料
 

@@ -19,8 +19,7 @@ mihomo-cli config init
 - `-f, --force` - 强制覆盖已存在的配置文件
 
 **生成的文件：**
-- `config.toml` - 统一配置文件（包含 CLI 和 Mihomo 内核管理配置）
-- `secrets.json` - 敏感数据存储（权限 600）
+- `config.yaml` - CLI 配置文件（API、代理测试与输出配置）
 
 **示例：**
 ```bash
@@ -41,9 +40,10 @@ mihomo-cli config show
 ```
 
 **显示内容：**
-- CLI 客户端配置（API 地址、超时时间、代理测试 URL 等）
-- Mihomo 内核配置（可执行文件、配置文件、日志级别等）
-- 敏感数据（API 密钥、订阅数量等，密钥会脱敏显示）
+- CLI 配置文件路径
+- API 地址、超时时间与密钥（密钥脱敏显示）
+- 代理测试 URL、超时、并发、批大小与最大节点数
+- 输出文件、输出模式与追加写入设置
 
 **示例：**
 ```bash
@@ -60,20 +60,17 @@ mihomo-cli config set <key> <value>
 ```
 
 **支持的配置项：**
-- `api.address` - API 地址
-- `api.timeout` - API 超时时间（秒）
-- `proxy.test_url` - 代理测试 URL
+- `api.address` / `address` - API 地址
+- `api.secret` / `secret` - API 密钥
+- `api.timeout` / `timeout` - API 超时时间（秒）
+- `proxy.test_url` / `proxy.test-url` / `test_url` - 代理测试 URL
 - `proxy.timeout` - 代理超时时间（毫秒）
 - `proxy.concurrent` - 并发测试数
-- `output.mode` - 输出模式（console/file）
+- `proxy.batch_size` / `proxy.batch-size` - 每批次测试的节点数
+- `proxy.max_nodes` / `proxy.max-nodes` - 最大测试节点数
 - `output.file` - 输出文件路径
-- `mihomo.enabled` - Mihomo 启用状态
-- `mihomo.executable` - Mihomo 可执行文件路径
-- `mihomo.config_file` - Mihomo 配置文件路径
-- `mihomo.auto_generate_secret` - 自动生成密钥
-- `mihomo.health_check_timeout` - 健康检查超时（秒）
-- `mihomo.api.external_controller` - 外部控制器地址
-- `mihomo.log.level` - 日志级别
+- `output.mode` - 输出模式（console/file/both）
+- `output.append` - 是否追加写入（true/false）
 
 **示例：**
 ```bash
@@ -150,6 +147,31 @@ mihomo-cli mihomo reload --path /path/to/config.yaml
 
 # 强制重载
 mihomo-cli mihomo reload --force
+```
+
+### mihomo restart - 通过 API 重启 Mihomo 内核
+
+通过 Mihomo RESTful API 触发内核进程重启。仅重启 Mihomo 内核，不会重启 CLI 本身。
+
+**语法：**
+```bash
+mihomo-cli mihomo restart
+```
+
+**选项：**
+- `--wait` - 重启后等待并验证核心重新可用（默认 true）
+- `--wait-timeout` - 等待核心重新可用的最大秒数（默认 30）
+
+**示例：**
+```bash
+# 重启内核并等待恢复
+mihomo-cli mihomo restart
+
+# 重启后不等待验证
+mihomo-cli mihomo restart --no-wait
+
+# 设置等待超时
+mihomo-cli mihomo restart --wait-timeout 60
 ```
 
 ### mihomo edit - 编辑 Mihomo 配置文件

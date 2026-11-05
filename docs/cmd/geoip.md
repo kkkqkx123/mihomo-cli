@@ -142,6 +142,29 @@ GeoIP 数据库状态: ✗ 未安装
 }
 ```
 
+
+## GeoSite 数据库管理 (geosite)
+
+`geoip geosite` 子命令用于管理 GeoSite 域名分类数据库。
+
+### geoip geosite update - 更新 GeoSite 数据库
+
+从配置的数据源更新 GeoSite 数据库文件。
+
+```bash
+mihomo-cli geoip geosite update
+mihomo-cli geoip geosite update -o json
+```
+
+### geoip geosite status - 查询 GeoSite 数据库状态
+
+检查 GeoSite 数据库文件的存在性、大小和最后修改时间。
+
+```bash
+mihomo-cli geoip geosite status
+mihomo-cli geoip geosite status -o json
+```
+
 ## 全局选项
 
 所有 `geoip` 子命令都支持以下全局选项：
@@ -164,11 +187,21 @@ mihomo-cli geoip status -o json
 ### -c, --config string
 
 - **说明**: 指定配置文件路径
-- **默认值**: `~/.mihomo-cli/config.yaml`
+- **默认值**: `<UserConfigDir>/mihomo-cli/config.yaml`
 
 **示例**:
 ```bash
 mihomo-cli geoip status -c ./config.yaml
+```
+
+### --toml string
+
+- **说明**: 指定 TOML 配置文件路径
+- **默认值**: `<UserConfigDir>/mihomo-cli/config.toml`
+
+**示例**:
+```bash
+mihomo-cli geoip status --toml ./config.toml
 ```
 
 ### --api string

@@ -28,19 +28,25 @@ mihomo-cli rule list --type DOMAIN
 mihomo-cli rule list -o json
 ```
 
-### rule provider - 列出规则提供者
+### rule provider - 管理规则提供者
 
-列出所有规则提供者及其信息。
+管理规则提供者，包括列出和更新规则提供者订阅。
 
 **语法：**
 ```bash
-mihomo-cli rule provider
+mihomo-cli rule provider [command]
 ```
+
+**子命令：**
+- `rule provider list` - 列出规则提供者
+- `rule provider update <name>` - 更新指定规则提供者订阅
 
 **示例：**
 ```bash
 mihomo-cli rule provider
-mihomo-cli rule provider -o json
+mihomo-cli rule provider list
+mihomo-cli rule provider list -o json
+mihomo-cli rule provider update my-rule-provider
 ```
 
 ### rule disable - 禁用指定规则

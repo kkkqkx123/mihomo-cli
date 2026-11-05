@@ -6,7 +6,7 @@
 
 ### start - 启动 Mihomo 内核
 
-启动 Mihomo 内核并自动生成随机密钥。
+启动 Mihomo 内核并以后台进程运行。
 
 **语法：**
 ```bash
@@ -14,15 +14,20 @@ mihomo-cli start
 ```
 
 **启动流程：**
-1. 读取 config.toml 配置文件（优先当前目录）
-2. 自动生成 SHA256 随机密钥
-3. 启动 Mihomo 内核进程
+1. 读取 config.toml 配置文件（默认用户目录，可用 `--toml` 显式指定）
+2. `[mihomo] executable` 为空时从系统 PATH 查找 `mihomo`
+3. `[mihomo] config_file` 为空时直接启动 `mihomo`，由内核使用默认配置（`~/.config/mihomo/config.yaml`）
 4. 等待并验证内核启动成功
-5. 输出 API 地址和密钥信息
+
+启动后会进行健康检查，确保内核成功启动。如果启动失败或超时，会自动停止内核。
+
+**选项：**
+- `-f, --force` - 强制启动，跳过清理检查
 
 **示例：**
 ```bash
 mihomo-cli start
+mihomo-cli start --force
 ```
 
 ### stop - 停止 Mihomo 内核
@@ -39,7 +44,7 @@ mihomo-cli stop [pid]
 
 **选项：**
 - `-a, --all` - 停止所有 Mihomo 进程
-- `-c, --config` - 指定配置文件路径
+- `--include-unmanaged` - 配合 `--all` 使用：同时停止未托管（外部启动/未验证）的 Mihomo 进程
 - `-F, --force` - 强制关闭进程（不通过 API）
 
 **示例：**

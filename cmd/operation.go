@@ -53,7 +53,7 @@ func init() {
 	operationCmd.AddCommand(operationPruneCmd)
 
 	// query 命令标志
-	operationQueryCmd.Flags().StringVarP(&operationComponent, "component", "c", "", "过滤组件 (sysproxy, tun, route, snapshot)")
+	operationQueryCmd.Flags().StringVar(&operationComponent, "component", "", "过滤组件 (sysproxy, tun, route, snapshot)")
 	operationQueryCmd.Flags().IntVarP(&operationLimit, "limit", "l", 20, "限制返回数量")
 	operationQueryCmd.Flags().StringVar(&operationSince, "since", "", "起始时间 (格式: 2006-01-02)")
 

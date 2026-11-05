@@ -66,7 +66,7 @@ func init() {
 
 	// execute 命令标志
 	recoveryExecuteCmd.Flags().BoolVarP(&recoveryAuto, "auto", "a", false, "仅自动恢复可自动处理的问题")
-	recoveryExecuteCmd.Flags().StringVarP(&recoveryComponent, "component", "c", "", "指定组件 (sysproxy, tun, route)")
+	recoveryExecuteCmd.Flags().StringVar(&recoveryComponent, "component", "", "指定组件 (sysproxy, tun, route)")
 	recoveryExecuteCmd.Flags().BoolVarP(&recoveryForce, "force", "F", false, "强制执行高风险操作（跳过确认）")
 	recoveryExecuteCmd.Flags().StringVarP(&recoveryProblem, "problem", "p", "", "指定要修复的问题类型")
 }

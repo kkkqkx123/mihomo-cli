@@ -81,14 +81,10 @@ timeout = 10
 enabled = true
 executable = "E:\\server\\mihomo\\mihomo-windows-amd64.exe"
 config_file = "E:\\project\\mihomo-go\\test-mihomo-config.yaml"
-auto_generate_secret = true
-
-[mihomo.api]
-external_controller = "127.0.0.1:9090"
-
-[mihomo.log]
-level = "info"
+health_check_timeout = 5
 ```
+
+说明：`config.toml` 默认位于 `<UserConfigDir>/mihomo-cli/config.toml`，也可用 `--toml` 显式指定；`[mihomo.api]` 与 `[mihomo.log]` 等旧字段已移除。
 
 ## 二、启动 Mihomo 内核
 
@@ -130,7 +126,7 @@ E:\\server\\mihomo\\mihomo-windows-amd64.exe -f E:\\project\\mihomo-go\\test-mih
 
 ### 2. 设置 API 密钥
 
-当 `auto_generate_secret = true` 时，CLI 工具会自动从启动日志中提取密钥并更新到配置文件，无需手动设置。如果需要手动设置，请使用启动时生成的密钥：
+启动输出会显示当前密钥；CLI 不再自动写入密钥。如内核配置了 secret，请执行：
 
 ```bash
 ./mihomo-cli.exe config set api.secret 2b9075640e8205fb2e7b267f94d459927668c460c5b8d3e01695dbec47b410a1
@@ -405,7 +401,7 @@ proxy-providers:
 
 1. **准备配置文件**：创建包含 proxy-providers 的 Mihomo 配置文件
 2. **启动 Mihomo 内核**：使用 CLI 工具或直接启动 Mihomo
-3. **配置 CLI 工具**：初始化配置并设置 API 密钥（可选，当 auto_generate_secret=true 时自动处理）
+3. **配置 CLI 工具**：初始化配置并按需设置 API 密钥（内核 secret 为空时可跳过）
 4. **导入订阅**：使用 `sub update` 命令更新订阅
 5. **验证结果**：查看代理列表和持久化文件
 

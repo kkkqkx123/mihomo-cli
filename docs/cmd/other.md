@@ -88,26 +88,41 @@ mihomo-cli geoip update -o json
 mihomo-cli geoip status
 ```
 
-**显示内容：**
-- 数据库状态（已安装/未安装）
-- 文件路径
-- 文件名
-- 文件大小
-- 最后更新时间
-- 存储目录
-- 支持的文件名列表
-
 **示例：**
 ```bash
 mihomo-cli geoip status
 mihomo-cli geoip status -o json
 ```
 
-**支持的文件名（按优先级）：**
-- Country.mmdb
-- geoip.db
-- geoip.metadb
-- GeoIP.dat
+### geoip geosite update - 更新 GeoSite 数据库
+
+从配置的数据源更新 GeoSite 域名分类数据库文件。
+
+**语法：**
+```bash
+mihomo-cli geoip geosite update
+```
+
+**示例：**
+```bash
+mihomo-cli geoip geosite update
+mihomo-cli geoip geosite update -o json
+```
+
+### geoip geosite status - 查询 GeoSite 数据库状态
+
+检查 GeoSite 数据库文件的存在性、大小和最后修改时间。
+
+**语法：**
+```bash
+mihomo-cli geoip geosite status
+```
+
+**示例：**
+```bash
+mihomo-cli geoip geosite status
+mihomo-cli geoip geosite status -o json
+```
 
 ## 历史记录管理 (history)
 
@@ -152,6 +167,7 @@ mihomo-cli history clear
 **示例：**
 ```bash
 mihomo-cli history clear
+mihomo-cli history clear --yes
 ```
 
 ## 注意事项

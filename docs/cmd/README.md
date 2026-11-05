@@ -81,6 +81,7 @@
 - `config set` - 设置配置项
 - `mihomo patch` - 热更新 Mihomo 配置
 - `mihomo reload` - 重载 Mihomo 配置文件
+- `mihomo restart` - 通过 API 重启 Mihomo 内核
 - `mihomo edit` - 编辑 Mihomo 配置文件
 - `backup create` - 创建配置备份
 - `backup list` - 列出所有备份
@@ -123,6 +124,8 @@
 - `sub update` - 更新代理订阅
 - `geoip update` - 更新 GeoIP 数据库
 - `geoip status` - 查询 GeoIP 数据库状态
+- `geoip geosite update` - 更新 GeoSite 数据库
+- `geoip geosite status` - 查询 GeoSite 数据库状态
 - `history` - 查看命令历史记录
 - `history clear` - 清除历史记录
 
@@ -130,7 +133,8 @@
 
 所有命令都支持以下全局选项：
 
-- `-c, --config` - 配置文件路径（默认：`<UserConfigDir>/mihomo-cli/config.toml`）
+- `-c, --config` - CLI 配置文件路径（默认：`<UserConfigDir>/mihomo-cli/config.yaml`）
+- `--toml` - TOML 配置文件路径（默认：`<UserConfigDir>/mihomo-cli/config.toml`）
 - `-o, --output` - 输出格式（table/json）
 - `--api` - API 地址（覆盖配置文件）
 - `--secret` - API 密钥（覆盖配置文件）
