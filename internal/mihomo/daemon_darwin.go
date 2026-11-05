@@ -33,8 +33,11 @@ func NewDarwinDaemonManager(
 
 // StartAsDaemon 以守护进程方式启动
 func (ddm *DarwinDaemonManager) StartAsDaemon(ctx context.Context, cfg interface{}) error {
-	// 构建命令
-	cmd := exec.Command(ddm.Base().GetExecutablePath(), "-f", ddm.Base().GetConfigFile())
+	args := []string{}
+	if configFile := ddm.Base().GetConfigFile(); configFile != "" {
+		args = append(args, "-f", configFile)
+	}
+	cmd := exec.Command(ddm.Base().GetExecutablePath(), args...)
 
 	// 设置工作目录
 	if workDir := ddm.Base().GetWorkDir(); workDir != "" {
@@ -90,7 +93,7 @@ func (ddm *DarwinDaemonManager) StopDaemon(pid int) error {
 	apiAddr := ddm.Base().GetAPIAddress()
 	secret := ddm.Base().GetSecret()
 
-	if apiAddr != "" && secret != "" {
+	if apiAddr != "" {
 		output.Printf("Attempting to shutdown daemon via API...\n")
 		if err := StopProcessByPID(pid, apiAddr, secret); err == nil {
 			ddm.CleanupPID()

@@ -1,9 +1,6 @@
 package mihomo
 
 import (
-	"path/filepath"
-	"strings"
-
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/output"
 	pkgerrors "github.com/kkkqkx123/mihomo-cli/pkg/errors"
@@ -60,7 +57,7 @@ func scanManagedProcesses() ([]ProcessInfo, error) {
 		if meta.ExecPath != "" && sameExecutablePath(execPath, meta.ExecPath) {
 			verified = VerifyConfirmed
 		}
-		if verified != VerifyConfirmed && !nameContainsMihomo(execPath) {
+		if verified != VerifyConfirmed && !isMihomoExecutablePath(execPath) {
 			continue
 		}
 
@@ -92,8 +89,8 @@ func scanManagedProcesses() ([]ProcessInfo, error) {
 	return processes, nil
 }
 
-// scanExternalProcesses 枚举全进程表，按可执行名/命令行过滤出未托管的 mihomo 实例。
-// 过滤条件：可执行文件名小写含 "mihomo"，或命令行含 "mihomo"（覆盖改名场景）。
+// scanExternalProcesses 枚举全进程表，按可执行文件名过滤出未托管的 mihomo 实例。
+// 只做精确文件名匹配，避免把命令行中包含 mihomo 的 shell/CLI 进程误判为内核。
 func scanExternalProcesses(managed []ProcessInfo) ([]ProcessInfo, error) {
 	pids, err := listProcessPIDs()
 	if err != nil {
@@ -116,12 +113,8 @@ func scanExternalProcesses(managed []ProcessInfo) ([]ProcessInfo, error) {
 			continue
 		}
 
-		// 名称不匹配时再看命令行（覆盖自改名副本等场景）
-		if !nameContainsMihomo(execPath) {
-			cmdline, err := GetProcessCommandLine(pid)
-			if err != nil || !strings.Contains(strings.ToLower(cmdline), "mihomo") {
-				continue
-			}
+		if !isMihomoExecutablePath(execPath) {
+			continue
 		}
 
 		cmdline, _ := GetProcessCommandLine(pid)
@@ -136,9 +129,4 @@ func scanExternalProcesses(managed []ProcessInfo) ([]ProcessInfo, error) {
 	}
 
 	return out, nil
-}
-
-// nameContainsMihomo 判断可执行文件名（小写）是否包含 "mihomo"
-func nameContainsMihomo(execPath string) bool {
-	return strings.Contains(strings.ToLower(filepath.Base(execPath)), "mihomo")
 }

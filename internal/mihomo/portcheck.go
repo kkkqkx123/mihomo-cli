@@ -85,7 +85,7 @@ func findPIDByInode(inode string) int {
 			if err != nil {
 				continue
 			}
-			if link == "socket:"+inode {
+			if link == "socket:["+inode+"]" {
 				pidNum, _ := strconv.Atoi(pid)
 				return pidNum
 			}

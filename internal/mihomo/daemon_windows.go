@@ -36,7 +36,11 @@ func NewWindowsDaemonManager(
 // StartAsDaemon 以守护进程方式启动
 func (wdm *WindowsDaemonManager) StartAsDaemon(ctx context.Context, cfg interface{}) error {
 	// 构建命令
-	cmd := exec.Command(wdm.Base().GetExecutablePath(), "-f", wdm.Base().GetConfigFile())
+	args := []string{}
+	if configFile := wdm.Base().GetConfigFile(); configFile != "" {
+		args = append(args, "-f", configFile)
+	}
+	cmd := exec.Command(wdm.Base().GetExecutablePath(), args...)
 
 	// 设置工作目录
 	if workDir := wdm.Base().GetWorkDir(); workDir != "" {
@@ -99,7 +103,7 @@ func (wdm *WindowsDaemonManager) StopDaemon(pid int) error {
 	apiAddr := wdm.Base().GetAPIAddress()
 	secret := wdm.Base().GetSecret()
 
-	if apiAddr != "" && secret != "" {
+	if apiAddr != "" {
 		output.Printf("Attempting to shutdown daemon via API...\n")
 
 		client := api.NewClient("http://"+apiAddr, secret, api.WithTimeout(10*time.Second))

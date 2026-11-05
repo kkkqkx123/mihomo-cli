@@ -17,6 +17,13 @@ func sameExecutablePath(a, b string) bool {
 	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
 }
 
+// isMihomoExecutablePath 判断可执行文件名是否为 mihomo 内核（精确匹配，忽略大小写）。
+// 不能用子串匹配，否则 mihomo-cli 等进程会被误判为内核。
+func isMihomoExecutablePath(execPath string) bool {
+	base := strings.ToLower(filepath.Base(execPath))
+	return base == "mihomo" || base == "mihomo.exe"
+}
+
 // apiPortFromAddr 从 external-controller 地址提取端口号
 // 格式如 "127.0.0.1:9090" 或 ":9090"，解析失败返回空串
 func apiPortFromAddr(apiAddr string) string {
@@ -38,9 +45,8 @@ func VerifyMihomoProcess(pid int) (bool, error) {
 		return false, pkgerrors.ErrService("failed to get process executable", err)
 	}
 
-	// 检查可执行文件名是否包含 "mihomo"
-	basename := strings.ToLower(filepath.Base(execPath))
-	return strings.Contains(basename, "mihomo"), nil
+	// 检查可执行文件名是否为 mihomo 内核
+	return isMihomoExecutablePath(execPath), nil
 }
 
 // extractAPIPortFromConfig 从配置文件提取 API 端口（兜底：元数据缺失 API 地址时使用）

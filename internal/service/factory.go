@@ -33,6 +33,14 @@ func NewServiceFactory() ServiceFactory {
 
 // CreateServiceManager 创建服务管理器
 func (sf *serviceFactory) CreateServiceManager() (ServiceManager, error) {
+	// 非 Windows 平台没有内建服务管理器实现，直接返回 stub
+	if runtime.GOOS != "windows" {
+		return &stubServiceManager{
+			serviceName: sf.serviceName,
+			displayName: sf.displayName,
+		}, nil
+	}
+
 	// 检查管理员权限
 	if !util.IsAdmin() {
 		return nil, pkgerrors.ErrService("this operation requires administrator privileges, please run as administrator", nil)
@@ -44,23 +52,12 @@ func (sf *serviceFactory) CreateServiceManager() (ServiceManager, error) {
 		return nil, pkgerrors.ErrConfig("failed to determine mihomo executable path", err)
 	}
 
-	// 根据平台创建对应的服务管理器
-	switch runtime.GOOS {
-	case "windows":
-		return newWindowsServiceManager(
-			sf.serviceName,
-			sf.displayName,
-			sf.description,
-			exePath,
-		), nil
-	default:
-		// 返回 stub 实现
-		return &stubServiceManager{
-			serviceName: sf.serviceName,
-			displayName: sf.displayName,
-			exePath:     exePath,
-		}, nil
-	}
+	return newWindowsServiceManager(
+		sf.serviceName,
+		sf.displayName,
+		sf.description,
+		exePath,
+	), nil
 }
 
 // findMihomoExecutable 查找 Mihomo 可执行文件路径（复用 config.ExecutableResolver 统一解析规则）

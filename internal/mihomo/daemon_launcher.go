@@ -68,38 +68,23 @@ func (dl *DaemonLauncher) GetConfigFilePath() string {
 	return dl.GetAbsolutePath(dl.cfg.Mihomo.ConfigFile)
 }
 
-// GetWorkDir 获取工作目录（可执行文件所在目录的绝对路径）
+// GetWorkDir 获取工作目录（配置文件所在目录；未配置时返回空，由内核使用默认目录）
 func (dl *DaemonLauncher) GetWorkDir() string {
-	execPath := dl.GetExecutablePath()
-	if execPath == "" {
+	configFile := dl.GetConfigFilePath()
+	if configFile == "" {
 		return ""
 	}
-	dir := filepath.Dir(execPath)
-	// 确保返回绝对路径
-	if !filepath.IsAbs(dir) {
-		if abs, err := filepath.Abs(dir); err == nil {
-			return abs
-		}
-	}
-	return dir
+	return filepath.Dir(configFile)
 }
 
 // GetAPIAddress 获取 API 地址
 func (dl *DaemonLauncher) GetAPIAddress() string {
-	return dl.cfg.Mihomo.API.ExternalController
+	return dl.cfg.APIHostPort()
 }
 
 // GetSecret 获取当前密钥（需先 Start）
 func (dl *DaemonLauncher) GetSecret() string {
 	return dl.secret
-}
-
-// PrepareSecret 准备 API 密钥
-func (dl *DaemonLauncher) PrepareSecret() (string, error) {
-	if dl.cfg.Mihomo.AutoGenerateSecret {
-		return config.GenerateRandomSecret()
-	}
-	return dl.cfg.API.Secret, nil
 }
 
 // Start 启动守护进程
@@ -119,19 +104,13 @@ func (dl *DaemonLauncher) Start() error {
 		output.Info("mihomo executable resolved via %s: %s", source, execPath)
 	}
 
-	// 准备密钥
-	secret, err := dl.PrepareSecret()
-	if err != nil {
-		return err
-	}
+	// API 密钥唯一来源为 [api] secret
+	secret := dl.cfg.API.Secret
 	dl.secret = secret
 	dl.apiAddress = dl.GetAPIAddress()
 
-	// 配置文件：未显式指定时生成临时配置
+	// 配置文件为空时直接以默认配置启动内核（内核自行定位 ~/.config/mihomo/config.yaml）
 	configPath := dl.GetConfigFilePath()
-	if configPath == "" {
-		configPath = dl.prepareTempConfig(secret)
-	}
 
 	workDir := dl.GetWorkDir()
 
@@ -163,7 +142,6 @@ func (dl *DaemonLauncher) Start() error {
 	dl.stateMgr.Update(func(state *ProcessState) {
 		state.Stage = StageStarting
 		state.APIAddress = dl.apiAddress
-		state.Secret = secret
 		state.ConfigFile = configPath
 		state.StartedAt = time.Now()
 	})
@@ -191,45 +169,6 @@ func (dl *DaemonLauncher) Start() error {
 	return nil
 }
 
-// prepareTempConfig 未配置 mihomo 配置文件时生成临时配置（供内核 -f 参数使用）
-func (dl *DaemonLauncher) prepareTempConfig(secret string) string {
-	tempDir := os.TempDir()
-	configFile := filepath.Join(tempDir, "mihomo-config.yaml")
-
-	content := fmt.Sprintf(`# Auto-generated config by mihomo-cli
-mixed-port: 7890
-mode: rule
-log-level: %s
-
-# API 控制器
-external-controller: %s
-secret: "%s"
-
-# DNS
-dns:
-  enable: true
-  enhanced-mode: fake-ip
-  nameserver:
-    - 8.8.8.8
-
-# 代理组配置
-proxy-groups:
-  - name: "Proxy"
-    type: select
-    proxies:
-      - DIRECT
-
-rules:
-  - MATCH,Proxy
-`, dl.cfg.Mihomo.Log.Level, dl.apiAddress, secret)
-
-	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
-		output.Warning("failed to write temp config file: " + err.Error())
-		return ""
-	}
-	return configFile
-}
-
 // Stop 停止守护进程
 func (dl *DaemonLauncher) Stop(force bool) error {
 	// 获取运行中的 PID
@@ -238,28 +177,15 @@ func (dl *DaemonLauncher) Stop(force bool) error {
 		return pkgerrors.ErrService("mihomo is not running", err)
 	}
 
-	// 获取保存的密钥（先从内存，再从磁盘加载兜底）
-	state := dl.stateMgr.Get()
-	if state == nil {
-		// 内存状态为空（例如 ProcessHandler.Stop() 创建了新 Launcher），从磁盘加载
-		_ = dl.stateMgr.Load()
-		state = dl.stateMgr.Get()
-	}
-
-	secret := ""
+	// API 地址与密钥由配置实时提供，不依赖状态文件
 	apiAddr := dl.GetAPIAddress()
-	if state != nil {
-		secret = state.Secret
-		if state.APIAddress != "" {
-			apiAddr = state.APIAddress
-		}
-	}
+	secret := dl.cfg.API.Secret
 
 	// 设置状态
 	dl.stateMgr.SetStage(StageStopping)
 
-	// 优先通过 API 优雅关闭
-	if apiAddr != "" && secret != "" && !force {
+	// 优先通过 API 优雅关闭（空 secret 表示内核未启用鉴权）
+	if apiAddr != "" && !force {
 		output.Info("Attempting to shutdown via API...")
 		if err := StopProcessByPID(pid, apiAddr, secret); err != nil {
 			return pkgerrors.ErrService("API shutdown failed (use -F flag to force kill)", err)
@@ -320,18 +246,7 @@ func (dl *DaemonLauncher) GetStatus() (bool, int, string, string) {
 		return false, 0, "", ""
 	}
 
-	// 从状态文件获取密钥和 API 地址
-	state := dl.stateMgr.Get()
-	secret := ""
-	apiAddr := dl.GetAPIAddress()
-	if state != nil {
-		secret = state.Secret
-		if state.APIAddress != "" {
-			apiAddr = state.APIAddress
-		}
-	}
-
-	return true, pid, apiAddr, secret
+	return true, pid, dl.GetAPIAddress(), dl.cfg.API.Secret
 }
 
 // WaitForHealthy 等待进程健康
@@ -341,16 +256,9 @@ func (dl *DaemonLauncher) WaitForHealthy(timeout time.Duration) error {
 		return err
 	}
 
-	// 获取密钥
-	state := dl.stateMgr.Get()
-	secret := ""
-	if state != nil {
-		secret = state.Secret
-	}
-
 	apiClient := api.NewClient(
-		"http://"+dl.apiAddress,
-		secret,
+		"http://"+dl.GetAPIAddress(),
+		dl.cfg.API.Secret,
 		api.WithTimeout(3*time.Second),
 	)
 

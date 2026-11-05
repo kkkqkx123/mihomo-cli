@@ -84,10 +84,9 @@ func (cm *ConfigManager) InitViperConfig(cfgFile string) {
 		// 使用指定的配置文件
 		viper.SetConfigFile(cfgFile)
 	} else {
-		// 使用默认配置文件路径
-		viper.AddConfigPath(cm.pathResolver.GetBaseDir())
+		// CLI 配置固定为 <baseDir>/config.yaml，避免误读同目录下的 config.toml
+		viper.SetConfigFile(cm.pathResolver.GetConfigFile())
 		viper.SetConfigType("yaml")
-		viper.SetConfigName("config")
 	}
 
 	// 支持环境变量，嵌套键中的点号映射为下划线

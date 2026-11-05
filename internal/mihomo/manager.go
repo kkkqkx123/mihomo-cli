@@ -72,7 +72,7 @@ func (pm *ProcessManager) GetSecret() string {
 
 // GetAPIAddress 获取 API 地址
 func (pm *ProcessManager) GetAPIAddress() string {
-	return pm.config.Mihomo.API.ExternalController
+	return pm.config.APIHostPort()
 }
 
 // GetPIDFromPIDFile 从 PID 文件读取并检查进程是否运行

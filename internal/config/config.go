@@ -33,6 +33,15 @@ type ProxyConfig struct {
 	MaxNodes   int    `mapstructure:"max_nodes" yaml:"max_nodes"`     // 最大测试节点数
 }
 
+// APIHostPort 返回 API 地址的 host:port 形式（用于内核控制接口）。
+func (c *TomlConfig) APIHostPort() string {
+	parsedURL, err := url.Parse(c.API.Address)
+	if err == nil && parsedURL.Host != "" {
+		return parsedURL.Host
+	}
+	return strings.TrimPrefix(strings.TrimPrefix(c.API.Address, "https://"), "http://")
+}
+
 // Validate 验证配置
 func (c *CLIConfig) Validate() error {
 	if err := c.API.Validate(); err != nil {

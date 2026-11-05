@@ -1,6 +1,10 @@
 # TOML 配置示例，安装时复制到用户目录，不会被仓库位置自动加载
 # 生效位置为 <UserConfigDir>/mihomo-cli/config.toml，另可用 --toml 显式指定
-# 内核可执行文件与内核配置建议使用绝对路径，或留空走 PATH 与平台默认候选
+#
+# [mihomo] executable 留空时从系统 PATH 查找 mihomo；
+# [mihomo] config_file 留空时直接启动 mihomo，由内核使用默认配置
+# （默认位置为 ~/.config/mihomo/config.yaml，可用 -d 或内核配置文件调整）。
+# [api] address/secret 必须与内核的 external-controller/secret 一致。
 
 [api]
 address = "http://127.0.0.1:9090"
@@ -11,15 +15,4 @@ timeout = 10
 enabled = true
 executable = ""
 config_file = ""
-auto_generate_secret = true
 health_check_timeout = 5
-
-[mihomo.api]
-external_controller = "127.0.0.1:9090"
-external_controller_tls = ""
-external_controller_unix = ""
-external_controller_pipe = ""
-
-[mihomo.log]
-level = "info"
-file = ""

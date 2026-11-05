@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/kkkqkx123/mihomo-cli/internal/config"
 	"github.com/kkkqkx123/mihomo-cli/internal/mihomo"
@@ -18,17 +19,15 @@ var startForce bool
 
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "启动 Mihomo 内核（守护进程模式）",
-	Long: `启动 Mihomo 内核并自动生成随机密钥。
+	Short: "启动 Mihomo 内核（后台进程模式）",
+	Long: `启动 Mihomo 内核并以后台进程运行。
 
 该命令会：
 1. 读取 config.toml 配置文件（默认用户目录，可用 --toml 显式指定）
-2. 自动生成 SHA256 随机密钥
-3. 以守护进程模式启动 Mihomo 内核（独立进程）
+2. [mihomo] executable 为空时从系统 PATH 查找 mihomo
+3. [mihomo] config_file 为空时直接启动 mihomo，由内核使用默认配置（~/.config/mihomo/config.yaml）
 4. 等待并验证内核启动成功
-5. 输出 API 地址和密钥信息
 
-守护进程模式下，内核作为独立进程运行，关闭终端不会影响内核运行。
 启动后会进行健康检查，确保内核成功启动。如果启动失败或超时，会自动停止内核。`,
 	RunE: runStart,
 }
@@ -54,8 +53,13 @@ var stopCmd = &cobra.Command{
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "查询 Mihomo 内核状态",
-	Long:  `查询 Mihomo 内核进程的运行状态。`,
-	RunE:  runStatus,
+	Long: `查询 Mihomo 内核的运行状态。
+
+状态通过 [api] 或 --api/--secret 指定的 API 实时探测，不需要 TOML 配置。
+API 不可达时会扫描进程，区分“未运行”和“运行中但 API 不可达”。
+使用 -o json 输出可被脚本解析的状态对象。`,
+	Args: cobra.NoArgs,
+	RunE: runStatus,
 }
 
 func init() {
@@ -102,7 +106,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 	output.Println("  Mihomo 内核已启动")
 	output.Println("=====================================")
 	output.PrintKeyValue("API 地址", fmt.Sprintf("http://%s", result.APIAddress))
-	output.PrintKeyValue("密钥", result.Secret)
+	if result.Secret != "" {
+		output.PrintKeyValue("密钥", result.Secret)
+	} else {
+		output.PrintKeyValue("密钥", "(未设置)")
+	}
 	if result.PID > 0 {
 		output.PrintKeyValue("PID", result.PID)
 	}
@@ -153,36 +161,56 @@ func runStop(cmd *cobra.Command, args []string) error {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	// 查找配置文件路径，仅支持显式 --toml 与用户目录
-	output.Info("查找配置文件...")
-	configPath, err := config.FindTomlConfigPath(tomlFile)
+	result, err := mihomo.QueryStatus(viper.GetString("api.address"), viper.GetString("api.secret"))
 	if err != nil {
-		return pkgerrors.ErrConfig("查找 TOML 配置失败", err)
+		return pkgerrors.WrapError("查询 Mihomo 状态失败", err)
 	}
 
-	// 加载配置
-	output.Info("加载配置: %s", configPath)
-	cfg, err := config.LoadTomlConfig(configPath)
-	if err != nil {
-		return pkgerrors.ErrConfig("加载配置失败", err)
+	if outputFmt == "json" {
+		return output.PrintJSON(result)
 	}
 
-	// 创建进程处理器
-	handler := mihomo.NewProcessHandler(configPath)
-
-	// 查询状态
-	result, err := handler.Status(cfg)
-	if err != nil {
-		return pkgerrors.ErrService("获取 Mihomo 状态失败", err)
-	}
-
-	if result.IsRunning {
-		output.Println("状态: 运行中")
-		output.PrintKeyValue("PID", result.PID)
-		output.PrintKeyValue("API 地址", fmt.Sprintf("http://%s", result.APIAddress))
-	} else {
+	switch result.State {
+	case mihomo.KernelStateRunning:
+		output.Success("状态: 运行中")
+	case mihomo.KernelStateUnreachable:
+		if result.Running {
+			output.Warning("状态: 运行中（API 不可达）")
+		} else {
+			output.Warning("状态: API 不可达")
+		}
+	default:
 		output.Println("状态: 未运行")
 	}
 
+	if result.PID > 0 {
+		output.PrintKeyValue("PID", result.PID)
+	}
+	if manager := formatStatusManager(result); manager != "" {
+		output.PrintKeyValue("管理", manager)
+	}
+	if result.PID == 0 && result.ProcessCount > 1 {
+		output.PrintKeyValue("进程数", result.ProcessCount)
+	}
+	if result.APIURL != "" {
+		output.PrintKeyValue("API 地址", result.APIURL)
+	}
+
 	return nil
+}
+
+func formatStatusManager(result *mihomo.StatusResult) string {
+	switch result.Manager {
+	case mihomo.StatusManagerSystemd:
+		if result.Unit != "" {
+			return fmt.Sprintf("systemd (%s)", result.Unit)
+		}
+		return "systemd"
+	case mihomo.StatusManagerCLI:
+		return "mihomo-cli"
+	case mihomo.StatusManagerExternal:
+		return "外部进程"
+	default:
+		return ""
+	}
 }

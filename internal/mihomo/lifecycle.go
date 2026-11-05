@@ -100,12 +100,11 @@ func (lm *LifecycleManager) Start(ctx context.Context, cfg *config.TomlConfig) e
 }
 
 // OnStarted 进程启动成功后由 ProcessHandler 调用，更新状态并启动监控。
-func (lm *LifecycleManager) OnStarted(pid int, apiAddress, secret string) error {
+func (lm *LifecycleManager) OnStarted(pid int, apiAddress string) error {
 	// 更新状态
 	if err := lm.state.Update(func(state *ProcessState) {
 		state.PID = pid
 		state.APIAddress = apiAddress
-		state.Secret = secret
 		state.ConfigFile = lm.configFile
 		state.StartedAt = time.Now()
 		state.Stage = StageRunning
@@ -284,11 +283,6 @@ func (d *DefaultLifecycleHooks) OnPreStart(ctx context.Context, cfg *config.Toml
 	// 记录启动前日志
 	output.Info("Preparing to start Mihomo process...")
 
-	// 检查可执行文件是否存在
-	if _, err := os.Stat(cfg.Mihomo.Executable); os.IsNotExist(err) {
-		return pkgerrors.ErrConfig("mihomo executable not found: "+cfg.Mihomo.Executable, nil)
-	}
-
 	// 检查配置文件是否有效
 	if cfg.Mihomo.ConfigFile != "" {
 		if _, err := os.Stat(cfg.Mihomo.ConfigFile); os.IsNotExist(err) {
@@ -303,7 +297,7 @@ func (d *DefaultLifecycleHooks) OnPreStart(ctx context.Context, cfg *config.Toml
 	}
 
 	// 检查 API 端口是否被占用
-	apiAddress := cfg.Mihomo.API.ExternalController
+	apiAddress := cfg.APIHostPort()
 	if apiAddress != "" {
 		host, port, err := net.SplitHostPort(apiAddress)
 		if err != nil {
@@ -317,7 +311,7 @@ func (d *DefaultLifecycleHooks) OnPreStart(ctx context.Context, cfg *config.Toml
 			if occupyingPID := FindProcessByPort(host, port); occupyingPID > 0 {
 				msg = fmt.Sprintf("API port %s is already in use by process %d", net.JoinHostPort(host, port), occupyingPID)
 			}
-			return pkgerrors.ErrConfig(msg+", stop the conflicting process or change [mihomo.api] external_controller in config.toml", nil)
+			return pkgerrors.ErrConfig(msg+", stop the conflicting process or change [api] address in config.toml", nil)
 		}
 		ln.Close()
 	}

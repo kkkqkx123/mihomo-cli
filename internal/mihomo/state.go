@@ -29,7 +29,6 @@ const (
 type ProcessState struct {
 	PID             int            `json:"pid"`
 	APIAddress      string         `json:"api_address"`
-	Secret          string         `json:"secret"`
 	ConfigFile      string         `json:"config_file"`
 	StartedAt       time.Time      `json:"started_at"`
 	LastHealthCheck time.Time      `json:"last_health_check"`
@@ -106,7 +105,7 @@ func (sm *StateManager) Save() error {
 	}
 
 	// 写入文件
-	if err := os.WriteFile(sm.stateFile, data, 0644); err != nil {
+	if err := os.WriteFile(sm.stateFile, data, 0600); err != nil {
 		return pkgerrors.ErrService("failed to write state file", err)
 	}
 
@@ -171,7 +170,7 @@ func (sm *StateManager) save() error {
 	}
 
 	// 写入文件
-	if err := os.WriteFile(sm.stateFile, data, 0644); err != nil {
+	if err := os.WriteFile(sm.stateFile, data, 0600); err != nil {
 		return pkgerrors.ErrService("failed to write state file", err)
 	}
 
@@ -250,13 +249,6 @@ func (sm *StateManager) SetPID(pid int) error {
 func (sm *StateManager) SetAPIAddress(addr string) error {
 	return sm.Update(func(state *ProcessState) {
 		state.APIAddress = addr
-	})
-}
-
-// SetSecret 设置密钥
-func (sm *StateManager) SetSecret(secret string) error {
-	return sm.Update(func(state *ProcessState) {
-		state.Secret = secret
 	})
 }
 

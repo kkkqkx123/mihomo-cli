@@ -49,6 +49,8 @@ func runPs(cmd *cobra.Command, args []string) error {
 		source := "外部"
 		if proc.Source == mihomo.SourceManaged {
 			source = "托管"
+		} else if proc.Manager == mihomo.StatusManagerSystemd {
+			source = "systemd"
 		}
 
 		// 验证级别
@@ -89,6 +91,7 @@ func runPs(cmd *cobra.Command, args []string) error {
 	output.Printf("总计: %d 个进程\n", len(processes))
 	confirmedCount := 0
 	managedCount := 0
+	systemdCount := 0
 	for _, proc := range processes {
 		if proc.Verified == mihomo.VerifyConfirmed {
 			confirmedCount++
@@ -96,9 +99,30 @@ func runPs(cmd *cobra.Command, args []string) error {
 		if proc.Source == mihomo.SourceManaged {
 			managedCount++
 		}
+		if proc.Manager == mihomo.StatusManagerSystemd {
+			systemdCount++
+		}
 	}
 	output.Printf("已确认（托管且路径一致）: %d 个\n", confirmedCount)
-	output.Printf("托管实例: %d 个，外部实例: %d 个\n", managedCount, len(processes)-managedCount)
+	output.Printf("托管实例: %d 个，systemd 实例: %d 个，外部实例: %d 个\n", managedCount, systemdCount, len(processes)-managedCount-systemdCount)
+
+	// 输出 systemd 单元映射，便于定位服务管理的实例。
+	hasUnit := false
+	for _, proc := range processes {
+		if proc.Unit != "" {
+			hasUnit = true
+			break
+		}
+	}
+	if hasUnit {
+		output.PrintEmptyLine()
+		output.Println("systemd 单元:")
+		for _, proc := range processes {
+			if proc.Unit != "" {
+				output.Printf("  %d -> %s\n", proc.PID, proc.Unit)
+			}
+		}
+	}
 
 	// 输出提示
 	output.PrintEmptyLine()

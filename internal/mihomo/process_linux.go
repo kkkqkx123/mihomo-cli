@@ -74,13 +74,18 @@ func (l *linuxProcessChecker) GetProcessExecutable(pid int) (string, error) {
 		// cmdline 以 null 分隔参数，取第一个参数
 		parts := strings.Split(string(data), "\x00")
 		if len(parts) > 0 && parts[0] != "" {
-			return parts[0], nil
+			return normalizeDeletedExecutable(parts[0]), nil
 		}
 
 		return "", pkgerrors.ErrService("failed to get process executable", nil)
 	}
 
-	return execPath, nil
+	return normalizeDeletedExecutable(execPath), nil
+}
+
+// normalizeDeletedExecutable 去掉 /proc/<pid>/exe 在二进制被替换后附带的 " (deleted)" 后缀。
+func normalizeDeletedExecutable(path string) string {
+	return strings.TrimSuffix(path, " (deleted)")
 }
 
 // GetProcessCommandLine 获取进程完整命令行。

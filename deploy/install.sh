@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh — 构建、初始化配置、可选安装系统服务与开机自启
+# install.sh — 构建、初始化配置、可选安装 mihomo 内核系统服务与开机自启
 #
 # 用法:
 #   ./deploy/install.sh [选项]
@@ -16,8 +16,9 @@
 #   -h, --help           显示帮助
 #
 # 效果:
-#   构建产物位于 ./build/；配置分别落到 CLI 用户目录与
-#   ~/.config/mihomo/config.yaml；服务单元由 deploy/mihomo-cli.service 渲染。
+#   构建产物位于 ./build/；服务单元 deploy/mihomo-core.service 直接运行 mihomo 内核。
+#   用户级服务配置目录为 ~/.config/mihomo；系统级服务配置目录为 /etc/mihomo。
+#   CLI 配置始终位于当前用户的 <UserConfigDir>/mihomo-cli。
 
 set -euo pipefail
 
@@ -72,6 +73,8 @@ if [ ! -x "$CLI" ]; then
 	exit 1
 fi
 
+OS="$(uname -s 2>/dev/null || echo unknown)"
+
 user_base() {
 	if [ -n "${XDG_CONFIG_HOME:-}" ]; then printf '%s' "$XDG_CONFIG_HOME"
 	else printf '%s' "$HOME/.config"; fi
@@ -79,45 +82,101 @@ user_base() {
 
 CLI_DIR="$(user_base)/mihomo-cli"
 TOML_DEST="$CLI_DIR/config.toml"
-MIHOMO_DEST="$HOME/.config/mihomo/config.yaml"
 
-mkdir -p "$CLI_DIR" "$(dirname "$MIHOMO_DEST")"
+SUDO=""
+if [ "$SCOPE" = "system" ]; then
+	BIN_DIR="/usr/local/bin"
+	MIHOMO_HOME="/etc/mihomo"
+	UNIT_DEST="/etc/systemd/system/mihomo-core.service"
+	TARGET="multi-user.target"
+	SUDO="sudo"
+	if [ "$(id -u)" -ne 0 ]; then
+		if ! command -v sudo >/dev/null 2>&1; then
+			echo "错误: --system 需要 root 或 sudo" >&2
+			exit 1
+		fi
+	else
+		SUDO=""
+	fi
+else
+	BIN_DIR="$HOME/.local/bin"
+	MIHOMO_HOME="$HOME/.config/mihomo"
+	UNIT_DEST="$HOME/.config/systemd/user/mihomo-core.service"
+	TARGET="default.target"
+fi
 
-echo "==> 初始化 CLI 配置 ..."
-if [ "$FORCE" = 1 ]; then "$CLI" config init --force >/dev/null
-elif ! "$CLI" config show >/dev/null 2>&1; then "$CLI" config init >/dev/null
-else echo "    已存在，跳过（用 --force 覆盖）"; fi
+run_root() {
+	if [ -n "$SUDO" ]; then $SUDO "$@"; else "$@"; fi
+}
 
-copy_example() {
+copy_cli_example() {
 	src="$1"; dest="$2"; label="$3"
 	if [ -f "$dest" ] && [ "$FORCE" = 0 ]; then
 		echo "    $label 已存在，跳过（用 --force 覆盖）: $dest"
 		return 0
 	fi
+	mkdir -p "$(dirname "$dest")"
 	cp "$src" "$dest"
 	chmod 600 "$dest"
 	echo "    已写入: $dest"
 }
 
+copy_core_example() {
+	src="$1"; dest="$2"; label="$3"
+	if run_root test -f "$dest" && [ "$FORCE" = 0 ]; then
+		echo "    $label 已存在，跳过（用 --force 覆盖）: $dest"
+		return 0
+	fi
+	run_root mkdir -p "$(dirname "$dest")"
+	run_root cp "$src" "$dest"
+	run_root chmod 600 "$dest"
+	echo "    已写入: $dest"
+}
+
+mkdir -p "$CLI_DIR"
+run_root mkdir -p "$MIHOMO_HOME"
+
+echo "==> 初始化 CLI 配置 ..."
+if [ "$FORCE" = 1 ]; then "$CLI" config init --force >/dev/null
+elif [ ! -f "$CLI_DIR/config.yaml" ]; then "$CLI" config init >/dev/null
+else echo "    已存在，跳过（用 --force 覆盖）"; fi
+
 echo "==> 初始化 TOML 配置 ..."
-copy_example "$ROOT/deploy/config.toml.example" "$TOML_DEST" "TOML 配置"
+copy_cli_example "$ROOT/deploy/config.toml.example" "$TOML_DEST" "TOML 配置"
 echo "==> 初始化 Mihomo 配置 ..."
-copy_example "$ROOT/deploy/mihomo-config.yaml.example" "$MIHOMO_DEST" "Mihomo 配置"
+copy_core_example "$ROOT/deploy/mihomo-config.yaml.example" "$MIHOMO_HOME/config.yaml" "Mihomo 配置"
 
 echo "    CLI 二进制: $CLI"
 echo "    TOML: $TOML_DEST"
-echo "    Mihomo: $MIHOMO_DEST"
+echo "    Mihomo: $MIHOMO_HOME/config.yaml"
 
-if [ "$DO_SERVICE" = 0 ]; then
-	echo "==> 完成（未安装服务）。手动启动: $CLI --toml \"$TOML_DEST\" start"
+if [ "$DO_SERVICE" = 1 ]; then
+	echo "==> 安装二进制到 $BIN_DIR ..."
+	run_root mkdir -p "$BIN_DIR"
+	for bin in mihomo mihomo-cli; do
+		if [ -f "$BUILD/$bin" ]; then
+			run_root install -m 755 "$BUILD/$bin" "$BIN_DIR/$bin"
+			echo "    已安装: $BIN_DIR/$bin"
+		fi
+	done
+fi
+
+if [ "$OS" != "Linux" ]; then
+	if [ "$DO_SERVICE" = 1 ]; then
+		echo "==> 非 Linux 系统，不自动安装服务。"
+		echo "    Windows（管理员）: 将 mihomo.exe 注册为服务需要实现 svc.Run 的包装器"
+		echo "    macOS: 参考 launchd 手册将以下命令注册为服务"
+		echo "           $BIN_DIR/mihomo -d \"$MIHOMO_HOME\" -f \"$MIHOMO_HOME/config.yaml\""
+	else
+		echo "==> 完成（未安装服务）。手动启动:"
+		echo "    $CLI --toml \"$TOML_DEST\" start"
+	fi
 	exit 0
 fi
 
-OS="$(uname -s 2>/dev/null || echo unknown)"
-if [ "$OS" != "Linux" ]; then
-	echo "==> 非 Linux 系统，不自动安装服务。"
-	echo "    Windows（管理员）: $CLI service install"
-	echo "    macOS: 参考 launchd 手册将 \`$CLI --toml \"$TOML_DEST\" start\` 注册为服务"
+if [ "$DO_SERVICE" = 0 ]; then
+	echo "==> 完成（未安装服务）。手动启动:"
+	echo "    $CLI --toml \"$TOML_DEST\" start"
 	exit 0
 fi
 
@@ -126,61 +185,54 @@ if ! command -v systemctl >/dev/null 2>&1; then
 	exit 1
 fi
 
-if [ "$SCOPE" = "system" ]; then
-	BIN_DIR="/usr/local/bin"
-	UNIT_DEST="/etc/systemd/system/mihomo-cli.service"
-	TARGET="multi-user.target"
-	SUDO="sudo"
-	if [ "$(id -u)" -ne 0 ] && ! command -v sudo >/dev/null 2>&1; then
-		echo "错误: --system 需要 root 或 sudo" >&2
-		exit 1
-	fi
-else
-	BIN_DIR="$HOME/.local/bin"
-	UNIT_DEST="$HOME/.config/systemd/user/mihomo-cli.service"
-	TARGET="default.target"
-	SUDO=""
-	mkdir -p "$BIN_DIR" "$(dirname "$UNIT_DEST")"
-fi
-
-echo "==> 安装二进制到 $BIN_DIR ..."
-if [ -n "$SUDO" ]; then $SUDO mkdir -p "$BIN_DIR"; fi
-for bin in mihomo-cli mihomo; do
-	if [ -f "$BUILD/$bin" ]; then
-		if [ -n "$SUDO" ]; then $SUDO install -m 755 "$BUILD/$bin" "$BIN_DIR/$bin"
-		else install -m 755 "$BUILD/$bin" "$BIN_DIR/$bin"; fi
-		echo "    已安装: $BIN_DIR/$bin"
-	fi
-done
-
 echo "==> 渲染服务单元 ..."
-sed -e "s|@BIN@|$BIN_DIR|g" -e "s|@TOML@|$TOML_DEST|g" -e "s|@TARGET@|$TARGET|g" \
-	"$ROOT/deploy/mihomo-cli.service" > "/tmp/mihomo-cli.service.$$"
+run_root mkdir -p "$(dirname "$UNIT_DEST")"
+unit_tmp="$(mktemp)"
+sed -e "s|@BIN@|$BIN_DIR|g" -e "s|@MIHOMO_HOME@|$MIHOMO_HOME|g" -e "s|@TARGET@|$TARGET|g" \
+	"$ROOT/deploy/mihomo-core.service" > "$unit_tmp"
+run_root install -m 644 "$unit_tmp" "$UNIT_DEST"
+rm -f "$unit_tmp"
+
 if [ -n "$SUDO" ]; then
-	$SUDO install -m 644 "/tmp/mihomo-cli.service.$$" "$UNIT_DEST"
 	$SUDO systemctl daemon-reload
 else
-	install -m 644 "/tmp/mihomo-cli.service.$$" "$UNIT_DEST"
 	systemctl --user daemon-reload
 fi
-rm -f "/tmp/mihomo-cli.service.$$"
 echo "    已写入: $UNIT_DEST"
 
 if [ "$DO_AUTOSTART" = 1 ]; then
 	echo "==> 启用开机自启 ..."
-	if [ -n "$SUDO" ]; then $SUDO systemctl enable mihomo-cli.service
-	else systemctl --user enable mihomo-cli.service; fi
-	echo "    已启用开机自启"
+	linger_ok=0
+	if [ -n "$SUDO" ]; then
+		$SUDO systemctl enable mihomo-core.service
+		linger_ok=1
+	else
+		systemctl --user enable mihomo-core.service
+		if command -v loginctl >/dev/null 2>&1; then
+			if loginctl enable-linger "$(id -un)" >/dev/null 2>&1; then
+				linger_ok=1
+				echo "    已启用 linger（用户服务随系统启动）"
+			else
+				echo "    已启用用户级自启（登录后启动）" >&2
+				echo "    开机自启需管理员执行: sudo loginctl enable-linger $(id -un)" >&2
+			fi
+		fi
+	fi
+	if [ "$linger_ok" = 1 ]; then
+		echo "    已启用开机自启"
+	fi
 else
 	echo "    未启用开机自启（加 --enable-autostart 启用）"
 fi
 
 echo "==> 完成。常用命令:"
 if [ -n "$SUDO" ]; then
-	echo "    启动: sudo systemctl start mihomo-cli.service"
-	echo "    状态: sudo systemctl status mihomo-cli.service"
+	echo "    启动: sudo systemctl start mihomo-core.service"
+	echo "    状态: sudo systemctl status mihomo-core.service"
+	echo "    日志: sudo journalctl -u mihomo-core.service -f"
 else
-	echo "    启动: systemctl --user start mihomo-cli.service"
-	echo "    状态: systemctl --user status mihomo-cli.service"
+	echo "    启动: systemctl --user start mihomo-core.service"
+	echo "    状态: systemctl --user status mihomo-core.service"
+	echo "    日志: journalctl --user -u mihomo-core.service -f"
 	echo "    注意: $BIN_DIR 需在 PATH 中"
 fi

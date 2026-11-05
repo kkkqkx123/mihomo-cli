@@ -46,8 +46,10 @@ func LoadFromViper() (*CLIConfig, error) {
 	// 重新读取配置文件以确保获取最新配置
 	if err := viper.ReadInConfig(); err != nil {
 		// 配置文件不存在不是错误，使用默认配置
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, errors.ErrConfig("failed to read config", err)
+		if !os.IsNotExist(err) {
+			if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+				return nil, errors.ErrConfig("failed to read config", err)
+			}
 		}
 	}
 

@@ -62,17 +62,38 @@ mihomo-cli stop --all
 
 ### status - 查询 Mihomo 内核状态
 
-查询 Mihomo 内核进程的运行状态。
+通过 API 实时查询内核状态，不需要 TOML 配置。
+
+- API 地址和密钥使用 `[api]`、`--api`、`--secret` 指定。
+- API 可达时报告运行中；API 不可达时通过进程扫描区分“未运行”和“运行中但 API 不可达”。
+- 能确定时显示 PID、管理方式（systemd 单元 / mihomo-cli / 外部进程）。
+- 无法确定 PID 时不输出 PID。
 
 **语法：**
 ```bash
-mihomo-cli status
+mihomo-cli status [--api URL] [--secret SECRET]
 ```
 
 **示例：**
 ```bash
 mihomo-cli status
+mihomo-cli status --api http://127.0.0.1:9090
+mihomo-cli status -o json
 ```
+
+**JSON 字段：**
+
+- `state`：`running`、`unreachable`、`stopped`
+- `running`：是否检测到内核进程或可达 API
+- `api_reachable`：API 是否可达
+- `pid`：可确定时的内核 PID
+- `api`：完整 API 地址
+- `manager`：`systemd`、`cli`、`external`
+- `unit`：systemd 单元名
+- `process_count`：无法确定 PID 时检测到的内核进程数
+- `api_error`：API 探测失败原因
+
+退出码 0 表示状态查询完成；运行状态通过 JSON 字段判断。
 
 ### ps - 列出所有 Mihomo 进程
 

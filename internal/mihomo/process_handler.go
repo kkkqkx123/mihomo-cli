@@ -185,7 +185,7 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig, force bool) (*StartResul
 	}
 
 	// 通知 LifecycleManager 启动成功（更新状态 + 启动监控 + 执行钩子）
-	if err := lm.OnStarted(pid, apiAddr, secret); err != nil {
+	if err := lm.OnStarted(pid, apiAddr); err != nil {
 		output.Warning("lifecycle post-start notification failed: " + err.Error())
 	}
 
@@ -244,25 +244,12 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig, force bool) (*StartResul
 				}
 			}
 
-			// 诊断 3: 读取 mihomo 日志
-			logRead := false
-			// 优先读取配置的日志文件
-			if cfg.Mihomo.Log.File != "" {
-				if logContent, err := readLastLines(cfg.Mihomo.Log.File, 20); err == nil && logContent != "" {
-					output.PrintEmptyLine()
-					output.PrintSection("Mihomo Log (last 20 lines)")
-					output.Printf("%s\n", logContent)
-					logRead = true
-				}
-			}
-			// 降级读取临时日志文件
-			if !logRead {
-				tempLog := filepath.Join(os.TempDir(), "mihomo-cli-daemon.log")
-				if logContent, err := readLastLines(tempLog, 20); err == nil && logContent != "" {
-					output.PrintEmptyLine()
-					output.PrintSection("Mihomo Log (last 20 lines)")
-					output.Printf("%s\n", logContent)
-				}
+			// 诊断 3: 读取内核输出日志
+			tempLog := filepath.Join(os.TempDir(), "mihomo-cli-daemon.log")
+			if logContent, err := readLastLines(tempLog, 20); err == nil && logContent != "" {
+				output.PrintEmptyLine()
+				output.PrintSection("Mihomo Log (last 20 lines)")
+				output.Printf("%s\n", logContent)
 			}
 
 			// 尝试停止守护进程
@@ -389,31 +376,6 @@ func (ph *ProcessHandler) Stop(cfg *config.TomlConfig, stopAll bool, force bool,
 	}
 
 	return &StopResult{PID: pid}, nil
-}
-
-// StatusResult 状态结果
-type StatusResult struct {
-	IsRunning  bool
-	PID        int
-	APIAddress string
-}
-
-// Status 查询 Mihomo 内核状态
-func (ph *ProcessHandler) Status(cfg *config.TomlConfig) (*StatusResult, error) {
-	// 创建守护进程启动器
-	launcher, err := NewDaemonLauncher(cfg, ph.configPath)
-	if err != nil {
-		return nil, pkgerrors.ErrService("failed to create daemon launcher", err)
-	}
-
-	// 获取状态
-	isRunning, pid, apiAddr, _ := launcher.GetStatus()
-
-	return &StatusResult{
-		IsRunning:  isRunning,
-		PID:        pid,
-		APIAddress: apiAddr,
-	}, nil
 }
 
 // checkAndCleanupBeforeStart 启动前检查并清理残留配置

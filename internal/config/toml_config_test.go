@@ -6,32 +6,6 @@ import (
 	"testing"
 )
 
-func TestGenerateRandomSecret(t *testing.T) {
-	secret1, err := GenerateRandomSecret()
-	if err != nil {
-		t.Fatalf("GenerateRandomSecret() error: %v", err)
-	}
-
-	if secret1 == "" {
-		t.Error("GenerateRandomSecret() returned empty string")
-	}
-
-	// SHA256 哈希应该是 64 个十六进制字符
-	if len(secret1) != 64 {
-		t.Errorf("GenerateRandomSecret() length = %d, want 64", len(secret1))
-	}
-
-	// 生成另一个密钥，验证它们不同
-	secret2, err := GenerateRandomSecret()
-	if err != nil {
-		t.Fatalf("GenerateRandomSecret() second call error: %v", err)
-	}
-
-	if secret1 == secret2 {
-		t.Error("GenerateRandomSecret() generated identical secrets (extremely unlikely)")
-	}
-}
-
 func TestGetDefaultTomlConfig(t *testing.T) {
 	cfg := GetDefaultTomlConfig()
 	if cfg == nil {
@@ -54,14 +28,8 @@ func TestGetDefaultTomlConfig(t *testing.T) {
 	if cfg.Mihomo.Executable != "" {
 		t.Errorf("GetDefaultTomlConfig() Mihomo.Executable = %v, want empty (resolved at runtime)", cfg.Mihomo.Executable)
 	}
-	if !cfg.Mihomo.AutoGenerateSecret {
-		t.Error("GetDefaultTomlConfig() Mihomo.AutoGenerateSecret should be true")
-	}
-	if cfg.Mihomo.API.ExternalController != "127.0.0.1:9090" {
-		t.Errorf("GetDefaultTomlConfig() Mihomo.API.ExternalController = %v, want 127.0.0.1:9090", cfg.Mihomo.API.ExternalController)
-	}
-	if cfg.Mihomo.Log.Level != "info" {
-		t.Errorf("GetDefaultTomlConfig() Mihomo.Log.Level = %v, want info", cfg.Mihomo.Log.Level)
+	if cfg.Mihomo.ConfigFile != "" {
+		t.Errorf("GetDefaultTomlConfig() Mihomo.ConfigFile = %v, want empty (kernel default)", cfg.Mihomo.ConfigFile)
 	}
 }
 
@@ -87,18 +55,7 @@ timeout = 30
 enabled = false
 executable = "custom-mihomo.exe"
 config_file = "/path/to/config.yaml"
-auto_generate_secret = false
 health_check_timeout = 5
-
-[mihomo.api]
-external_controller = "0.0.0.0:9090"
-external_controller_tls = ""
-external_controller_unix = ""
-external_controller_pipe = ""
-
-[mihomo.log]
-level = "debug"
-file = "/var/log/mihomo.log"
 `
 	if err := os.WriteFile(configPath, []byte(validToml), 0644); err != nil {
 		t.Fatalf("Failed to create test TOML file: %v", err)
@@ -141,15 +98,7 @@ func TestTomlConfig_Save(t *testing.T) {
 			Enabled:            true,
 			Executable:         "mihomo.exe",
 			ConfigFile:         "/etc/mihomo/config.yaml",
-			AutoGenerateSecret: false,
 			HealthCheckTimeout: 5,
-			API: MihomoAPIConfig{
-				ExternalController: "127.0.0.1:9090",
-			},
-			Log: MihomoLogConfig{
-				Level: "warning",
-				File:  "/var/log/mihomo.log",
-			},
 		},
 	}
 
@@ -179,9 +128,6 @@ func TestTomlConfig_Save(t *testing.T) {
 	}
 	if loadedCfg.Mihomo.Executable != cfg.Mihomo.Executable {
 		t.Errorf("Loaded Mihomo.Executable = %v, want %v", loadedCfg.Mihomo.Executable, cfg.Mihomo.Executable)
-	}
-	if loadedCfg.Mihomo.Log.Level != cfg.Mihomo.Log.Level {
-		t.Errorf("Loaded Mihomo.Log.Level = %v, want %v", loadedCfg.Mihomo.Log.Level, cfg.Mihomo.Log.Level)
 	}
 }
 

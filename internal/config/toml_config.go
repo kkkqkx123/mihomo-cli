@@ -1,9 +1,6 @@
 package config
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"os"
 	"path/filepath"
 
@@ -21,28 +18,11 @@ type TomlConfig struct {
 
 // MihomoConfig Mihomo 内核配置
 type MihomoConfig struct {
-	Enabled            bool            `toml:"enabled"`
-	Executable         string          `toml:"executable"`
-	ExecutableSearch   *bool           `toml:"executable_search"` // nil=默认 true：允许按查找链搜索内核；false=只使用显式路径
-	ConfigFile         string          `toml:"config_file"`
-	AutoGenerateSecret bool            `toml:"auto_generate_secret"`
-	HealthCheckTimeout int             `toml:"health_check_timeout"`
-	API                MihomoAPIConfig `toml:"api"`
-	Log                MihomoLogConfig `toml:"log"`
-}
-
-// MihomoAPIConfig Mihomo API 配置
-type MihomoAPIConfig struct {
-	ExternalController     string `toml:"external_controller"`
-	ExternalControllerTLS  string `toml:"external_controller_tls"`
-	ExternalControllerUnix string `toml:"external_controller_unix"`
-	ExternalControllerPipe string `toml:"external_controller_pipe"`
-}
-
-// MihomoLogConfig Mihomo 日志配置
-type MihomoLogConfig struct {
-	Level string `toml:"level"`
-	File  string `toml:"file"`
+	Enabled            bool   `toml:"enabled"`
+	Executable         string `toml:"executable"`
+	ExecutableSearch   *bool  `toml:"executable_search"` // nil=默认 true：允许按查找链搜索内核；false=只使用显式路径
+	ConfigFile         string `toml:"config_file"`
+	HealthCheckTimeout int    `toml:"health_check_timeout"`
 }
 
 // DaemonConfig 守护进程配置
@@ -90,30 +70,7 @@ func (m *MihomoConfig) Validate() error {
 		return pkgerrors.ErrConfig("health_check_timeout must be between 1 and 60 seconds", nil)
 	}
 
-	// 验证日志级别
-	if m.Log.Level != "" {
-		validLevels := map[string]bool{
-			"debug": true, "info": true, "warning": true, "error": true, "silent": true,
-		}
-		if !validLevels[m.Log.Level] {
-			return pkgerrors.ErrConfig("log level must be one of: debug, info, warning, error, silent", nil)
-		}
-	}
-
 	return nil
-}
-
-// GenerateRandomSecret 生成随机 SHA256 密钥
-func GenerateRandomSecret() (string, error) {
-	// 生成 32 字节随机数
-	randomBytes := make([]byte, 32)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return "", pkgerrors.ErrService("failed to generate random bytes", err)
-	}
-
-	// 计算 SHA256
-	hash := sha256.Sum256(randomBytes)
-	return hex.EncodeToString(hash[:]), nil
 }
 
 // FindTomlConfigPath 查找 TOML 配置文件路径
@@ -178,14 +135,7 @@ func GetDefaultTomlConfig() *TomlConfig {
 			Enabled:            true,
 			Executable:         "",
 			ConfigFile:         "",
-			AutoGenerateSecret: true,
 			HealthCheckTimeout: 5,
-			API: MihomoAPIConfig{
-				ExternalController: "127.0.0.1:9090",
-			},
-			Log: MihomoLogConfig{
-				Level: "info",
-			},
 		},
 		Daemon: &DaemonConfig{
 			Enabled:       true,

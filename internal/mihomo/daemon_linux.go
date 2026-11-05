@@ -33,7 +33,11 @@ func NewLinuxDaemonManager(
 
 // StartAsDaemon 以守护进程方式启动
 func (ldm *LinuxDaemonManager) StartAsDaemon(ctx context.Context, cfg interface{}) error {
-	cmd := exec.Command(ldm.Base().GetExecutablePath(), "-f", ldm.Base().GetConfigFile())
+	args := []string{}
+	if configFile := ldm.Base().GetConfigFile(); configFile != "" {
+		args = append(args, "-f", configFile)
+	}
+	cmd := exec.Command(ldm.Base().GetExecutablePath(), args...)
 
 	// 设置工作目录
 	if workDir := ldm.Base().GetWorkDir(); workDir != "" {
@@ -89,7 +93,7 @@ func (ldm *LinuxDaemonManager) StopDaemon(pid int) error {
 	apiAddr := ldm.Base().GetAPIAddress()
 	secret := ldm.Base().GetSecret()
 
-	if apiAddr != "" && secret != "" {
+	if apiAddr != "" {
 		output.Printf("Attempting to shutdown daemon via API...\n")
 		if err := StopProcessByPID(pid, apiAddr, secret); err == nil {
 			ldm.CleanupPID()
