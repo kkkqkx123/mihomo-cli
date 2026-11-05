@@ -18,15 +18,15 @@ import (
 )
 
 var (
-	logFollow     bool
-	logLevel      string
-	logKeyword    []string
-	logExclude    []string
-	logRegex      string
-	logDuration   string
-	statsFormat   string
-	searchFormat  string
-	exportFormat  string
+	logFollow      bool
+	logLevel       string
+	logKeyword     []string
+	logExclude     []string
+	logRegex       string
+	logDuration    string
+	statsFormat    string
+	searchFormat   string
+	exportFormat   string
 	exportFilename string
 )
 

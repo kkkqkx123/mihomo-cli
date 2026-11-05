@@ -13,12 +13,12 @@ import (
 
 // SystemConfigManager 系统配置管理器
 type SystemConfigManager struct {
-	sysproxy       *SysProxyManager
-	tun            *TUNManager
-	route          *RouteManager
-	snapshot       *SnapshotManager
-	operation      *operation.Manager
-	mu             sync.RWMutex
+	sysproxy  *SysProxyManager
+	tun       *TUNManager
+	route     *RouteManager
+	snapshot  *SnapshotManager
+	operation *operation.Manager
+	mu        sync.RWMutex
 }
 
 // NewSystemConfigManager 创建系统配置管理器
@@ -44,10 +44,10 @@ func NewSystemConfigManager() (*SystemConfigManager, error) {
 	}
 
 	return &SystemConfigManager{
-		sysproxy: NewSysProxyManager(opManager),
-		tun:      NewTUNManager(opManager),
-		route:    NewRouteManager(opManager),
-		snapshot: snapshot,
+		sysproxy:  NewSysProxyManager(opManager),
+		tun:       NewTUNManager(opManager),
+		route:     NewRouteManager(opManager),
+		snapshot:  snapshot,
 		operation: opManager,
 	}, nil
 }

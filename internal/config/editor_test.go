@@ -302,7 +302,7 @@ func TestSetNestedValue(t *testing.T) {
 				},
 			},
 			key:      "tun.mtu",
-			value:     1500,
+			value:    1500,
 			expected: 1500,
 		},
 	}

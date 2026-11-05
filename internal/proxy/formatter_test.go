@@ -18,7 +18,7 @@ import (
 func captureOutput(f func() error) (string, error) {
 	oldStdout := os.Stdout
 	oldGlobalStdout := output.GetGlobalStdout()
-	
+
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 	output.SetGlobalStdout(w)

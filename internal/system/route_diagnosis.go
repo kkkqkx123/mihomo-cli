@@ -17,7 +17,7 @@ type RouteConflict struct {
 
 // NetworkDiagnosis 网络路由诊断结果
 type NetworkDiagnosis struct {
-	Health                string         `json:"health"` // Healthy, Warning, Critical
+	Health                string          `json:"health"` // Healthy, Warning, Critical
 	DefaultRouteConflicts []RouteConflict `json:"default_route_conflicts"`
 	ResidualRoutes        []ResidualRoute `json:"residual_routes"`
 	Error                 error           `json:"error,omitempty"`
@@ -537,4 +537,3 @@ func checkMihomoRouteFlags(flags string) bool {
 	// 调用平台特定的实现
 	return checkMihomoRouteFlagsImpl(flags)
 }
-

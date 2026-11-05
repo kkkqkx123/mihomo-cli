@@ -95,8 +95,9 @@ func (tm *TUNManager) listUTUNDevices() ([]TUNState, error) {
 // parseIfconfigOutput 解析 ifconfig 输出
 // macOS ifconfig 输出格式示例:
 // utun0: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1500
-// 	inet 10.0.0.1 --> 10.0.0.2 netmask 0xffffffff
-// 	status: active
+//
+//	inet 10.0.0.1 --> 10.0.0.2 netmask 0xffffffff
+//	status: active
 func parseIfconfigOutput(name string, output []byte) (TUNState, error) {
 	device := TUNState{
 		Name:    name,

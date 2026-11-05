@@ -157,7 +157,7 @@ func removeFromEtcEnvironment() error {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) >= 1 {
 			key := strings.TrimSpace(parts[0])
-		// Also handle "export KEY=value" format
+			// Also handle "export KEY=value" format
 			key = strings.TrimPrefix(key, "export ")
 			key = strings.TrimSpace(key)
 			if proxyKeys[key] {

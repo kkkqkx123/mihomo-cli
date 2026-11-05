@@ -9,15 +9,15 @@ import (
 
 // SearchQuery 搜索查询条件
 type SearchQuery struct {
-	Keywords []string         // 关键词（AND 逻辑）
-	Regex    *regexp.Regexp   // 正则表达式
-	Level    string           // 日志级别过滤
+	Keywords []string       // 关键词（AND 逻辑）
+	Regex    *regexp.Regexp // 正则表达式
+	Level    string         // 日志级别过滤
 }
 
 // SearchResult 搜索结果
 type SearchResult struct {
-	Total   int               `json:"total"`
-	Matches []*types.LogInfo  `json:"matches"`
+	Total   int              `json:"total"`
+	Matches []*types.LogInfo `json:"matches"`
 }
 
 // NewSearchQuery 创建新的搜索查询

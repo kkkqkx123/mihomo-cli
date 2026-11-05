@@ -20,7 +20,7 @@ const (
 
 var (
 	// wininet.dll dynamic library and functions
-	wininet              = syscall.NewLazyDLL("wininet.dll")
+	wininet               = syscall.NewLazyDLL("wininet.dll")
 	procInternetSetOption = wininet.NewProc("InternetSetOptionW")
 )
 
@@ -276,8 +276,8 @@ func (sp *windowsSysProxy) RestoreRegistrySettings(settings *ProxySettings) erro
 
 // RegistryBackup 注册表备份
 type RegistryBackup struct {
-	ID        string        `json:"id"`
-	Timestamp time.Time     `json:"timestamp"`
+	ID        string         `json:"id"`
+	Timestamp time.Time      `json:"timestamp"`
 	Settings  *ProxySettings `json:"settings"`
-	Note      string        `json:"note,omitempty"`
+	Note      string         `json:"note,omitempty"`
 }

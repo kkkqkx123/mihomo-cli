@@ -198,5 +198,3 @@ func (tm *TUNManager) removeTUN(name string) error {
 
 	return nil
 }
-
-

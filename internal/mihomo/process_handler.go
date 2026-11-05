@@ -93,45 +93,45 @@ func (ph *ProcessHandler) Start(cfg *config.TomlConfig, force bool) (*StartResul
 				hasTProxy = true
 			}
 
-		// 检测配置是否使用了需要地理数据库的规则（GEOIP/GEOSITE）
-		needsGeoDB := strings.Contains(lowerContent, "geosite:") ||
-			strings.Contains(lowerContent, "geoip,") ||
-			strings.Contains(lowerContent, "geoip:")
-		if needsGeoDB {
-			// 检查地理数据库文件是否存在
-			homeDir, _ := os.UserHomeDir()
-			mihomoDir := filepath.Join(homeDir, ".config", "mihomo")
-			hasMMDB := fileExists(filepath.Join(mihomoDir, "geoip.metadb")) ||
-				fileExists(filepath.Join(mihomoDir, "Country.mmdb")) ||
-				fileExists(filepath.Join(mihomoDir, "geoip.db"))
-			hasGeoSite := fileExists(filepath.Join(mihomoDir, "GeoSite.dat"))
+			// 检测配置是否使用了需要地理数据库的规则（GEOIP/GEOSITE）
+			needsGeoDB := strings.Contains(lowerContent, "geosite:") ||
+				strings.Contains(lowerContent, "geoip,") ||
+				strings.Contains(lowerContent, "geoip:")
+			if needsGeoDB {
+				// 检查地理数据库文件是否存在
+				homeDir, _ := os.UserHomeDir()
+				mihomoDir := filepath.Join(homeDir, ".config", "mihomo")
+				hasMMDB := fileExists(filepath.Join(mihomoDir, "geoip.metadb")) ||
+					fileExists(filepath.Join(mihomoDir, "Country.mmdb")) ||
+					fileExists(filepath.Join(mihomoDir, "geoip.db"))
+				hasGeoSite := fileExists(filepath.Join(mihomoDir, "GeoSite.dat"))
 
-			if !hasMMDB || !hasGeoSite {
-				output.PrintEmptyLine()
-				output.Warning("Config uses GEOIP/GEOSITE rules but geo database files are missing")
-				if !hasMMDB {
-					output.Printf("  Missing: %s/geoip.metadb\n", mihomoDir)
-				}
-				if !hasGeoSite {
-					output.Printf("  Missing: %s/GeoSite.dat\n", mihomoDir)
-				}
-				output.Println("")
-				output.Println("Stripping GEOIP/GEOSITE rules from config to allow basic startup")
-				output.Println("Download geo databases later to enable GEOIP/GEOSITE rules:")
-				output.Printf("  curl -L -o %s/geoip.metadb https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb\n", mihomoDir)
-				output.Printf("  curl -L -o %s/GeoSite.dat https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat\n", mihomoDir)
-				output.PrintEmptyLine()
+				if !hasMMDB || !hasGeoSite {
+					output.PrintEmptyLine()
+					output.Warning("Config uses GEOIP/GEOSITE rules but geo database files are missing")
+					if !hasMMDB {
+						output.Printf("  Missing: %s/geoip.metadb\n", mihomoDir)
+					}
+					if !hasGeoSite {
+						output.Printf("  Missing: %s/GeoSite.dat\n", mihomoDir)
+					}
+					output.Println("")
+					output.Println("Stripping GEOIP/GEOSITE rules from config to allow basic startup")
+					output.Println("Download geo databases later to enable GEOIP/GEOSITE rules:")
+					output.Printf("  curl -L -o %s/geoip.metadb https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb\n", mihomoDir)
+					output.Printf("  curl -L -o %s/GeoSite.dat https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat\n", mihomoDir)
+					output.PrintEmptyLine()
 
-				// 生成去除 GEOIP/GEOSITE 规则的临时配置文件
-				strippedConfig, stripErr := stripGeoRules(cfg.Mihomo.ConfigFile)
-				if stripErr != nil {
-					output.Warning("failed to strip geo rules: " + stripErr.Error())
-				} else {
-					cfg.Mihomo.ConfigFile = strippedConfig
-					output.Info("Using stripped config: %s", strippedConfig)
+					// 生成去除 GEOIP/GEOSITE 规则的临时配置文件
+					strippedConfig, stripErr := stripGeoRules(cfg.Mihomo.ConfigFile)
+					if stripErr != nil {
+						output.Warning("failed to strip geo rules: " + stripErr.Error())
+					} else {
+						cfg.Mihomo.ConfigFile = strippedConfig
+						output.Info("Using stripped config: %s", strippedConfig)
+					}
 				}
 			}
-		}
 		}
 	}
 
@@ -419,9 +419,9 @@ func (ph *ProcessHandler) checkAndCleanupBeforeStart(cfg *config.TomlConfig) err
 
 		if !util.IsAdmin() {
 			output.Info("Skipping automatic cleanup: system configuration cleanup requires administrator privileges")
-		output.Println("To clean up, run: sudo mihomo-cli system cleanup")
-		output.Println("")
-		output.Println("Continuing startup without cleanup...")
+			output.Println("To clean up, run: sudo mihomo-cli system cleanup")
+			output.Println("")
+			output.Println("Continuing startup without cleanup...")
 			return nil
 		}
 
@@ -526,8 +526,8 @@ func (ph *ProcessHandler) checkAndCleanupAfterStop(_ *config.TomlConfig) error {
 
 		if !util.IsAdmin() {
 			output.Info("Skipping automatic cleanup: system configuration cleanup requires administrator privileges")
-		output.Println("To clean up, run: sudo mihomo-cli system cleanup")
-		return nil
+			output.Println("To clean up, run: sudo mihomo-cli system cleanup")
+			return nil
 		}
 
 		// 尝试自动清理

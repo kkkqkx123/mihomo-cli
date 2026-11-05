@@ -19,10 +19,10 @@ var LogTypePriority = map[string]int{
 
 // LogFilter 日志过滤器
 type LogFilter struct {
-	Level     string   // 日志级别（silent/error/warning/info/debug）
-	Keywords  []string // 包含的关键词（AND 逻辑）
-	Exclude   []string // 排除的关键词
-	Regex     *regexp.Regexp // 正则表达式
+	Level    string         // 日志级别（silent/error/warning/info/debug）
+	Keywords []string       // 包含的关键词（AND 逻辑）
+	Exclude  []string       // 排除的关键词
+	Regex    *regexp.Regexp // 正则表达式
 }
 
 // NewLogFilter 创建新的日志过滤器

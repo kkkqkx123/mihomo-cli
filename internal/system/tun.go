@@ -158,10 +158,10 @@ func (tm *TUNManager) Cleanup() error {
 
 // TUNBackup TUN 接口状态备份
 type TUNBackup struct {
-	ID        string    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
+	ID        string     `json:"id"`
+	Timestamp time.Time  `json:"timestamp"`
 	States    []TUNState `json:"states"`
-	Note      string    `json:"note,omitempty"`
+	Note      string     `json:"note,omitempty"`
 }
 
 // BackupTUNState 备份当前 TUN 接口状态
@@ -300,7 +300,7 @@ func (tm *TUNManager) CompareTUNState(backup *TUNBackup) (*TUNDiff, error) {
 	}
 
 	diff := &TUNDiff{
-		BackupTimestamp: backup.Timestamp,
+		BackupTimestamp:  backup.Timestamp,
 		CurrentTimestamp: time.Now(),
 		AddedDevices:     []TUNState{},
 		RemovedDevices:   []TUNState{},

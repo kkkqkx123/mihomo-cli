@@ -15,23 +15,23 @@ import (
 // 使用 taskkill 命令可以跨会话终止 detached 进程
 func forceKillPlatform(pid int, timeout time.Duration) error {
 	output.Printf("Terminating process %d using taskkill...\n", pid)
-	
+
 	// 先检查进程是否存在
 	if !IsProcessRunning(pid) {
 		output.Info("Process %d already exited", pid)
 		return nil
 	}
-	
+
 	if err := forceKillWindows(pid); err != nil {
 		return err
 	}
-	
+
 	// 等待进程退出（使用 timeout 参数）
 	done := make(chan error, 1)
 	go func() {
 		checkInterval := 100 * time.Millisecond
 		deadline := time.Now().Add(timeout)
-		
+
 		for time.Now().Before(deadline) {
 			if !IsProcessRunning(pid) {
 				done <- nil
@@ -44,7 +44,7 @@ func forceKillPlatform(pid int, timeout time.Duration) error {
 			nil,
 		)
 	}()
-	
+
 	return <-done
 }
 
@@ -56,13 +56,13 @@ func forceKillWindows(pid int) error {
 	if err := killWithTaskkill(pid); err == nil {
 		return nil
 	}
-	
+
 	// taskkill 失败，记录警告但继续尝试其他方法
 	output.Warning("taskkill failed, trying alternative method...")
-	
+
 	// 策略 2: 尝试通过 WMI 终止（需要管理员权限）
 	// TODO: 可以实现 WMI 方法作为备选
-	
+
 	// 所有方法都失败，返回错误
 	return pkgerrors.ErrService(
 		fmt.Sprintf("all termination methods failed for process %d", pid),
@@ -77,7 +77,7 @@ func killWithTaskkill(pid int) error {
 	// /T - 终止进程树（包括所有子进程）
 	// /PID - 指定进程 ID
 	cmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", pid))
-	
+
 	// 执行命令，设置超时
 	done := make(chan error, 1)
 	go func() {
@@ -89,14 +89,14 @@ func killWithTaskkill(pid int) error {
 		if err != nil {
 			// taskkill 失败，记录详细错误信息
 			output.Warning("taskkill command failed: %v", err)
-			
+
 			// 检查进程是否已被终止（可能部分成功）
 			time.Sleep(100 * time.Millisecond)
 			if !IsProcessRunning(pid) {
 				output.Success("Process %d terminated despite taskkill error", pid)
 				return nil // 进程已终止，忽略错误
 			}
-			
+
 			// 进程仍在运行，返回详细错误
 			return pkgerrors.ErrService(
 				fmt.Sprintf("failed to terminate process %d (still running)", pid),

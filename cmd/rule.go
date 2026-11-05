@@ -278,11 +278,11 @@ func newRuleProviderListCmd() *cobra.Command {
 // newRuleProviderUpdateCmd 创建更新规则提供者命令
 func newRuleProviderUpdateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "update <name>",
-		Short: "更新规则提供者订阅",
-		Long:  `触发 Mihomo 更新指定规则提供者的订阅配置。`,
+		Use:     "update <name>",
+		Short:   "更新规则提供者订阅",
+		Long:    `触发 Mihomo 更新指定规则提供者的订阅配置。`,
 		Example: `  mihomo-cli rule provider update my-rule-provider`,
-		Args: cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runRuleProviderUpdate(cmd, args[0])
 		},

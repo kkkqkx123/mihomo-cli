@@ -165,7 +165,7 @@ func newConfigSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "设置配置项",
-		Long: `设置指定的配置项。支持的配置项：api.address, api.secret, api.timeout, proxy.test_url, proxy.timeout, proxy.concurrent, proxy.batch_size, proxy.max_nodes, output.file, output.mode, output.append`,
+		Long:  `设置指定的配置项。支持的配置项：api.address, api.secret, api.timeout, proxy.test_url, proxy.timeout, proxy.concurrent, proxy.batch_size, proxy.max_nodes, output.file, output.mode, output.append`,
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConfigSet(args[0], args[1])

@@ -38,13 +38,13 @@ const (
 
 // RouteEntry 路由表项
 type RouteEntry struct {
-	Destination string     `json:"destination"`
-	Gateway     string     `json:"gateway"`
-	Interface   string     `json:"interface"`
-	Metric      int        `json:"metric"`
-	IPVersion   IPVersion  `json:"ip_version"`   // IPv4 或 IPv6
-	Netmask     string     `json:"netmask,omitempty"` // 子网掩码（仅 IPv4 Windows）
-	Flags       string     `json:"flags,omitempty"`    // 路由标志（仅 macOS）
+	Destination string    `json:"destination"`
+	Gateway     string    `json:"gateway"`
+	Interface   string    `json:"interface"`
+	Metric      int       `json:"metric"`
+	IPVersion   IPVersion `json:"ip_version"`        // IPv4 或 IPv6
+	Netmask     string    `json:"netmask,omitempty"` // 子网掩码（仅 IPv4 Windows）
+	Flags       string    `json:"flags,omitempty"`   // 路由标志（仅 macOS）
 }
 
 // IPTablesRule iptables 规则
@@ -111,8 +111,8 @@ type RouteFilter struct {
 
 // RouteSnapshot 路由快照
 type RouteSnapshot struct {
-	ID        string      `json:"id"`
+	ID        string       `json:"id"`
 	Routes    []RouteEntry `json:"routes"`
-	CreatedAt time.Time   `json:"created_at"`
-	Note      string      `json:"note"`
+	CreatedAt time.Time    `json:"created_at"`
+	Note      string       `json:"note"`
 }

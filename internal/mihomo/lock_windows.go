@@ -11,7 +11,7 @@ import (
 
 // windowsFileLock Windows 平台文件锁实现
 type windowsFileLock struct {
-	file *os.File
+	file   *os.File
 	handle windows.Handle
 }
 

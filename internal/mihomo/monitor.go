@@ -163,13 +163,13 @@ func (pm *ProcessMonitor) notifyFuncs(pid int, event string, data interface{}) {
 
 // HealthCheckMonitor 健康检查监控器
 type HealthCheckMonitor struct {
-	pm         *ProcessMonitor
-	checkFunc  func(ctx context.Context) error
-	interval   time.Duration
-	stopChan   chan struct{}
-	wg         sync.WaitGroup
-	mu         sync.RWMutex
-	running    bool
+	pm        *ProcessMonitor
+	checkFunc func(ctx context.Context) error
+	interval  time.Duration
+	stopChan  chan struct{}
+	wg        sync.WaitGroup
+	mu        sync.RWMutex
+	running   bool
 }
 
 // NewHealthCheckMonitor 创建健康检查监控器

@@ -12,10 +12,10 @@ import (
 type ConfigKeyType string
 
 const (
-	ConfigTypeString  ConfigKeyType = "string"
-	ConfigTypeBool    ConfigKeyType = "bool"
-	ConfigTypeInt     ConfigKeyType = "int"
-	ConfigTypeObject  ConfigKeyType = "object"
+	ConfigTypeString ConfigKeyType = "string"
+	ConfigTypeBool   ConfigKeyType = "bool"
+	ConfigTypeInt    ConfigKeyType = "int"
+	ConfigTypeObject ConfigKeyType = "object"
 )
 
 // ConfigKeyInfo 配置键信息

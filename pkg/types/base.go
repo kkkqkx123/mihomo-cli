@@ -2,10 +2,10 @@ package types
 
 // VersionInfo 版本信息响应
 type VersionInfo struct {
-	Version     string `json:"version"`
-	PreRelease  bool   `json:"premium"`
-	HomeDir     string `json:"homeDir,omitempty"`
-	ConfigPath  string `json:"configPath,omitempty"`
+	Version    string `json:"version"`
+	PreRelease bool   `json:"premium"`
+	HomeDir    string `json:"homeDir,omitempty"`
+	ConfigPath string `json:"configPath,omitempty"`
 }
 
 // LogInfo 日志信息（用于 WebSocket 流）

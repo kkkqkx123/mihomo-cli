@@ -13,10 +13,10 @@ import (
 
 // MockAPIClient is a mock implementation of the API client for testing
 type MockAPIClient struct {
-	TestDelayFunc        func(ctx context.Context, name string, testURL string, timeout int) (uint16, error)
-	GetProxyFunc         func(ctx context.Context, name string) (*types.ProxyInfo, error)
-	GroupDelayFunc       func(ctx context.Context, groupName string, testURL string, timeout int) (map[string]uint16, error)
-	ListProvidersFunc    func(ctx context.Context) (map[string]*types.ProviderInfo, error)
+	TestDelayFunc         func(ctx context.Context, name string, testURL string, timeout int) (uint16, error)
+	GetProxyFunc          func(ctx context.Context, name string) (*types.ProxyInfo, error)
+	GroupDelayFunc        func(ctx context.Context, groupName string, testURL string, timeout int) (map[string]uint16, error)
+	ListProvidersFunc     func(ctx context.Context) (map[string]*types.ProviderInfo, error)
 	TestProviderProxyFunc func(ctx context.Context, providerName, proxyName string, testURL string, timeout int) (uint16, error)
 }
 
@@ -470,7 +470,7 @@ func TestTestNodes_ContextCancellation(t *testing.T) {
 		t.Fatal("DelayTester should not be nil")
 	}
 
-	_ = ctx      // Use ctx to avoid unused variable warning
+	_ = ctx       // Use ctx to avoid unused variable warning
 	_ = nodeNames // Use nodeNames to avoid unused variable warning
 }
 

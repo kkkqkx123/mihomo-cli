@@ -31,9 +31,9 @@ func NewDNSCmd() *cobra.Command {
 // newDNSQueryCmd 创建 DNS 查询命令
 func newDNSQueryCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "query <domain>",
-		Short:   "执行 DNS 查询",
-		Long:    `执行 DNS 查询，支持 A、AAAA、CNAME、MX、TXT、NS、SRV 等记录类型。`,
+		Use:   "query <domain>",
+		Short: "执行 DNS 查询",
+		Long:  `执行 DNS 查询，支持 A、AAAA、CNAME、MX、TXT、NS、SRV 等记录类型。`,
 		Example: `  mihomo-cli dns query example.com
   mihomo-cli dns query example.com --type AAAA
   mihomo-cli dns query example.com --type MX

@@ -75,7 +75,7 @@ func (f *TrafficFormatter) FormatWatchHeader() {
 // FormatWatchLine 格式化 Watch 模式单行数据
 func (f *TrafficFormatter) FormatWatchLine(traffic *types.TrafficInfo, totalUp, totalDown int64) {
 	fmt.Fprintf(f.w, "\033[4;0H") // 移动到第4行
-	fmt.Fprintf(f.w, "\033[K")   // 清除该行
+	fmt.Fprintf(f.w, "\033[K")    // 清除该行
 	fmt.Fprintf(f.w, "时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Fprintf(f.w, "\033[K")
 	fmt.Fprintf(f.w, "上传速度: %s\n", formatSpeed(traffic.Up))
@@ -134,7 +134,7 @@ func (f *MemoryFormatter) FormatWatchHeader() {
 // FormatWatchLine 格式化 Watch 模式单行数据
 func (f *MemoryFormatter) FormatWatchLine(memory *types.MemoryInfo) {
 	fmt.Fprintf(f.w, "\033[4;0H") // 移动到第4行
-	fmt.Fprintf(f.w, "\033[K")   // 清除该行
+	fmt.Fprintf(f.w, "\033[K")    // 清除该行
 	fmt.Fprintf(f.w, "时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Fprintf(f.w, "\033[K")
 	fmt.Fprintf(f.w, "当前使用: %s\n", formatBytes(memory.Inuse))

@@ -12,8 +12,8 @@ import (
 
 // CLIConfig CLI 工具配置
 type CLIConfig struct {
-	API    APIConfig          `mapstructure:"api" yaml:"api"`
-	Proxy  ProxyConfig        `mapstructure:"proxy" yaml:"proxy"`
+	API    APIConfig           `mapstructure:"api" yaml:"api"`
+	Proxy  ProxyConfig         `mapstructure:"proxy" yaml:"proxy"`
 	Output output.OutputConfig `mapstructure:"output" yaml:"output"` // 输出配置
 }
 
@@ -21,16 +21,16 @@ type CLIConfig struct {
 type APIConfig struct {
 	Address string `mapstructure:"address" yaml:"address"` // API 地址，如 http://127.0.0.1:9090
 	Secret  string `mapstructure:"secret" yaml:"secret"`   // API 密钥
-	Timeout int    `mapstructure:"timeout" yaml:"timeout"`  // 请求超时（秒）
+	Timeout int    `mapstructure:"timeout" yaml:"timeout"` // 请求超时（秒）
 }
 
 // ProxyConfig 代理测试配置
 type ProxyConfig struct {
-	TestURL    string `mapstructure:"test_url" yaml:"test_url"`       // 测试 URL
-	Timeout    int    `mapstructure:"timeout" yaml:"timeout"`         // 测速超时时间（毫秒）
-	Concurrent int    `mapstructure:"concurrent" yaml:"concurrent"`   // 并发测试数
-	BatchSize  int    `mapstructure:"batch_size" yaml:"batch_size"`   // 每批次测试的节点数
-	MaxNodes   int    `mapstructure:"max_nodes" yaml:"max_nodes"`     // 最大测试节点数
+	TestURL    string `mapstructure:"test_url" yaml:"test_url"`     // 测试 URL
+	Timeout    int    `mapstructure:"timeout" yaml:"timeout"`       // 测速超时时间（毫秒）
+	Concurrent int    `mapstructure:"concurrent" yaml:"concurrent"` // 并发测试数
+	BatchSize  int    `mapstructure:"batch_size" yaml:"batch_size"` // 每批次测试的节点数
+	MaxNodes   int    `mapstructure:"max_nodes" yaml:"max_nodes"`   // 最大测试节点数
 }
 
 // APIHostPort 返回 API 地址的 host:port 形式（用于内核控制接口）。
@@ -139,8 +139,8 @@ func GetDefaultConfig() *CLIConfig {
 			TestURL:    "",
 			Timeout:    10000, // 默认 10 秒
 			Concurrent: 10,
-			BatchSize:  100,  // 默认每批次 100 个节点
-			MaxNodes:   500,  // 默认最多测试 500 个节点
+			BatchSize:  100, // 默认每批次 100 个节点
+			MaxNodes:   500, // 默认最多测试 500 个节点
 		},
 		Output: output.OutputConfig{
 			File:   "",

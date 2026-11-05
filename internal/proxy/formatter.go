@@ -72,7 +72,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 
 	// 分离代理组和节点
 	var groups, nodes []string
-	
+
 	for name, proxy := range proxies {
 		if len(proxy.All) > 0 {
 			// 代理组
@@ -82,7 +82,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 			nodes = append(nodes, name)
 		}
 	}
-	
+
 	// 排序
 	if sortBy == "delay" {
 		// 按延迟排序时，代理组和节点一起排序
@@ -90,7 +90,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 		allNames = append(allNames, groups...)
 		allNames = append(allNames, nodes...)
 		allNames = SortProxies(proxies, sortBy)
-		
+
 		// 显示所有节点和代理组（已排序）
 		for _, name := range allNames {
 			proxy := proxies[name]
@@ -110,7 +110,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 				}); err != nil {
 					return err
 				}
-				
+
 				// 如果只显示一个代理组，显示所有节点
 				if showOnlyOneGroup {
 					for _, nodeName := range proxy.All {
@@ -163,7 +163,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 			}); err != nil {
 				return err
 			}
-			
+
 			// 如果只显示一个代理组，显示所有节点
 			if showOnlyOneGroup {
 				for _, nodeName := range proxy.All {
@@ -183,7 +183,7 @@ func formatProxyTableWithSort(proxies map[string]*types.ProxyInfo, showOnlyOneGr
 				}
 			}
 		}
-		
+
 		// 2. 显示所有节点（包括逻辑节点）
 		sort.Strings(nodes)
 		for _, name := range nodes {
@@ -400,7 +400,7 @@ func FormatCurrentProxy(groupName string, proxy *types.ProxyInfo) error {
 	fmt.Fprintf(output.GetGlobalStdout(), "  代理组：%s\n", groupName)
 	fmt.Fprintf(output.GetGlobalStdout(), "  当前节点：%s\n", current)
 	fmt.Fprintf(output.GetGlobalStdout(), "  类型：%s\n", proxy.Type)
-	
+
 	// 显示延迟（带颜色）
 	if proxy.Delay > 0 {
 		delayStr := formatDelayWithColor(proxy.Delay, true)
@@ -410,6 +410,6 @@ func FormatCurrentProxy(groupName string, proxy *types.ProxyInfo) error {
 	} else {
 		fmt.Fprintf(output.GetGlobalStdout(), "  状态：%s\n", output.RedString("超时"))
 	}
-	
+
 	return nil
 }

@@ -9,10 +9,10 @@ import (
 
 // LogStatistics 日志统计信息
 type LogStatistics struct {
-	TotalCount int                        `json:"total_count"`
-	LevelCount map[string]int             `json:"level_count"`
-	ErrorRate  float64                    `json:"error_rate"`
-	TopErrors  []ErrorFrequency           `json:"top_errors"`
+	TotalCount int              `json:"total_count"`
+	LevelCount map[string]int   `json:"level_count"`
+	ErrorRate  float64          `json:"error_rate"`
+	TopErrors  []ErrorFrequency `json:"top_errors"`
 }
 
 // ErrorFrequency 错误频率统计

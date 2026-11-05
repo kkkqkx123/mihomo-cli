@@ -17,9 +17,9 @@ func NewSystemChecker() *SystemChecker {
 
 // SystemStatus 系统配置状态
 type SystemStatus struct {
-	ProxyEnabled bool   // 系统代理是否启用
-	ProxyServer  string // 代理服务器地址
-	TunDetected  bool   // 是否检测到TUN设备
+	ProxyEnabled bool     // 系统代理是否启用
+	ProxyServer  string   // 代理服务器地址
+	TunDetected  bool     // 是否检测到TUN设备
 	Warnings     []string // 警告信息
 }
 
@@ -41,7 +41,7 @@ func (sc *SystemChecker) CheckSystemConfig() (*SystemStatus, error) {
 
 			// 如果系统代理启用，发出警告
 			if proxyStatus.Enabled {
-				status.Warnings = append(status.Warnings, 
+				status.Warnings = append(status.Warnings,
 					fmt.Sprintf("System proxy is enabled: %s", proxyStatus.Server),
 					"This may affect network connectivity if Mihomo is not running",
 					"To disable, run: mihomo-cli sysproxy set off")

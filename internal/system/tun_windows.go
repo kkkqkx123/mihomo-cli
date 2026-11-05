@@ -63,10 +63,10 @@ func parsePowerShellTUNOutput(output []byte) ([]TUNState, error) {
 
 	// 定义 JSON 结构
 	type netAdapter struct {
-		Name                string `json:"Name"`
+		Name                 string `json:"Name"`
 		InterfaceDescription string `json:"InterfaceDescription"`
-		Status              string `json:"Status"`
-		MacAddress          string `json:"MacAddress"`
+		Status               string `json:"Status"`
+		MacAddress           string `json:"MacAddress"`
 	}
 
 	// 尝试解析为数组

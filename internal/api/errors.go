@@ -11,16 +11,16 @@ import (
 type ErrorCode int
 
 const (
-	ErrSuccess       ErrorCode = 0 // 成功
-	ErrGeneral       ErrorCode = 1 // 通用错误
-	ErrAPIConnection ErrorCode = 2 // API 连接错误
-	ErrAPIAuth       ErrorCode = 3 // API 认证错误
-	ErrInvalidArgs   ErrorCode = 4 // 参数无效
-	ErrNotFound      ErrorCode = 5 // 资源不存在
-	ErrPermission    ErrorCode = 6 // 权限不足
-	ErrFileOperation ErrorCode = 7 // 文件操作错误
-	ErrYAMLParse     ErrorCode = 8 // YAML 解析错误
-	ErrTimeout       ErrorCode = 9 // 请求超时
+	ErrSuccess       ErrorCode = 0  // 成功
+	ErrGeneral       ErrorCode = 1  // 通用错误
+	ErrAPIConnection ErrorCode = 2  // API 连接错误
+	ErrAPIAuth       ErrorCode = 3  // API 认证错误
+	ErrInvalidArgs   ErrorCode = 4  // 参数无效
+	ErrNotFound      ErrorCode = 5  // 资源不存在
+	ErrPermission    ErrorCode = 6  // 权限不足
+	ErrFileOperation ErrorCode = 7  // 文件操作错误
+	ErrYAMLParse     ErrorCode = 8  // YAML 解析错误
+	ErrTimeout       ErrorCode = 9  // 请求超时
 	ErrAPIError      ErrorCode = 10 // API 返回错误
 )
 

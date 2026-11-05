@@ -61,12 +61,12 @@ func runConnList(cmd *cobra.Command, args []string) error {
 // newConnCloseCmd 创建关闭连接命令
 func newConnCloseCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "close <id>",
-		Short: "关闭指定连接",
-		Long:  `关闭指定 ID 的连接。`,
+		Use:     "close <id>",
+		Short:   "关闭指定连接",
+		Long:    `关闭指定 ID 的连接。`,
 		Example: `  mihomo-cli conn close abc123`,
-		Args: cobra.ExactArgs(1),
-		RunE: runConnClose,
+		Args:    cobra.ExactArgs(1),
+		RunE:    runConnClose,
 	}
 
 	return cmd
@@ -96,12 +96,12 @@ func runConnClose(cmd *cobra.Command, args []string) error {
 // newConnCloseAllCmd 创建关闭所有连接命令
 func newConnCloseAllCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "close-all",
-		Short: "关闭所有连接",
-		Long:  `关闭所有活跃的连接。`,
+		Use:     "close-all",
+		Short:   "关闭所有连接",
+		Long:    `关闭所有活跃的连接。`,
 		Example: `  mihomo-cli conn close-all`,
-		Args: cobra.NoArgs,
-		RunE: runConnCloseAll,
+		Args:    cobra.NoArgs,
+		RunE:    runConnCloseAll,
 	}
 
 	return cmd

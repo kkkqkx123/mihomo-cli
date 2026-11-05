@@ -16,10 +16,10 @@ type MemoryInfo struct {
 
 // TrafficSnapshot 流量快照（包含累计数据）
 type TrafficSnapshot struct {
-	CurrentUpSpeed   int64 `json:"current_up_speed"`    // 当前上传速度 (bytes/s)
-	CurrentDownSpeed int64 `json:"current_down_speed"`  // 当前下载速度 (bytes/s)
-	TotalUpload      int64 `json:"total_upload"`        // 总上传流量 (bytes)
-	TotalDownload    int64 `json:"total_download"`      // 总下载流量 (bytes)
+	CurrentUpSpeed   int64 `json:"current_up_speed"`   // 当前上传速度 (bytes/s)
+	CurrentDownSpeed int64 `json:"current_down_speed"` // 当前下载速度 (bytes/s)
+	TotalUpload      int64 `json:"total_upload"`       // 总上传流量 (bytes)
+	TotalDownload    int64 `json:"total_download"`     // 总下载流量 (bytes)
 }
 
 // MemorySnapshot 内存快照
