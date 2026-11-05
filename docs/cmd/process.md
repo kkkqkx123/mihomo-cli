@@ -99,6 +99,11 @@ mihomo-cli status -o json
 
 列出所有正在运行的 Mihomo 进程及其详细信息。
 
+- 来源分为 `托管`（本 CLI 启动）、`systemd`（由 systemd 单元管理）与 `外部`。
+- systemd 管理方式通过 `/proc/<pid>/cgroup` 识别，并用 systemctl 的 MainPID 交叉校验；systemctl 不可用时信任 cgroup。
+- 进程可执行文件名精确匹配 `mihomo` / `mihomo.exe`，不会把 `mihomo-cli`、shell 等误判为内核。
+- 能从进程命令行解析到配置文件时，API 端口会从该配置的 `external-controller` 中提取；无法解析时显示“未知”。
+
 **语法：**
 ```bash
 mihomo-cli ps

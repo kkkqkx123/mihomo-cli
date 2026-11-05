@@ -233,3 +233,30 @@ func StopAllMihomoProcesses(includeUnmanaged bool) error {
 	output.Printf("停止完成: 成功 %d 个\n", stoppedCount)
 	return nil
 }
+
+// extractConfigFileFromCommandLine 从 mihomo 进程命令行中解析配置文件路径。
+// 支持 -f/--config <path> 与 -f=<path> 形式；无 -f 时，若存在 -d/--directory，
+// 则使用该目录下的 config.yaml（mihomo 默认配置文件名）。
+func extractConfigFileFromCommandLine(cmdline string) string {
+	fields := strings.Fields(cmdline)
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
+		for _, flag := range []string{"-f", "--config"} {
+			if field == flag && i+1 < len(fields) {
+				return fields[i+1]
+			}
+			if strings.HasPrefix(field, flag+"=") {
+				return strings.TrimPrefix(field, flag+"=")
+			}
+		}
+		for _, flag := range []string{"-d", "--directory"} {
+			if field == flag && i+1 < len(fields) {
+				return filepath.Join(fields[i+1], "config.yaml")
+			}
+			if strings.HasPrefix(field, flag+"=") {
+				return filepath.Join(strings.TrimPrefix(field, flag+"="), "config.yaml")
+			}
+		}
+	}
+	return ""
+}

@@ -82,6 +82,7 @@ func scanManagedProcesses() ([]ProcessInfo, error) {
 			IsVerified: true,
 			Source:     SourceManaged,
 			Verified:   verified,
+			Manager:    StatusManagerCLI,
 			ConfigFile: meta.ConfigFile,
 		})
 	}
@@ -118,13 +119,27 @@ func scanExternalProcesses(managed []ProcessInfo) ([]ProcessInfo, error) {
 		}
 
 		cmdline, _ := GetProcessCommandLine(pid)
+		manager, unit := detectProcessManager(pid)
+
+		apiPort := ""
+		cfgFile := extractConfigFileFromCommandLine(cmdline)
+		if cfgFile != "" {
+			if port, err := extractAPIPortFromConfig(cfgFile); err == nil {
+				apiPort = port
+			}
+		}
+
 		out = append(out, ProcessInfo{
 			PID:        pid,
 			ExecPath:   execPath,
+			APIPort:    apiPort,
 			CmdLine:    cmdline,
 			IsVerified: true,
 			Source:     SourceExternal,
 			Verified:   VerifyLikely,
+			Manager:    manager,
+			Unit:       unit,
+			ConfigFile: cfgFile,
 		})
 	}
 

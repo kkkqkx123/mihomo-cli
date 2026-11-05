@@ -172,22 +172,22 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 			output.Warning("高风险配置警告: %v", err)
 		}
 	} else {
-		// 未指定重载路径时，仅从显式 --toml 或用户目录 TOML 获取
-		tomlConfigPath, err := config.FindTomlConfigPath(tomlFile)
-		if err != nil {
-			return pkgerrors.ErrConfig("查找 TOML 配置失败，请使用 --path 显式指定 Mihomo 配置", err)
-		}
-		tomlCfg, err := config.LoadTomlConfig(tomlConfigPath)
-		if err != nil {
-			return pkgerrors.ErrConfig("加载配置失败", err)
-		}
-		actualConfigPath = tomlCfg.Mihomo.ConfigFile
-		if actualConfigPath == "" {
-			return pkgerrors.ErrConfig("TOML 未配置 Mihomo 文件，请使用 --path 显式指定", nil)
+		// 未指定路径时，优先使用 TOML 中显式配置的 Mihomo 文件；
+		// 默认部署已不再把 Mihomo 文件写入 TOML，此时把空路径交给 Mihomo，
+		// 由内核重载自己启动时使用的当前配置文件。
+		if tomlConfigPath, err := config.FindTomlConfigPath(tomlFile); err == nil {
+			if tomlCfg, err := config.LoadTomlConfig(tomlConfigPath); err == nil && tomlCfg.Mihomo.ConfigFile != "" {
+				actualConfigPath = tomlCfg.Mihomo.ConfigFile
+				if !filepath.IsAbs(actualConfigPath) {
+					if abs, err := filepath.Abs(actualConfigPath); err == nil {
+						actualConfigPath = abs
+					}
+				}
+			}
 		}
 	}
 
-	// 在重载前备份当前配置
+	// 在重载前备份当前配置（无法确定本地文件时跳过，不影响 API 重载）
 	if actualConfigPath != "" {
 		output.Println("重载前备份当前配置...")
 		backupHandler := config.NewBackupHandler(tomlFile)
@@ -207,14 +207,16 @@ func runMihomoReload(ctx context.Context, configPath string, force bool) error {
 		viper.GetInt("api.timeout"),
 	)
 
-	// 执行重载
-	if err := client.ReloadConfig(ctx, configPath, force); err != nil {
+	// 执行重载：空路径表示让 Mihomo 重载其当前配置文件
+	if err := client.ReloadConfig(ctx, actualConfigPath, force); err != nil {
 		return errors.WrapAPIError("重载配置失败", err)
 	}
 
 	output.Success("配置已重载")
-	if configPath != "" {
-		output.Printf("  配置文件: %s\n", configPath)
+	if actualConfigPath != "" {
+		output.Printf("  配置文件: %s\n", actualConfigPath)
+	} else {
+		output.Println("  配置文件: (Mihomo 当前配置)")
 	}
 	if force {
 		output.Println("  模式: 强制重载")

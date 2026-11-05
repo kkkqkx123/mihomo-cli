@@ -30,5 +30,7 @@ type ProcessInfo struct {
 	IsVerified bool        // 是否验证为 Mihomo 进程（confirmed 或 likely）
 	Source     Source      // managed / external
 	Verified   VerifyLevel // confirmed / likely
+	Manager    string      // systemd / cli / external
+	Unit       string      // systemd 单元名
 	ConfigFile string      // managed 实例对应的 mihomo 配置文件
 }
